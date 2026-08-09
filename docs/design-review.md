@@ -111,10 +111,10 @@ The thin-wrapper objection remains legitimate. Before applying, an OffCKB mainta
 
 Do **not** present the grant draft as application-ready until:
 
-- [ ] **Accountability:** named human operator/applicant, email, Discord, and payout entity/wallet are added.
-- [ ] **Feasibility:** a throwaway slice captures committed and script-rejected transactions, cycles, one Cell assertion, and two equal clean-run digests.
-- [ ] **Demand:** one CKB maintainer/project agrees to trial the format and supplies a concrete flow. Prefer a completed Spark project; CKB-UGMP is a possible Spore/CCC candidate but is not confirmed.
-- [ ] **Upstream fit:** an OffCKB maintainer responds publicly on standalone vs plugin/subcommand placement and built-in script references.
+- [ ] **Accountability:** named human operator/applicant, email, Discord, and payout entity/wallet are added ([#4](https://github.com/Akane-CN/spark-verify/issues/4)).
+- [ ] **Feasibility:** a throwaway slice captures committed and script-rejected transactions, cycles, one Cell assertion, and two equal clean-run digests ([#1](https://github.com/Akane-CN/spark-verify/issues/1)).
+- [ ] **Demand:** one CKB maintainer/project agrees to trial the format and supplies a concrete flow. Prefer a completed Spark project; CKB-UGMP is a possible Spore/CCC candidate but is not confirmed ([#3](https://github.com/Akane-CN/spark-verify/issues/3)).
+- [ ] **Upstream fit:** an OffCKB maintainer responds publicly on standalone vs plugin/subcommand placement and built-in script references ([#2](https://github.com/Akane-CN/spark-verify/issues/2)).
 
 These gates should be issues with linked evidence, not claims hidden in a proposal edit.
 

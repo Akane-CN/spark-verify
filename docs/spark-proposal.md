@@ -301,9 +301,9 @@ The contribution also fits Spark's verification constraint directly: it reduces 
 
 This application should be posted only after all four are true:
 
-- [ ] accountable human applicant/contact and payout details are added;
-- [ ] a two-run feasibility slice exists with real output;
-- [ ] one completed Spark project/adopter is named and agrees to the example;
-- [ ] OffCKB maintainer feedback on overlap/integration is linked.
+- [ ] accountable human applicant/contact and payout details are added ([#4](https://github.com/Akane-CN/spark-verify/issues/4));
+- [ ] a two-run feasibility slice exists with real output ([#1](https://github.com/Akane-CN/spark-verify/issues/1));
+- [ ] one completed Spark project/adopter is named and agrees to the example ([#3](https://github.com/Akane-CN/spark-verify/issues/3));
+- [ ] OffCKB maintainer feedback on overlap/integration is linked ([#2](https://github.com/Akane-CN/spark-verify/issues/2)).
 
 Until then, this repository is an RFC and budget draft, not evidence that the proposed runner already works.

@@ -109,7 +109,12 @@ Please open an issue with a concrete transaction flow or a manifest that cannot 
 
 ## Grant status
 
-The repository contains an application **draft**, not a submitted or approved grant. Before posting it to Nervos Talk, the pre-submission gates in [`docs/design-review.md`](docs/design-review.md) should be closed: a two-run feasibility spike, one named adopter/example, OffCKB maintainer feedback, and an accountable human contact for the applicant.
+The repository contains an application **draft**, not a submitted or approved grant. Before posting it to Nervos Talk, close the pre-submission gates in [`docs/design-review.md`](docs/design-review.md):
+
+- [#1 — committed/rejected transaction feasibility and repeatable digest](https://github.com/Akane-CN/spark-verify/issues/1)
+- [#2 — OffCKB package boundary and built-in script references](https://github.com/Akane-CN/spark-verify/issues/2)
+- [#3 — confirmed completed-Spark-project example](https://github.com/Akane-CN/spark-verify/issues/3)
+- [#4 — accountable applicant, contact, and payout details](https://github.com/Akane-CN/spark-verify/issues/4)
 
 ## License
 
