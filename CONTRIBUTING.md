@@ -1,0 +1,56 @@
+# Contributing
+
+Spark Verify is in RFC stage. The most valuable contribution is a concrete CKB flow that proves the vocabulary useful—or insufficient.
+
+## Good feedback
+
+Open an issue that includes:
+
+1. repository/project link;
+2. CKB toolchain used today;
+3. transaction sequence in plain language;
+4. observable claim a reviewer needs to verify;
+5. whether the draft `cell`, `balance`, status/cycles/error vocabulary can express it;
+6. the smallest proposed field or semantic change if it cannot.
+
+Examples of useful questions:
+
+- How should a rejected CCC transaction be handed to the runner?
+- Does an OffCKB built-in script have a stable name and metadata shape?
+- Which exact script group should an error expectation identify?
+- Is a step/output-index reference stable enough for your flow?
+- Does your token data use the standard 16-byte little-endian amount prefix?
+
+“Add a generic plugin system” is not a v0.1 proposal unless accompanied by a real deliverable that cannot use a repository command.
+
+## RFC changes
+
+Normative changes should include:
+
+- motivation and a concrete example;
+- before/after TOML;
+- parser/schema validation rules;
+- report and digest effects;
+- valid and invalid conformance fixtures;
+- compatibility impact.
+
+Unknown keys are errors, so renames are breaking until a compatibility rule is documented.
+
+## Implementation standards (once coding starts)
+
+- TypeScript strict mode;
+- no floating-point asset arithmetic;
+- explicit timeouts and cleanup;
+- no shell-string interpolation for untrusted paths;
+- redaction tests for logs/reports;
+- unit tests plus real OffCKB integration fixtures;
+- clean-run digest reproducibility checked twice in CI;
+- Linux required, macOS targeted, Windows support claimed only after real verification.
+
+## Security
+
+Read [`SECURITY.md`](SECURITY.md) before running any future implementation. A manifest executes repository commands and is not safe merely because it is declarative TOML.
+
+## License
+
+By contributing, you agree that your contribution is licensed under the repository's MIT License.

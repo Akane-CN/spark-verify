@@ -1,0 +1,116 @@
+# Spark Verify
+
+**Executable acceptance claims for CKB projects.**
+
+> **Status: pre-implementation RFC.** There is no released CLI or npm package yet. The manifest and report formats are drafts and may change in response to community and OffCKB maintainer feedback.
+
+Spark Verify proposes a small `verify.toml` format and a runner that turns a CKB project's “How to Verify” section into a repeatable local-devnet check. A project declares the transaction it wants to exercise and the observable on-chain claims that should hold. The runner uses the existing CKB stack—[OffCKB](https://github.com/ckb-devrel/offckb), [CCC](https://github.com/ckb-devrel/ccc), and [ckb-debugger](https://github.com/nervosnetwork/ckb-standalone-debugger)—and emits a structured report with comparable provenance and a digest.
+
+Spark Verify is **not** a substitute for code review, an audit, or a proof that a manifest lists every important property. It checks the claims that the author actually declared.
+
+## The gap
+
+The CKB toolchain already handles the hard lower layers:
+
+- **OffCKB** starts a local devnet, provides deterministic development accounts, deploys scripts, and records failed transactions.
+- **CCC** builds and signs CKB transactions.
+- **ckb-debugger** executes script groups and reports cycles and error codes.
+- **ckb-testtool** supports unit tests for individual CKB scripts.
+
+What is still mostly project-specific is the acceptance layer: start the environment, run a real flow, identify the transaction, query final Cells and balances, compare the observations with the project's claims, and package the evidence in one report. Spark Verify is deliberately limited to that layer.
+
+## Proposed workflow
+
+```text
+verify.toml + trusted repository
+            │
+            ▼
+  pinned OffCKB devnet
+            │
+            ▼
+ project step builds a signed transaction
+            │
+            ▼
+ runner submits it and records status/errors/cycles
+            │
+            ▼
+ final Cell and balance assertions
+            │
+            ▼
+ report.json + provenance-aware digest
+```
+
+Illustrative manifest:
+
+```toml
+[meta]
+name = "quorum-cell-basic"
+spec = "0.1.0-draft"
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.11"
+ckb-debugger = "1.1.1"
+
+[setup]
+accounts = 3
+
+[setup.scripts.quorum_lock]
+binary = "build/quorum_lock"
+hash_type = "type"
+
+[[step]]
+name = "create protected cell"
+run = "pnpm tsx scripts/create.ts"
+expect.status = "committed"
+expect.cycles.lt = 5_000_000
+
+[[step.expect.cell]]
+out_point = { step = "create protected cell", index = 0 }
+lock = { script = "quorum_lock", args = "0x…" }
+count = 1
+
+[[assert.balance]]
+account = 1
+gte = "999 CKB"
+```
+
+A transaction-producing command writes one signed CKB JSON-RPC transaction to the file named by `SPARK_VERIFY_RESULT`. The runner—not the command—submits it. This lets the runner observe both successful and rejected submissions consistently. Arbitrary stdout is treated as logs, never as a transaction protocol.
+
+See the full [draft `verify.toml` RFC](docs/verify-toml-rfc-v0.1.md).
+
+## Repository map
+
+- [`docs/verify-toml-rfc-v0.1.md`](docs/verify-toml-rfc-v0.1.md) — draft manifest, assertion, report, and digest semantics
+- [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application draft and budget
+- [`docs/design-review.md`](docs/design-review.md) — review findings, decisions, and pre-submission gates
+- [`SECURITY.md`](SECURITY.md) — command-execution and CI trust boundary
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to review field names and assertion coverage
+
+## Design principles
+
+1. **CKB-specific, not a generic test DSL.** Cell filters, script groups, capacity, UDT amounts, cycles, and CKB error codes are first-class.
+2. **Thin orchestration.** Existing tools remain responsible for devnet, transaction construction, deployment, and script execution.
+3. **Runner-owned submission.** Negative tests must retain the rejected transaction and node/debugger evidence.
+4. **No vacuous success.** A property assertion with no explicit count requires at least one matching Cell.
+5. **Comparable provenance.** Reports identify the manifest, Git commit/dirty state, genesis hash, tool versions, lockfiles, and deployed binary hashes.
+6. **Honest trust model.** `run` executes repository code. v0.1 is for trusted repositories and must not be run with production secrets.
+
+## What feedback is most useful
+
+- Can `cell`, `balance`, and step-level status/cycles/error checks express a real CKB deliverable you maintain?
+- Is runner-owned transaction submission practical for CCC-based repositories?
+- Should OffCKB built-in scripts use a dedicated `builtin = "…"` reference or a generic deployment-source model?
+- Is output targeting by `{ step, index }` sufficient for v0.1?
+- Which completed Spark project would be the best real conformance example?
+- Should this remain a standalone thin CLI, become an OffCKB subcommand/plugin, or define only the format and conformance suite?
+
+Please open an issue with a concrete transaction flow or a manifest that cannot express it.
+
+## Grant status
+
+The repository contains an application **draft**, not a submitted or approved grant. Before posting it to Nervos Talk, the pre-submission gates in [`docs/design-review.md`](docs/design-review.md) should be closed: a two-run feasibility spike, one named adopter/example, OffCKB maintainer feedback, and an accountable human contact for the applicant.
+
+## License
+
+[MIT](LICENSE)
