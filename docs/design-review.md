@@ -1,14 +1,14 @@
-# Design review and submission gates
+# Design review and funded go/no-go gates
 
-This review compares the original Spark Verify proposal/RFC with current Spark requirements and the CKB toolchain. It records the important changes made before creating the public repository.
+This review compares the original Spark Verify proposal/RFC with current Spark requirements and the CKB toolchain. It records the important changes made before creating the public repository and distinguishes submission administration from post-approval funded work.
 
 ## Verdict
 
-**Promising CKB-specific idea, but not application-ready yet.**
+**Application-ready as an explicitly pre-implementation Spark funding proposal; implementation and adoption risks remain.**
 
 The core gap is credible: OffCKB, CCC, ckb-debugger, and ckb-testtool do not currently define a shared, declarative end-to-end acceptance-claim format. The strongest version of Spark Verify is a **thin claim/evidence layer**, not a replacement devnet, transaction builder, debugger, CI platform, or audit tool.
 
-The original draft had enough semantic and validation gaps that implementing it immediately would likely freeze the wrong contract. The revised RFC addresses the obvious blockers, while four external readiness gates remain.
+The original draft had enough semantic and validation gaps that implementing it immediately would likely freeze the wrong contract. The revised RFC addresses the document-level blockers, and the administrative publication requirements are now satisfied. Three open technical, demand, and upstream-fit questions remain as funded Week 1 go/no-go gates rather than pre-submission prerequisites.
 
 ## Priority findings
 
