@@ -22,7 +22,7 @@ The original command submitted its own transaction and returned a hash. On CKB, 
 
 The original digest contract pinned the node but omitted OffCKB, ckb-debugger, repository dirty state, lockfiles, devnet genesis/config, and deployed binary hashes. It also used unspecified “canonical JSON.”
 
-**Decision:** record all semantically relevant provenance; use RFC 8785 JSON Canonicalization Scheme and SHA-256; include manifest/repository/tool/genesis/binary identity in the claims object; expose structured taint reasons. Do not claim arbitrary scripts are deterministic or that nondeterminism can always be detected.
+**Decision:** use RFC 8785 JSON Canonicalization Scheme and SHA-256 for two separate identities. The outcome digest covers normalized claim definitions, relevant deployed artifacts, and observations. The environment fingerprint covers Git, manifest bytes, tool/runtime versions, lockfiles, OS/architecture, and devnet provenance. A separate replay status carries scoped reasons. Equal outcomes do not imply equal environments, and neither hash proves arbitrary scripts deterministic.
 
 ### P0 — Arbitrary `run` commands are a security boundary
 
@@ -34,11 +34,11 @@ A `verify.toml` is executable repository code. A GitHub Action that automaticall
 
 The original stated that data/capacity properties apply to every match. Without cardinality, zero matches makes “every match” true, so a misspelled script could pass.
 
-**Decision:** property assertions imply `count.gte = 1`; absence requires explicit `count = 0`; absence cannot be combined with per-Cell properties.
+**Decision:** per-Cell properties impose effective `count.gte = 1`; absence requires an exact zero (`count = 0` or `count.eq = 0`); exact-zero absence cannot be combined with per-Cell properties.
 
 ### P1 — The proposal and RFC used incompatible TOML
 
-The proposal used `[[steps]]`, `setup.scripts = [...]`, inline `expect.cell = { ... }`, and `[[assert]] balance = { ... }`. The RFC used `[[step]]`, named script tables, `[[step.expect.cell]]`, and `[[assert.balance]]`.
+The proposal used `[[steps]]`, `setup.scripts = [...]`, inline `expect.cell = { ... }`, and `[[assert]] balance = { ... }`. The RFC used `[[step]]`, named script tables, `[[step.assert.cell]]`, and `[[assert.balance]]`.
 
 **Decision:** README and proposal use one canonical syntax matching the revised RFC.
 
@@ -71,6 +71,36 @@ Bare TOML integers do not cover unsigned 128-bit token values, JavaScript JSON n
 The draft included an RFC, kernel, parser, six-to-eight assertions, JSON and HTML reports, CLI, GitHub Action, two examples, npm publication, and self-verification over 6–8 weeks, with no numeric budget and no proof of deterministic replay.
 
 **Decision:** request the standard **$1,000**, remove HTML and hosted services, use a six-week plan with a Week 1 feasibility gate, and bind every budget line to evidence. A request above $1,000 is not justified before demand and feasibility are proven.
+
+## RFC draft 0.2 integration review
+
+The submitted draft 0.2 contributed two worthwhile changes: it separated outcome agreement from environment identity, and it named immediate state checks `step.assert` rather than mixing them into transaction expectations. Those changes are integrated.
+
+It was not published verbatim because several details would have regressed the stricter draft:
+
+- one “all parser-valid” script-reference fence assigned `type` four times and fails a real TOML parser;
+- `offckb = ">=0.3"` was described as pinned even though it is a range;
+- document revision 0.2, intended spec v0.1, and runner version were not clearly separated;
+- the structure table named `[[assert]]` although the canonical tables were `[[assert.cell]]` and `[[assert.balance]]`;
+- `data2`, the versioned result envelope, strict quantity strings, and exact 16-byte little-endian token decoding were lost;
+- the no-vacuous rule was extended to aggregate balances, which would make a legitimate zero balance unable to pass;
+- the proposed outcome digest omitted normalized expected comparators/values, allowing different claims to share a digest; and
+- outcome-level nondeterminism was worded as automatically detectable even though arbitrary repository code cannot be fully observed.
+
+The integrated RFC keeps exact tool pins and the stronger command, asset, and trust semantics while adopting the two-hash model. Full worked examples are parsed as complete manifests rather than treating alternative snippets as one document.
+
+## Proposal document revision 0.2 review
+
+The concise revision sharpened three useful points that are now reflected in the application draft: the specification/result contract is the reusable asset rather than a project-specific CI file; the implementation has explicit execution, manifest/assertion, and evidence layers; and Week 1 is an evidence-bound feasibility gate rather than assumed success.
+
+The proposal example was normalized to the RFC's canonical `[meta]` plus `[toolchain]` layout, exact current pins, `expect.status`, `[[step.assert.cell]]`, and direct `account = N` balance targeting. The following wording was not carried forward:
+
+- “deterministic” as an unqualified property of arbitrary repository commands;
+- the suggestion that a read-only RPC facade prevents repository code from reading host secrets or using other network/process interfaces;
+- identical cross-machine outcomes as a guaranteed milestone before the feasibility slice establishes the boundary; and
+- the separate PropCKB/fuzz-tool pitch, which distracts from the narrow funded scope.
+
+The application therefore keeps the uploaded revision's stronger framing while retaining the existing proposal's official-template structure, explicit CKB boundaries, budget evidence, current-vs-funded accounting, and linked go/no-go issues.
 
 ## Vocabulary assessment
 
@@ -112,7 +142,7 @@ The thin-wrapper objection remains legitimate. Before applying, an OffCKB mainta
 Do **not** present the grant draft as application-ready until:
 
 - [ ] **Accountability:** named human operator/applicant, email, Discord, and payout entity/wallet are added ([#4](https://github.com/Akane-CN/spark-verify/issues/4)).
-- [ ] **Feasibility:** a throwaway slice captures committed and script-rejected transactions, cycles, one Cell assertion, and two equal clean-run digests ([#1](https://github.com/Akane-CN/spark-verify/issues/1)).
+- [ ] **Feasibility:** a throwaway slice captures committed and script-rejected transactions, cycles, one Cell assertion, and two clean runs with equal outcome digests and environment fingerprints ([#1](https://github.com/Akane-CN/spark-verify/issues/1)).
 - [ ] **Demand:** one CKB maintainer/project agrees to trial the format and supplies a concrete flow. Prefer a completed Spark project; CKB-UGMP is a possible Spore/CCC candidate but is not confirmed ([#3](https://github.com/Akane-CN/spark-verify/issues/3)).
 - [ ] **Upstream fit:** an OffCKB maintainer responds publicly on standalone vs plugin/subcommand placement and built-in script references ([#2](https://github.com/Akane-CN/spark-verify/issues/2)).
 

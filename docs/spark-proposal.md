@@ -1,6 +1,6 @@
 # Spark Program | Spark Verify — Executable Acceptance Claims for CKB Projects
 
-> **Application status: draft, not yet submitted.** This document follows the current Spark proposal structure. The repository is pre-implementation and the readiness gates in [`design-review.md`](design-review.md) must be closed before posting to Nervos Talk.
+> **Application status: draft, not yet submitted.** This is proposal document revision **0.2** and accompanies the [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md). It follows the current Spark proposal structure. The repository is pre-implementation and the readiness gates in [`design-review.md`](design-review.md) must be closed before posting to Nervos Talk.
 
 ## 1. Project Overview
 
@@ -10,7 +10,9 @@
 
 **Project type:** Developer tool / manifest specification / npm CLI
 
-Spark Verify turns a free-form “How to Verify” section into an executable artifact. A project author declares the CKB toolchain pins, setup scripts, transaction-building steps, and expected on-chain outcomes. A reviewer runs one command against a local OffCKB devnet and receives a pass/fail report with transaction status, cycles, script errors, final Cell/balance observations, provenance, and a digest.
+Spark Verify turns a free-form “How to Verify” section into an executable artifact. A project author declares the CKB toolchain pins, setup scripts, transaction-building steps, and expected on-chain outcomes. A reviewer runs one command against a local OffCKB devnet and receives a pass/fail report with transaction status, cycles, script errors, final Cell/balance observations, an outcome digest, a separate environment fingerprint, and explicit replay qualification.
+
+The deliverable is not a project-specific CI script. Its reusable asset is a small manifest specification, assertion vocabulary, result protocol, and evidence model; the runner is the implementation that makes those contracts executable over existing CKB tools.
 
 It does not infer whether a project is correct and does not replace security review. It verifies only the claims the author chose to declare.
 
@@ -60,7 +62,44 @@ An author adds `verify.toml` and a small transaction-builder adapter to a truste
 6. records status, script group/error code, and cycles;
 7. queries final live Cells and balances;
 8. evaluates the declared claims; and
-9. writes JSON plus a human-readable summary and provenance-aware digest.
+9. writes JSON plus a human-readable summary, outcome digest, and environment fingerprint.
+
+An abbreviated, parser-valid manifest looks like this:
+
+```toml
+[meta]
+name = "quorum-cell-basic"
+spec = "0.1.0-draft.2"
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.11"
+ckb-debugger = "1.1.1"
+
+[setup]
+accounts = 3
+
+[setup.scripts.quorum_lock]
+binary = "build/quorum_lock"
+hash_type = "type"
+
+[[step]]
+name = "create protected cell"
+run = "pnpm tsx scripts/build-create.ts"
+
+[step.expect]
+status = "committed"
+cycles.lt = 5_000_000
+
+[[step.assert.cell]]
+out_point = { step = "create protected cell", index = 0 }
+lock = { script = "quorum_lock", args = "0x0102" }
+count = 1
+
+[[assert.balance]]
+account = 1
+gte = "999 CKB"
+```
 
 The MVP vocabulary is intentionally small:
 
@@ -87,6 +126,8 @@ Anything exotic remains repository code. Spark Verify does not become a general 
 
 **Dependencies:** OffCKB for devnet/deployment/proxy evidence; CCC-compatible JSON-RPC transactions from project adapters; ckb-debugger/OffCKB debug output for script groups, error codes, and cycles; a strict TOML parser plus runtime schema validation.
 
+The architecture keeps one execution kernel behind three public layers: OffCKB lifecycle and runner-owned submission; manifest parsing plus assertion evaluation; and report, CLI, and CI surfaces. Those boundaries map to the modules below.
+
 ### Modules
 
 1. **Manifest and conformance**
@@ -111,14 +152,14 @@ Anything exotic remains repository code. Spark Verify does not become a general 
 4. **Evidence and CLI**
    - JSON report and terminal diff;
    - Git/toolchain/genesis/binary provenance;
-   - RFC 8785 canonical claims and SHA-256 digest;
+   - RFC 8785 canonical outcome/environment objects and separate SHA-256 hashes;
    - GitHub Action wrapper.
 
 ### Key technical risks
 
 - **Rejected transactions:** a command that submits its own invalid transaction may never receive a queryable hash. v0.1 therefore requires the command to return a signed transaction and lets the runner submit it.
-- **False reproducibility:** pinning only CKB is insufficient. Reports also record OffCKB/ckb-debugger versions, repository revision/dirty state, lockfile hashes, genesis fingerprint, and deployed binary hashes.
-- **Arbitrary code execution:** `run` is trusted repository code. The first release includes an explicit security guide and a no-secrets CI example.
+- **False reproducibility:** pinning only CKB is insufficient. Reports separate outcome agreement from environment identity, record OffCKB/ckb-debugger/runtime versions, repository revision/dirty state, lockfile hashes, OS/architecture, genesis fingerprint, and deployed binary hashes, and never treat either hash as proof of determinism.
+- **Arbitrary code execution:** `run` is trusted repository code. The read-only loopback RPC facade protects the runner-owned submission path; it does not sandbox filesystem, process, or arbitrary network access. The first release includes an explicit security guide and a no-secrets CI example.
 - **Tool overlap:** the implementation remains an orchestration layer. Milestone 1 includes public OffCKB maintainer feedback on whether it should remain standalone or expose an upstream adapter.
 - **No adopter:** a real completed Spark example must be named and confirmed before this application is submitted.
 
@@ -130,7 +171,7 @@ Anything exotic remains repository code. Spark Verify does not become a general 
 - build a throwaway vertical slice that starts/stops OffCKB;
 - capture one committed and one script-rejected transaction through runner-owned submission;
 - record cycles and one final Cell assertion;
-- run the slice twice and publish whether the digest inputs are stable;
+- run the slice twice and publish whether both the outcome digest and environment fingerprint are stable;
 - request public feedback from OffCKB maintainers and confirm one real example/adopter.
 
 **Milestone:** feasibility report plus a go/no-go decision. If rejected-transaction evidence or stable replay is not feasible, publish the findings and reduce/stop the implementation rather than disguising the gap.
@@ -149,10 +190,10 @@ Anything exotic remains repository code. Spark Verify does not become a general 
 
 - implement the JSON report and terminal diff;
 - record Git/lockfile/toolchain/genesis/deployment provenance;
-- implement RFC 8785 canonicalization and digest/check commands;
+- implement RFC 8785 canonicalization, outcome/environment hashes, and digest/check commands;
 - add stable, tainted, dirty-tree, and version-drift fixtures.
 
-**Milestone:** two clean runs produce the same stable claims digest; a drifted run is visibly tainted.
+**Milestone:** two clean runs produce equal outcome digests and environment fingerprints; a drifted run changes the environment fingerprint and is visibly tainted even if its outcome still agrees.
 
 ### Week 5 — CI wrapper and real-project example
 
@@ -184,7 +225,7 @@ This is a pure technical-development proposal and deliberately stays at the stan
 | Feasibility slice + RFC/schema/conformance design | $200 | Published report; committed/rejected flow; maintainer/adopter feedback |
 | OffCKB execution adapter + result protocol | $300 | Fresh-devnet lifecycle and end-to-end fixtures |
 | Assertion engine + failure diffs | $250 | Status/error/cycles/cell/balance test matrix |
-| Report, provenance, digest + GitHub Action | $150 | Stable/tainted fixtures and passing workflow |
+| Report, two hashes, replay status + GitHub Action | $150 | Stable/tainted and cross-environment fixtures; passing workflow |
 | Real example, release docs, demo, final report | $100 | Clean-checkout verification and public release |
 | **Total** | **$1,000** | |
 
@@ -199,7 +240,7 @@ No budget is allocated to hosting or a web UI. npm, GitHub, and GitHub Actions a
 1. **`verify.toml` v0.1 specification**
    - normative document;
    - machine-readable parsed-TOML schema;
-   - valid/invalid manifests and digest fixtures.
+   - valid/invalid manifests plus outcome/environment digest fixtures.
 
 2. **`spark-verify` npm CLI**
    - `validate`, `run`, `digest`, and `check-digest`;
@@ -238,13 +279,14 @@ pnpm verify:release
 2. run the positive example and exit `0` with `pass: true`;
 3. run an intentionally failing claim and exit `1` with a field-level expected/observed diff;
 4. run a script-rejection example and identify the expected script group/error code;
-5. run the clean positive case twice and show equal stable digests;
-6. demonstrate that a tool-version mismatch hard-fails by default and is tainted when explicitly allowed;
-7. recompute each report digest successfully.
+5. run the clean positive case twice and show equal outcome digests and environment fingerprints;
+6. demonstrate that a tool-version mismatch hard-fails by default and, when explicitly allowed, changes the environment fingerprint and taints replay qualification;
+7. demonstrate a cross-environment case where equal outcomes do not falsely imply equal environments;
+8. recompute both report hashes successfully.
 
 A reviewer can verify the public release without line-by-line code review. Security-sensitive adoption still requires normal code review and must not rely on the report alone.
 
-Expected machine-readable fields include the exact versions, repository revision/dirty state, genesis hash, deployment binary hashes, step transaction/status/cycles, every assertion's expected and observed values, pass/fail, digest status, and taint reasons.
+Expected machine-readable fields include exact versions, repository revision/dirty state, OS/architecture, genesis hash, deployment binary hashes, step transaction/status/cycles, every assertion's expected and observed values, pass/fail, outcome digest, environment fingerprint, replay status, and scoped reasons.
 
 Target reviewer time after the first tool download: **15 minutes or less**. Week 1 will measure this estimate and update it with real timing rather than preserving an unsupported claim.
 
@@ -265,7 +307,7 @@ Not completed:
 - no machine-readable schema;
 - no OffCKB lifecycle adapter;
 - no committed/rejected feasibility slice;
-- no proof that two runs are digest-stable;
+- no proof that two runs have stable outcome and environment identities;
 - no GitHub Action;
 - no confirmed real-project adopter/example.
 

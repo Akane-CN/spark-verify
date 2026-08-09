@@ -46,9 +46,11 @@ The runner design requires:
 
 External network denial is recommended in CI but may not be enforceable portably in the MVP. The report must not imply a sandbox when none was applied.
 
-## Digest limitations
+## Hash and replay limitations
 
-The claims digest is tamper-evident only for the normalized claims/provenance object it covers. It is not a signature, an audit, a proof of completeness, or evidence that unrecorded side effects did not occur. A malicious author can omit important assertions.
+The outcome digest is tamper-evident only for the normalized claim definitions, relevant artifact identities, and observations it covers. The environment fingerprint is tamper-evident only for the recorded environment object. Replay status qualifies known drift and declared nondeterminism but cannot detect every dependency of arbitrary repository code.
+
+None of these fields is a signature, an audit, a proof of completeness, evidence that the environments were actually secure, or evidence that unrecorded side effects did not occur. A malicious author can omit important assertions or lie about undeclared dependencies.
 
 ## Reporting a vulnerability
 

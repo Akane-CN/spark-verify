@@ -30,11 +30,21 @@ Normative changes should include:
 - motivation and a concrete example;
 - before/after TOML;
 - parser/schema validation rules;
-- report and digest effects;
+- report, outcome-digest, environment-fingerprint, and replay-status effects;
 - valid and invalid conformance fixtures;
 - compatibility impact.
 
 Unknown keys are errors, so renames are breaking until a compatibility rule is documented.
+
+## Documentation checks
+
+Run the repository validator before proposing an RFC/documentation change:
+
+```bash
+./scripts/validate-docs.sh
+```
+
+It parses every TOML and JSON fence, applies the draft's semantic guardrails, checks local links and common secret patterns, runs the pinned Markdown linter, and runs `git diff --check`. Add `--external-links` when intentionally rechecking every public URL.
 
 ## Implementation standards (once coding starts)
 
@@ -44,7 +54,7 @@ Unknown keys are errors, so renames are breaking until a compatibility rule is d
 - no shell-string interpolation for untrusted paths;
 - redaction tests for logs/reports;
 - unit tests plus real OffCKB integration fixtures;
-- clean-run digest reproducibility checked twice in CI;
+- clean-run outcome digest and environment fingerprint checked twice in CI;
 - Linux required, macOS targeted, Windows support claimed only after real verification.
 
 ## Security
