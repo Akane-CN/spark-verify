@@ -93,7 +93,7 @@ The integrated RFC keeps exact tool pins and the stronger command, asset, and tr
 
 The concise revision sharpened three useful points that are now reflected in the application draft: the specification/result contract is the reusable asset rather than a project-specific CI file; the implementation has explicit execution, manifest/assertion, and evidence layers; and Week 1 is an evidence-bound feasibility gate rather than assumed success.
 
-The proposal example was normalized to the RFC's canonical `[meta]` plus `[toolchain]` layout, exact current pins, `expect.status`, `[[step.assert.cell]]`, and direct `account = N` balance targeting. The following wording was not carried forward:
+The proposal example was normalized to the RFC's canonical `[meta]` plus `[toolchain]` layout, exact current pins, `expect.tx`, `[[step.assert.cell]]`, and direct `account = N` balance targeting. The following wording was not carried forward:
 
 - “deterministic” as an unqualified property of arbitrary repository commands;
 - the suggestion that a read-only RPC facade prevents repository code from reading host secrets or using other network/process interfaces;
@@ -101,6 +101,18 @@ The proposal example was normalized to the RFC's canonical `[meta]` plus `[toolc
 - the separate PropCKB/fuzz-tool pitch, which distracts from the narrow funded scope.
 
 The application therefore keeps the uploaded revision's stronger framing while retaining the existing proposal's official-template structure, explicit CKB boundaries, budget evidence, current-vs-funded accounting, and linked go/no-go issues.
+
+### Post-publication asynchronous review
+
+A delayed independent spec pass arrived after draft 0.2 was first published. It identified three real inconsistencies and two scope questions. The follow-up decisions are:
+
+- restore `expect.tx` as the canonical uploaded vocabulary instead of retaining the older `expect.status` name, and bump the manifest/report draft selector to draft.3 rather than silently changing published draft.2 semantics;
+- require `[replay].dependencies` so replay qualification uses manifest data rather than an out-of-schema author declaration;
+- define a transaction-producing step by `expect.tx`, define a pure step by the absence of transaction expectations/result data, and run immediate assertions after either terminal transaction evidence or successful pure-command completion;
+- reduce the speculative five-way rejection taxonomy to `script` versus other terminal `node` rejection evidence for the MVP; and
+- restore a root dogfood manifest as proposal acceptance evidence without claiming that self-execution is an audit or proof.
+
+The documentation validator is intentionally not the future manifest schema implementation. It checks embedded syntax and selected high-risk draft invariants; the release still requires a machine-readable schema plus complete valid/invalid conformance fixtures.
 
 ## Vocabulary assessment
 
@@ -126,28 +138,35 @@ It will **not** express every deliverable. Examples outside v0.1 include header/
 | [ckb-debugger](https://github.com/nervosnetwork/ckb-standalone-debugger) | Execute/debug CKB script groups and cycles | Normalize relevant evidence into step expectations |
 | [ckb-testtool](https://github.com/nervosnetwork/ckb-testtool) | Script-level unit-test helpers | End-to-end repository acceptance flow and final live-chain state |
 
-The thin-wrapper objection remains legitimate. Before applying, an OffCKB maintainer should answer whether this belongs as an OffCKB command/plugin or as an external conformance layer. The durable asset should be the manifest/report semantics and fixtures, regardless of package boundary.
+The thin-wrapper objection remains legitimate. Funded Week 1 therefore asks an OffCKB maintainer whether this belongs as an OffCKB command/plugin or as an external conformance layer. The durable asset should be the manifest/report semantics and fixtures, regardless of package boundary.
 
 ## Likely committee objections
 
-1. **“Who will use it?”** No adopter or completed Spark example is currently confirmed.
-2. **“Is this just OffCKB plus CI?”** Without a working negative-test and report/digest slice, the differentiation is still prose.
-3. **“Can arbitrary scripts really be reproducible?”** Only comparable provenance/claims can be guaranteed; external behavior cannot.
-4. **“Why fund $1,000 of tooling before a spike?”** Week 1 must prove the narrowest useful path and allow a no-go result.
-5. **“Who is accountable?”** The public maintainer is an AI agent account. A human/legal operator, contact details, and payout responsibility must be explicit.
-6. **“Does the applicant have implementation evidence?”** QuorumCell is currently a design note with no code. It cannot be represented as a shipped script.
+1. **“Who will use it?”** No adopter or completed Spark example is currently confirmed; Week 1 treats this as a funded demand gate rather than pretending adoption already exists.
+2. **“Is this just OffCKB plus CI?”** Without a working negative-test and report/digest slice, the differentiation is still prose; funded Week 1 must resolve that uncertainty.
+3. **“Can arbitrary scripts really be reproducible?”** Only comparable provenance/claims can be qualified; external behavior cannot be guaranteed.
+4. **“Why fund $1,000 of tooling before a spike?”** Spark funds the implementation. The first funded milestone is deliberately a narrow, published go/no-go slice so later work stops or narrows if the premise fails.
+5. **“Who is accountable?”** Akane is named as accountable applicant, Random Walk Co., Ltd. as operator, and the proposal discloses the contact and applicant-provided CKB mainnet payout destination.
+6. **“Does the applicant have implementation evidence?”** QuorumCell is currently a design note with no code. It is not represented as a shipped script.
 
-## Pre-submission gates
+## Submission Administration
 
-Do **not** present the grant draft as application-ready until:
+The administrative publication requirements are now recorded explicitly:
 
-- [ ] **Accountability:** named human operator/applicant, email, Discord, and payout entity/wallet are added ([#4](https://github.com/Akane-CN/spark-verify/issues/4)).
-- [ ] **Feasibility:** a throwaway slice captures committed and script-rejected transactions, cycles, one Cell assertion, and two clean runs with equal outcome digests and environment fingerprints ([#1](https://github.com/Akane-CN/spark-verify/issues/1)).
-- [ ] **Demand:** one CKB maintainer/project agrees to trial the format and supplies a concrete flow. Prefer a completed Spark project; CKB-UGMP is a possible Spore/CCC candidate but is not confirmed ([#3](https://github.com/Akane-CN/spark-verify/issues/3)).
-- [ ] **Upstream fit:** an OffCKB maintainer responds publicly on standalone vs plugin/subcommand placement and built-in script references ([#2](https://github.com/Akane-CN/spark-verify/issues/2)).
+- [x] **Identity and contact:** Akane, `Akane-CN`, Random Walk Co., Ltd., and `akane@random-walk.co.jp` are disclosed ([#4](https://github.com/Akane-CN/spark-verify/issues/4)).
+- [x] **Payout:** the proposal discloses a syntactically validated CKB mainnet address and does not store signing credentials.
+- [x] **Funding boundary:** the repository states that no runner implementation, feasibility evidence, or adopter integration exists yet.
 
-These gates should be issues with linked evidence, not claims hidden in a proposal edit.
+## Funded Week 1 go/no-go gates
+
+These are requested deliverables after approval, not prerequisites that would force the applicant to implement the proposal before requesting its budget:
+
+- [ ] **Feasibility:** capture committed and script-rejected transactions, cycles, one Cell assertion, and two clean runs with comparable outcome digests and environment fingerprints ([#1](https://github.com/Akane-CN/spark-verify/issues/1)).
+- [ ] **Demand:** ask one CKB maintainer/project to trial the format and supply a concrete flow. Prefer a completed Spark project; CKB-UGMP is a possible Spore/CCC candidate but is not confirmed ([#3](https://github.com/Akane-CN/spark-verify/issues/3)).
+- [ ] **Upstream fit:** obtain public OffCKB maintainer feedback on standalone versus plugin/subcommand placement and built-in script references ([#2](https://github.com/Akane-CN/spark-verify/issues/2)).
+
+Each gate remains an issue with linked evidence. Failure produces a documented scope/no-go decision, not a fabricated success claim.
 
 ## Recommendation
 
-Publish this repository as an RFC and ask for narrow feedback. Do not post the budget request yet. Once the four gates close, the $1,000 six-week proposal is credible. If the feasibility slice reveals that rejected transactions or deterministic devnet replay require invasive OffCKB changes, prefer an upstream contribution or a smaller schema/conformance-only grant instead of expanding the wrapper.
+Publish the budget request as an explicitly pre-implementation Spark proposal. If approved, start with the funded Week 1 gates before spending the remaining budget. If the feasibility slice reveals that rejected transactions or comparable devnet replay require invasive OffCKB changes, prefer an upstream contribution or a smaller schema/conformance-only scope instead of expanding the wrapper.

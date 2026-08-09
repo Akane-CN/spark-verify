@@ -45,12 +45,15 @@ Illustrative manifest:
 ```toml
 [meta]
 name = "quorum-cell-basic"
-spec = "0.1.0-draft.2"
+spec = "0.1.0-draft.3"
 
 [toolchain]
 ckb = "0.209.0"
 offckb = "0.4.11"
 ckb-debugger = "1.1.1"
+
+[replay]
+dependencies = []
 
 [setup]
 accounts = 3
@@ -62,7 +65,7 @@ hash_type = "type"
 [[step]]
 name = "create protected cell"
 run = "pnpm tsx scripts/create.ts"
-expect.status = "committed"
+expect.tx = "committed"
 expect.cycles.lt = 5_000_000
 
 [[step.assert.cell]]
@@ -77,14 +80,16 @@ gte = "999 CKB"
 
 A transaction-producing command writes one signed CKB JSON-RPC transaction to the file named by `SPARK_VERIFY_RESULT`. The runner—not the command—submits it. This lets the runner observe both successful and rejected submissions consistently. Arbitrary stdout is treated as logs, never as a transaction protocol.
 
+The required `[replay].dependencies` array makes known time, randomness, fee-estimation, dynamic-`since`, or external-network dependencies explicit. An empty array is an author attestation, not proof that the runner detected every source of nondeterminism.
+
 See the full [`verify.toml` RFC draft 0.2](docs/verify-toml-rfc-v0.2.md).
 
 ## Repository map
 
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — current draft manifest, assertion, report, and digest semantics
 - [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application draft and budget
-- [`docs/design-review.md`](docs/design-review.md) — review findings, decisions, and pre-submission gates
-- [`scripts/validate-docs.sh`](scripts/validate-docs.sh) — documentation, embedded TOML/JSON, link, and secret-pattern checks
+- [`docs/design-review.md`](docs/design-review.md) — review findings, decisions, and funded go/no-go gates
+- [`scripts/validate-docs.sh`](scripts/validate-docs.sh) — validator regression, embedded TOML/JSON, link, and secret-pattern checks
 - [`SECURITY.md`](SECURITY.md) — command-execution and CI trust boundary
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to review field names and assertion coverage
 
@@ -99,7 +104,7 @@ See the full [`verify.toml` RFC draft 0.2](docs/verify-toml-rfc-v0.2.md).
 
 ## What feedback is most useful
 
-- Can `cell`, `balance`, and step-level status/cycles/error checks express a real CKB deliverable you maintain?
+- Can `cell`, `balance`, and step-level `tx`/cycles/error checks express a real CKB deliverable you maintain?
 - Is runner-owned transaction submission practical for CCC-based repositories?
 - Should OffCKB built-in scripts use a dedicated `builtin = "…"` reference or a generic deployment-source model?
 - Is output targeting by `{ step, index }` sufficient for v0.1?
@@ -110,12 +115,15 @@ Please open an issue with a concrete transaction flow or a manifest that cannot 
 
 ## Grant status
 
-The repository contains an application **draft**, not a submitted or approved grant. Before posting it to Nervos Talk, close the pre-submission gates in [`docs/design-review.md`](docs/design-review.md):
+The repository contains a pre-implementation funding application **draft**, not a submitted or approved grant. Applicant/contact/payment details are disclosed in the proposal. The application intentionally requests the implementation budget before a runner exists.
+
+If funding is approved, these issues become Week 1 go/no-go gates:
 
 - [#1 — committed/rejected transaction feasibility and two-hash replay](https://github.com/Akane-CN/spark-verify/issues/1)
 - [#2 — OffCKB package boundary and built-in script references](https://github.com/Akane-CN/spark-verify/issues/2)
 - [#3 — confirmed completed-Spark-project example](https://github.com/Akane-CN/spark-verify/issues/3)
-- [#4 — accountable applicant, contact, and payout details](https://github.com/Akane-CN/spark-verify/issues/4)
+
+Administrative applicant/contact/payout readiness is recorded in [#4](https://github.com/Akane-CN/spark-verify/issues/4). None of the open funded gates is presented as completed implementation evidence.
 
 ## License
 

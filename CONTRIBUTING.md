@@ -10,7 +10,7 @@ Open an issue that includes:
 2. CKB toolchain used today;
 3. transaction sequence in plain language;
 4. observable claim a reviewer needs to verify;
-5. whether the draft `cell`, `balance`, status/cycles/error vocabulary can express it;
+5. whether the draft `cell`, `balance`, and `tx`/cycles/error vocabulary can express it;
 6. the smallest proposed field or semantic change if it cannot.
 
 Examples of useful questions:
@@ -44,7 +44,7 @@ Run the repository validator before proposing an RFC/documentation change:
 ./scripts/validate-docs.sh
 ```
 
-It parses every TOML and JSON fence, applies the draft's semantic guardrails, checks local links and common secret patterns, runs the pinned Markdown linter, and runs `git diff --check`. Add `--external-links` when intentionally rechecking every public URL.
+It runs validator regression tests, parses every TOML and JSON fence, applies selected high-risk draft invariants, checks local links and common secret patterns, runs the pinned Markdown linter, and checks both staged and unstaged Git whitespace. It is not the future machine-readable manifest schema and does not exhaustively reject every missing or unknown field. Add `--external-links` when intentionally rechecking every public URL.
 
 ## Implementation standards (once coding starts)
 

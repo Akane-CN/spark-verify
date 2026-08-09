@@ -1,6 +1,6 @@
 # Spark Program | Spark Verify — Executable Acceptance Claims for CKB Projects
 
-> **Application status: draft, not yet submitted.** This is proposal document revision **0.2** and accompanies the [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md). It follows the current Spark proposal structure. The repository is pre-implementation and the readiness gates in [`design-review.md`](design-review.md) must be closed before posting to Nervos Talk.
+> **Application status: pre-implementation funding draft, not yet submitted.** This is proposal document revision **0.2** and accompanies the [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md). It follows the current Spark proposal structure. The repository intentionally contains the RFC and proposal before implementation; the runner, feasibility evidence, and adopter integration are funded deliverables rather than prerequisites.
 
 ## 1. Project Overview
 
@@ -18,10 +18,11 @@ It does not infer whether a project is correct and does not replace security rev
 
 ## 2. Team Profile
 
-**Project lead and maintainer:** Akane
+**Project lead and accountable applicant:** Akane
 
 - GitHub: [Akane-CN](https://github.com/Akane-CN)
 - Nervos Talk: [Akane](https://talk.nervos.org/u/Akane)
+- Contact: [akane@random-walk.co.jp](mailto:akane@random-walk.co.jp)
 - Operator: Random Walk Co., Ltd., Japan
 - Role: specification, TypeScript implementation, OffCKB/CCC integration, conformance tests, examples, and documentation
 
@@ -30,7 +31,7 @@ Relevant public CKB work:
 - [Fiber Link](https://github.com/Keith-CY/fiber-link) — CKB Fiber-based community payments project; Akane has participated in its public technical and acceptance work.
 - [QuorumCell](https://github.com/Akane-CN/quorum-cell) — a public CKB Cell-model design exploration. It is currently design-only, not an implemented script, and is listed as evidence of domain research rather than a shipped contract.
 
-**Required before submission:** add the accountable human operator/applicant name, Discord handle, email, and payout entity/wallet. The Spark committee's current identity and contact requirements should not be satisfied with invented or agent-only details.
+The contact, operator, public GitHub identity repository, and CKB payout destination are disclosed in this draft so the committee can verify responsibility before approving funding.
 
 ## 3. Project Background
 
@@ -57,8 +58,8 @@ An author adds `verify.toml` and a small transaction-builder adapter to a truste
 1. validates the manifest against the versioned schema;
 2. starts a fresh OffCKB devnet with exact versions;
 3. exposes deterministic devnet accounts and deployed/built-in script metadata;
-4. runs each project command to build one signed transaction;
-5. submits the transaction itself so committed and rejected cases are both retained;
+4. runs each project command as either a declared pure step or a transaction-producing step;
+5. for a transaction-producing step, validates the signed transaction artifact and submits it itself so committed and rejected cases are both retained;
 6. records status, script group/error code, and cycles;
 7. queries final live Cells and balances;
 8. evaluates the declared claims; and
@@ -69,12 +70,15 @@ An abbreviated, parser-valid manifest looks like this:
 ```toml
 [meta]
 name = "quorum-cell-basic"
-spec = "0.1.0-draft.2"
+spec = "0.1.0-draft.3"
 
 [toolchain]
 ckb = "0.209.0"
 offckb = "0.4.11"
 ckb-debugger = "1.1.1"
+
+[replay]
+dependencies = []
 
 [setup]
 accounts = 3
@@ -88,7 +92,7 @@ name = "create protected cell"
 run = "pnpm tsx scripts/build-create.ts"
 
 [step.expect]
-status = "committed"
+tx = "committed"
 cycles.lt = 5_000_000
 
 [[step.assert.cell]]
@@ -144,7 +148,7 @@ The architecture keeps one execution kernel behind three public layers: OffCKB l
    - runner-owned transaction submission.
 
 3. **Assertion engine**
-   - step status/cycles/error expectations;
+   - step `tx`/cycles/error expectations;
    - live Cell/out-point queries;
    - Cell and balance comparators;
    - explicit zero-match semantics.
@@ -158,10 +162,10 @@ The architecture keeps one execution kernel behind three public layers: OffCKB l
 ### Key technical risks
 
 - **Rejected transactions:** a command that submits its own invalid transaction may never receive a queryable hash. v0.1 therefore requires the command to return a signed transaction and lets the runner submit it.
-- **False reproducibility:** pinning only CKB is insufficient. Reports separate outcome agreement from environment identity, record OffCKB/ckb-debugger/runtime versions, repository revision/dirty state, lockfile hashes, OS/architecture, genesis fingerprint, and deployed binary hashes, and never treat either hash as proof of determinism.
+- **False reproducibility:** pinning only CKB is insufficient. Reports separate outcome agreement from environment identity, record OffCKB/ckb-debugger/runtime versions, repository revision/dirty state, lockfile hashes, OS/architecture, genesis fingerprint, and deployed binary hashes, and never treat either hash as proof of determinism. A required `[replay].dependencies` array makes the author's time/randomness/fee/`since`/network declaration part of the manifest; `stable` remains qualified by that declaration rather than presented as runner-proven determinism.
 - **Arbitrary code execution:** `run` is trusted repository code. The read-only loopback RPC facade protects the runner-owned submission path; it does not sandbox filesystem, process, or arbitrary network access. The first release includes an explicit security guide and a no-secrets CI example.
 - **Tool overlap:** the implementation remains an orchestration layer. Milestone 1 includes public OffCKB maintainer feedback on whether it should remain standalone or expose an upstream adapter.
-- **No adopter:** a real completed Spark example must be named and confirmed before this application is submitted.
+- **No adopter yet:** confirming a completed Spark project for the real-project example is a funded Week 1 demand gate. If no suitable adopter agrees, the project publishes that result and reduces or stops the implementation rather than inventing adoption.
 
 ## 6. Execution Plan (6 weeks)
 
@@ -199,10 +203,11 @@ The architecture keeps one execution kernel behind three public layers: OffCKB l
 
 - publish a pinned GitHub Action example with no production secrets;
 - adapt one named completed Spark project to the manifest;
+- add a root `verify.toml` that dogfoods the locally built runner without claiming circular self-execution is an audit;
 - test on Ubuntu and macOS;
 - document unsupported Windows behavior rather than claiming it works.
 
-**Milestone:** real-project example is independently rerunnable from a clean checkout.
+**Milestone:** the real-project example and root dogfood manifest are independently rerunnable from a clean checkout.
 
 ### Week 6 — Release and verification package
 
@@ -224,14 +229,20 @@ This is a pure technical-development proposal and deliberately stays at the stan
 | --- | ---: | --- |
 | Feasibility slice + RFC/schema/conformance design | $200 | Published report; committed/rejected flow; maintainer/adopter feedback |
 | OffCKB execution adapter + result protocol | $300 | Fresh-devnet lifecycle and end-to-end fixtures |
-| Assertion engine + failure diffs | $250 | Status/error/cycles/cell/balance test matrix |
+| Assertion engine + failure diffs | $250 | `tx`/error/cycles/cell/balance test matrix |
 | Report, two hashes, replay status + GitHub Action | $150 | Stable/tainted and cross-environment fixtures; passing workflow |
-| Real example, release docs, demo, final report | $100 | Clean-checkout verification and public release |
+| Real example, dogfood manifest, release docs, demo, final report | $100 | Clean-checkout verification and public release |
 | **Total** | **$1,000** | |
 
 No budget is allocated to hosting or a web UI. npm, GitHub, and GitHub Actions are sufficient for the MVP; any paid CI overage is borne by the maintainer.
 
-**Payout selection:** the accountable applicant must choose CKB, USDT, or USDC and add the wallet address plus network before submission. No payout address is published in this draft.
+**Payout:** 100% CKB to the applicant-provided CKB mainnet address.
+
+```text
+ckb1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq0xz88g9vckq3vp47c4nakj2g7ugslm2acl45l9r
+```
+
+The address checksum, `ckb` mainnet prefix, and canonical round trip were validated with `@ckb-ccc/core` 1.18.2 on 2026-08-09. No private key or signing credential is stored in this repository.
 
 ## 8. Deliverables + How to Verify
 
@@ -244,7 +255,7 @@ No budget is allocated to hosting or a web UI. npm, GitHub, and GitHub Actions a
 
 2. **`spark-verify` npm CLI**
    - `validate`, `run`, `digest`, and `check-digest`;
-   - status/cycles/script-error, Cell, and balance assertions;
+   - `tx`/cycles/script-error, Cell, and balance assertions;
    - JSON report and terminal summary.
 
 3. **GitHub Action example**
@@ -256,12 +267,17 @@ No budget is allocated to hosting or a web UI. npm, GitHub, and GitHub Actions a
    - one toy positive/negative CKB script flow;
    - one named, completed Spark project adapted end to end.
 
-5. **Documentation and completion evidence**
+5. **Root dogfood manifest**
+   - a repository-root `verify.toml` run by the locally built CLI;
+   - exercises at least one successful pure step and one runner-owned transaction path;
+   - documented as acceptance evidence, not a security audit or proof that the tool is correct.
+
+6. **Documentation and completion evidence**
    - author guide, command protocol, security model, known limits, release verification log, short demo, and Spark completion/budget report.
 
 ### B. Independent verification
 
-From a clean Ubuntu 24.04 or supported macOS host with Node.js 22, Git, and normal download access:
+From a clean Ubuntu 24.04 or supported macOS host with Git, normal download access, the exact Node.js runtime pinned by the repository (target major: 22), and the exact package-manager version pinned by `packageManager`:
 
 ```bash
 git clone https://github.com/Akane-CN/spark-verify.git
@@ -276,17 +292,18 @@ pnpm verify:release
 `pnpm verify:release` must:
 
 1. validate the included manifests;
-2. run the positive example and exit `0` with `pass: true`;
-3. run an intentionally failing claim and exit `1` with a field-level expected/observed diff;
-4. run a script-rejection example and identify the expected script group/error code;
-5. run the clean positive case twice and show equal outcome digests and environment fingerprints;
-6. demonstrate that a tool-version mismatch hard-fails by default and, when explicitly allowed, changes the environment fingerprint and taints replay qualification;
-7. demonstrate a cross-environment case where equal outcomes do not falsely imply equal environments;
-8. recompute both report hashes successfully.
+2. run the repository-root `verify.toml` with the locally built CLI;
+3. run the positive example and exit `0` with `pass: true`;
+4. run an intentionally failing claim and exit `1` with a field-level expected/observed diff;
+5. run a script-rejection example and identify the expected script group/error code;
+6. run the clean positive case twice and show equal outcome digests and environment fingerprints;
+7. demonstrate that a tool-version mismatch hard-fails by default and, when explicitly allowed, changes the environment fingerprint and taints replay qualification;
+8. demonstrate a cross-environment case where equal outcomes do not falsely imply equal environments;
+9. recompute both report hashes successfully.
 
-A reviewer can verify the public release without line-by-line code review. Security-sensitive adoption still requires normal code review and must not rely on the report alone.
+A reviewer can verify the public release without line-by-line code review. The root manifest is dogfooding, not independent proof; security-sensitive adoption still requires normal code review and must not rely on the report alone.
 
-Expected machine-readable fields include exact versions, repository revision/dirty state, OS/architecture, genesis hash, deployment binary hashes, step transaction/status/cycles, every assertion's expected and observed values, pass/fail, outcome digest, environment fingerprint, replay status, and scoped reasons.
+Expected machine-readable fields include exact versions, repository revision/dirty state, OS/architecture, genesis hash, deployment binary hashes, step transaction/status/cycles, every assertion's expected and observed values, pass/fail, outcome digest, environment fingerprint, declared replay dependencies, replay status, and scoped reasons.
 
 Target reviewer time after the first tool download: **15 minutes or less**. Week 1 will measure this estimate and update it with real timing rather than preserving an unsupported claim.
 
@@ -313,7 +330,7 @@ Not completed:
 
 ### Spark-funded delta
 
-The funded work is precisely the six-week implementation and evidence package in Sections 6 and 8. Existing documents are inputs, not claimed as future paid deliverables. If the Week 1 feasibility gate fails, the honest deliverable is the documented result and a scope decision—not fabricated success output.
+This application intentionally requests funding before runner implementation. The funded work is precisely the six-week implementation and evidence package in Sections 6 and 8. Existing documents are design inputs, not claimed as future paid deliverables. If the funded Week 1 feasibility or demand gate fails, the honest deliverable is the documented result and a scope/no-go decision—not fabricated success output.
 
 ## 10. CKB Alignment
 
@@ -339,13 +356,19 @@ The contribution also fits Spark's verification constraint directly: it reduces 
 - Critical breakage caused by a supported OffCKB/CKB release will receive a documented triage response for at least 90 days after completion.
 - Upstream incompatibilities and unmaintained status will be stated plainly in the README; no indefinite compatibility promise is made for a $1,000 prototype.
 
-## 12. Submission Readiness
+## 12. Submission Status and Funded Gates
 
-This application should be posted only after all four are true:
+The application is intended for submission before implementation. The following administrative publication requirements are satisfied in this repository:
 
-- [ ] accountable human applicant/contact and payout details are added ([#4](https://github.com/Akane-CN/spark-verify/issues/4));
-- [ ] a two-run feasibility slice exists with real output ([#1](https://github.com/Akane-CN/spark-verify/issues/1));
-- [ ] one completed Spark project/adopter is named and agrees to the example ([#3](https://github.com/Akane-CN/spark-verify/issues/3));
-- [ ] OffCKB maintainer feedback on overlap/integration is linked ([#2](https://github.com/Akane-CN/spark-verify/issues/2)).
+- [x] public applicant-owned GitHub repository;
+- [x] accountable applicant, operator, and contact disclosed ([#4](https://github.com/Akane-CN/spark-verify/issues/4));
+- [x] CKB mainnet payout address disclosed and syntactically validated;
+- [x] current work separated explicitly from the requested funded work.
 
-Until then, this repository is an RFC and budget draft, not evidence that the proposed runner already works.
+No working CLI, npm package, machine-readable schema, feasibility run, or adopter integration is claimed. If funding is approved, Week 1 executes these go/no-go gates:
+
+- [ ] produce a two-run feasibility slice with real committed/rejected output ([#1](https://github.com/Akane-CN/spark-verify/issues/1));
+- [ ] confirm one completed Spark project/adopter for the real example ([#3](https://github.com/Akane-CN/spark-verify/issues/3));
+- [ ] obtain public OffCKB maintainer feedback on overlap/integration ([#2](https://github.com/Akane-CN/spark-verify/issues/2)).
+
+Failure of a funded gate results in a published finding and scope/no-go decision. It is not silently converted into evidence that the proposed runner works.

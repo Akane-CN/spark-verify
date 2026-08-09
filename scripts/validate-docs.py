@@ -16,6 +16,14 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED_HASH_TYPES = {"type", "data", "data1", "data2"}
+ALLOWED_REPLAY_DEPENDENCIES = {
+    "dynamic_since",
+    "external_network",
+    "external_time",
+    "fee_estimation",
+    "randomness",
+}
+COMPARATORS = {"eq", "gte", "lte"}
 VERSION_RE = re.compile(r"^[0-9]+(?:\.[0-9]+){1,2}(?:[-+][0-9A-Za-z.-]+)?$")
 CKB_AMOUNT_RE = re.compile(r"^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,8})? CKB$|^(?:0|[1-9][0-9]*) shannon$")
 TOKEN_AMOUNT_RE = re.compile(r"^(?:0|[1-9][0-9]*)$")
@@ -70,23 +78,48 @@ def validate_amounts(v: Validation, file: Path, line: int, assertion: dict[str, 
 def validate_cell(v: Validation, file: Path, line: int, assertion: dict[str, Any]) -> None:
     count = assertion.get("count")
     has_properties = "data" in assertion or "capacity" in assertion
-    exact_zero = count == 0 or (isinstance(count, dict) and count.get("eq") == 0)
+    exact_zero = (
+        isinstance(count, int)
+        and not isinstance(count, bool)
+        and count == 0
+    ) or (
+        isinstance(count, dict)
+        and isinstance(count.get("eq"), int)
+        and not isinstance(count.get("eq"), bool)
+        and count.get("eq") == 0
+    )
     if exact_zero and has_properties:
         v.error(file, line, "exact zero count cannot coexist with per-Cell data/capacity checks")
     if isinstance(count, bool):
         v.error(file, line, "Cell count must be a non-negative integer or comparator table")
-    elif isinstance(count, int) and count < 0:
-        v.error(file, line, "Cell count cannot be negative")
+    elif isinstance(count, int):
+        if count < 0:
+            v.error(file, line, "Cell count cannot be negative")
     elif isinstance(count, dict):
+        if not count:
+            v.error(file, line, "Cell count comparator table cannot be empty")
         for comparator, value in count.items():
-            if comparator not in {"eq", "gte", "lte"}:
+            if comparator not in COMPARATORS:
                 v.error(file, line, f"unsupported count comparator {comparator!r}")
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 v.error(file, line, f"count.{comparator} must be a non-negative integer")
         if "eq" in count and len(count) > 1:
             v.error(file, line, "count.eq cannot coexist with another count comparator")
-        if count.get("gte", 0) > count.get("lte", sys.maxsize):
+        gte, lte = count.get("gte"), count.get("lte")
+        if (
+            isinstance(gte, int)
+            and not isinstance(gte, bool)
+            and isinstance(lte, int)
+            and not isinstance(lte, bool)
+            and gte > lte
+        ):
             v.error(file, line, "count.gte cannot exceed count.lte")
+        if lte == 0 and count.get("eq") != 0:
+            v.error(file, line, "assert absence with count = 0 or count.eq = 0, not count.lte = 0")
+        if has_properties and isinstance(lte, int) and not isinstance(lte, bool) and lte < 1:
+            v.error(file, line, "per-Cell properties require an effective count.gte = 1")
+    elif count is not None:
+        v.error(file, line, "Cell count must be a non-negative integer or comparator table")
     if not any(key in assertion for key in ("out_point", "lock", "type")):
         v.error(file, line, "Cell assertion requires out_point, lock, or type")
     if not any(key in assertion for key in ("count", "data", "capacity")):
@@ -159,11 +192,68 @@ def validate_output_references(
             v.error(file, line, "out_point.index must be a non-negative integer")
 
 
+def validate_replay(v: Validation, file: Path, line: int, replay: Any, *, required: bool) -> None:
+    if replay is None:
+        if required:
+            v.error(file, line, "a full manifest requires [replay].dependencies")
+        return
+    if not isinstance(replay, dict):
+        v.error(file, line, "replay must be a table")
+        return
+    if set(replay) != {"dependencies"}:
+        v.error(file, line, "replay must contain exactly dependencies")
+    dependencies = replay.get("dependencies")
+    if not isinstance(dependencies, list):
+        v.error(file, line, "replay.dependencies must be an array")
+        return
+    if all(isinstance(item, str) for item in dependencies) and len(dependencies) != len(set(dependencies)):
+        v.error(file, line, "replay.dependencies values must be unique")
+    for dependency in dependencies:
+        if not isinstance(dependency, str) or dependency not in ALLOWED_REPLAY_DEPENDENCIES:
+            v.error(file, line, f"unsupported replay dependency {dependency!r}")
+
+
+def validate_expect(v: Validation, file: Path, line: int, expect: Any) -> None:
+    if expect is None:
+        return
+    if not isinstance(expect, dict) or not expect:
+        v.error(file, line, "step.expect must be a non-empty table")
+        return
+    allowed = {"tx", "cycles", "error"}
+    unknown = set(expect) - allowed
+    if unknown:
+        v.error(file, line, f"unsupported step.expect keys {sorted(unknown)}")
+    tx = expect.get("tx")
+    if tx not in {"committed", "rejected"}:
+        v.error(file, line, "step.expect.tx must be committed or rejected")
+    cycles = expect.get("cycles")
+    if cycles is not None:
+        if not isinstance(cycles, dict) or not cycles:
+            v.error(file, line, "expect.cycles must be a non-empty comparator table")
+        else:
+            allowed_cycles = COMPARATORS | {"lt"}
+            if set(cycles) - allowed_cycles:
+                v.error(file, line, f"unsupported cycles comparators {sorted(set(cycles) - allowed_cycles)}")
+            if "eq" in cycles and len(cycles) > 1:
+                v.error(file, line, "cycles.eq cannot coexist with another comparator")
+            for comparator, value in cycles.items():
+                if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                    v.error(file, line, f"cycles.{comparator} must be a non-negative integer")
+    error = expect.get("error")
+    if error is not None:
+        if not isinstance(error, dict) or not error:
+            v.error(file, line, "expect.error must be a non-empty table")
+        elif set(error) - {"code", "group"}:
+            v.error(file, line, f"unsupported expect.error keys {sorted(set(error) - {'code', 'group'})}")
+        if tx != "rejected":
+            v.error(file, line, "expect.error requires expect.tx = rejected")
+
+
 def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str, Any]) -> None:
     full_manifest = all(key in obj for key in ("meta", "toolchain", "setup"))
     meta = obj.get("meta")
-    if isinstance(meta, dict) and meta.get("spec") != "0.1.0-draft.2":
-        v.error(file, line, "manifest examples must select spec 0.1.0-draft.2")
+    if isinstance(meta, dict) and meta.get("spec") != "0.1.0-draft.3":
+        v.error(file, line, "manifest examples must select spec 0.1.0-draft.3")
 
     toolchain = obj.get("toolchain")
     if isinstance(toolchain, dict):
@@ -173,6 +263,8 @@ def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str,
         for name, version in toolchain.items():
             if not isinstance(version, str) or not VERSION_RE.fullmatch(version):
                 v.error(file, line, f"toolchain.{name} must be an exact version, not a range")
+
+    validate_replay(v, file, line, obj.get("replay"), required=full_manifest)
 
     setup = obj.get("setup")
     if isinstance(setup, dict):
@@ -214,17 +306,28 @@ def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str,
                     names.append(name)
             if full_manifest and (not isinstance(step.get("run"), str) or not step.get("run")):
                 v.error(file, line, "every step in a full manifest requires a non-empty run command")
-            expect = step.get("expect", {})
-            if isinstance(expect, dict):
-                if "cell" in expect or "balance" in expect:
-                    v.error(file, line, "state checks belong under step.assert, not step.expect")
-                status = expect.get("status")
-                if status is not None and status not in {"committed", "rejected"}:
-                    v.error(file, line, f"unsupported step status {status!r}")
-                if "error" in expect and status != "rejected":
-                    v.error(file, line, "expect.error requires expect.status = rejected")
+            validate_expect(v, file, line, step.get("expect"))
             validate_assertions(v, file, line, step.get("assert"))
             validate_output_references(v, file, line, step.get("assert"), set(names))
+
+    if full_manifest:
+        def contains_assertion(table: Any) -> bool:
+            return isinstance(table, dict) and any(
+                isinstance(table.get(kind), list) and bool(table[kind])
+                for kind in ("cell", "balance")
+            )
+
+        has_step_claim = isinstance(steps, list) and any(
+            isinstance(step, dict)
+            and (
+                isinstance(step.get("expect"), dict)
+                and bool(step["expect"])
+                or contains_assertion(step.get("assert"))
+            )
+            for step in steps
+        )
+        if not has_step_claim and not contains_assertion(obj.get("assert")):
+            v.error(file, line, "a full manifest requires at least one expectation or assertion")
 
     validate_assertions(v, file, line, obj.get("assert"))
     if isinstance(steps, list) and steps:
@@ -263,6 +366,8 @@ def validate_markdown(v: Validation, file: Path, external_links: set[str]) -> No
                         v.error(file, line, "report example requires outcome and environment digests")
                     if not isinstance(replay, dict) or replay.get("status") not in {"stable", "tainted"}:
                         v.error(file, line, "report example requires replay.status")
+                    elif not isinstance(replay.get("declared_dependencies"), list):
+                        v.error(file, line, "report example requires replay.declared_dependencies")
         except (tomllib.TOMLDecodeError, json.JSONDecodeError) as exc:
             v.error(file, line, f"invalid {lang} fence: {exc}")
 

@@ -48,10 +48,10 @@ External network denial is recommended in CI but may not be enforceable portably
 
 ## Hash and replay limitations
 
-The outcome digest is tamper-evident only for the normalized claim definitions, relevant artifact identities, and observations it covers. The environment fingerprint is tamper-evident only for the recorded environment object. Replay status qualifies known drift and declared nondeterminism but cannot detect every dependency of arbitrary repository code.
+The outcome digest is tamper-evident only for the normalized claim definitions, relevant artifact identities, and observations it covers. The environment fingerprint is tamper-evident only for the recorded environment object. Replay status qualifies known drift and the required author declaration in `[replay].dependencies`, but cannot detect every dependency of arbitrary repository code. An empty declaration is an attestation, not proof of determinism.
 
 None of these fields is a signature, an audit, a proof of completeness, evidence that the environments were actually secure, or evidence that unrecorded side effects did not occur. A malicious author can omit important assertions or lie about undeclared dependencies.
 
 ## Reporting a vulnerability
 
-Once implementation starts, report vulnerabilities privately to the accountable human contact listed in the repository. That contact is a pre-submission requirement and has not yet been added. Until then, avoid posting weaponized proof-of-concept details; open a minimal GitHub issue stating that a private security contact is needed.
+Once implementation starts, report vulnerabilities privately to [akane@random-walk.co.jp](mailto:akane@random-walk.co.jp). Do not include private keys, production wallet material, or weaponized proof-of-concept details in a public issue. A minimal public issue may state that a private report was sent without disclosing the vulnerability.

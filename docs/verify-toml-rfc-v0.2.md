@@ -2,15 +2,15 @@
 
 > **Status:** pre-implementation RFC for community feedback. Nothing in this document is stable or implemented yet. The first release must publish a machine-readable schema and conformance fixtures matching the final text.
 >
-> **Versioning:** this is document revision **0.2** for the intended `verify.toml` **v0.1** release. Draft manifests select `spec = "0.1.0-draft.2"`. The manifest-spec version, report-schema version, and installed runner version are separate values.
+> **Versioning:** this is document revision **0.2** for the intended `verify.toml` **v0.1** release. Draft manifests select `spec = "0.1.0-draft.3"`; draft.3 supersedes the briefly published draft.2 because the canonical transaction key and required replay declaration changed. The manifest-spec, outcome-claims, report-schema, and installed-runner versions are separate values.
 >
-> **Changes from draft 0.1:** the runner-owned result-file contract is retained; immediate state checks use `[[step.assert.*]]`; result identity is split into an outcome digest and an environment fingerprint; zero-match Cell behavior remains explicit; and the report/replay semantics distinguish a hash from a reproducibility claim.
+> **Changes from draft 0.1:** the runner-owned result-file contract is retained; the uploaded `expect.tx` vocabulary is canonical; immediate state checks use `[[step.assert.*]]`; result identity is split into an outcome digest and an environment fingerprint; `[replay].dependencies` makes replay qualification authorable; pure-step/result semantics are explicit; zero-match Cell behavior remains explicit; and the report/replay semantics distinguish a hash from a reproducibility claim.
 
 ## Design goals
 
 1. **Declarative:** authors state observable CKB outcomes, not a manual review procedure.
 2. **Re-runnable:** a manifest, repository revision, declared inputs, and pinned toolchain can be compared across runs.
-3. **Small vocabulary:** step status/cycles/error checks plus `cell` and `balance` assertions cover the MVP; unusual checks remain repository code.
+3. **Small vocabulary:** step `tx`/cycles/error checks plus `cell` and `balance` assertions cover the MVP; unusual checks remain repository code.
 4. **CKB-native:** script groups, Cells, capacity, UDT amounts, and transaction rejection semantics are explicit.
 5. **Thin:** OffCKB owns the devnet and deployment lifecycle; project code/CCC owns transaction construction; the node and ckb-debugger own execution results.
 6. **Honest:** arbitrary project commands are trusted code, and separate outcome/environment hashes are evidence—not a security proof or proof of determinism.
@@ -29,30 +29,34 @@ A `verify.toml` contains:
 | --- | ---: | --- |
 | `[meta]` | exactly one | Run identity and specification version |
 | `[toolchain]` | exactly one | Exact external tool versions |
+| `[replay]` | exactly one | Author-declared replay dependencies |
 | `[setup]` | exactly one | Development accounts and script references |
 | `[[step]]` | zero or more, ordered | Commands, transaction expectations, and immediate state assertions |
 | `[[assert.cell]]` / `[[assert.balance]]` | zero or more | Final-state assertions |
 
 Evaluation order is `validate → setup → each step's command/expectations/assertions in order → final assertions → report`.
 
-A run passes only when setup succeeds, every step expectation and immediate assertion succeeds, and every final assertion succeeds. Schema/configuration errors and execution errors are not assertion failures; they are “no verdict” errors.
+A run passes only when setup succeeds, every step expectation and immediate assertion succeeds, and every final assertion succeeds. Schema/configuration errors and execution errors are not assertion failures; they are “no verdict” errors. A full manifest must contain at least one step expectation, immediate assertion, or final assertion; an empty claim set is a schema error rather than a vacuous pass.
 
 Unknown keys are errors in v0.1. This catches typos and makes a digest's semantics unambiguous.
 
-Canonical normalized paths are `[meta]`, `[toolchain]`, `[setup]`, `[setup.scripts.<name>]`, `[[step]]`, `[step.expect]`, `[[step.assert.cell]]`, `[[step.assert.balance]]`, `[[assert.cell]]`, and `[[assert.balance]]`. TOML dotted keys such as `expect.status = "committed"` and explicit tables such as `[step.expect]` are syntax-equivalent; a parser must normalize them to the same model.
+Canonical normalized paths are `[meta]`, `[toolchain]`, `[replay]`, `[setup]`, `[setup.scripts.<name>]`, `[[step]]`, `[step.expect]`, `[[step.assert.cell]]`, `[[step.assert.balance]]`, `[[assert.cell]]`, and `[[assert.balance]]`. TOML dotted keys such as `expect.tx = "committed"` and explicit tables such as `[step.expect]` are syntax-equivalent; a parser must normalize them to the same model.
 
-## 2. Metadata and toolchain
+## 2. Metadata, toolchain, and replay declaration
 
 ```toml
 [meta]
 name = "quorum-cell-basic"       # required, unique within the repository
-spec = "0.1.0-draft.2"           # required manifest specification version
+spec = "0.1.0-draft.3"           # required manifest specification version
 description = "2-of-3 spend"     # optional
 
 [toolchain]
 ckb = "0.209.0"                  # exact, no ranges
 offckb = "0.4.11"                # exact, no ranges
 ckb-debugger = "1.1.1"           # exact, no ranges
+
+[replay]
+dependencies = []                 # explicit author declaration; required
 ```
 
 `spec` selects manifest semantics. It is not the installed CLI version. The report records both.
@@ -60,6 +64,8 @@ ckb-debugger = "1.1.1"           # exact, no ranges
 All toolchain fields are exact versions. `--allow-version-drift` permits a run but marks it tainted and records every expected/observed mismatch. The runner must not silently choose “latest.”
 
 The project's own command runtime and dependencies remain repository-controlled. A stable run requires exact runtime metadata (for example `.node-version` or an equivalent tool pin), an exact package-manager declaration, and a committed lockfile. The report records the requested and observed runtime/package-manager versions plus relevant metadata and lockfile hashes. CCC and other library versions are taken from the resolved lockfile. Missing or ranged runtime pins taint the run. A future spec may promote more of these fields into `[toolchain]` if the feasibility spike shows that repository pins are insufficient.
+
+`[replay]` makes the author's nondeterminism declaration part of the manifest instead of relying on out-of-schema input. `dependencies` is a required array containing zero or more unique values from `external_time`, `randomness`, `fee_estimation`, `dynamic_since`, and `external_network`. An empty array explicitly declares that the author knows of no such dependency. Any listed dependency makes `replay.status` tainted with an outcome-scoped reason. The declaration is an attestation, not something the runner can prove complete; §6.4 defines the resulting qualification.
 
 ## 3. Setup
 
@@ -114,7 +120,7 @@ Seeded arbitrary genesis Cells are out of scope for v0.1.
 name = "2-of-3 spend"
 run = "pnpm tsx scripts/build-spend.ts"
 timeout = "60s"                         # optional; default 60s
-expect.status = "committed"
+expect.tx = "committed"
 expect.cycles.lt = 5_000_000
 
 [[step.assert.cell]]
@@ -146,7 +152,7 @@ A transaction-producing command writes exactly one JSON object:
 
 `transaction` is a signed CKB JSON-RPC transaction. The runner validates it, computes its hash, submits it through OffCKB's proxy, and retains the transaction even if the node rejects it.
 
-A pure command exits successfully without creating `SPARK_VERIFY_RESULT`. It cannot declare transaction-only expectations.
+A step is transaction-producing when it declares `expect.tx`; that declaration requires exactly one valid result object. `expect.cycles` and `expect.error` also require `expect.tx`. A pure step declares none of those keys, exits successfully without creating `SPARK_VERIFY_RESULT`, and may still have immediate state assertions.
 
 Rules:
 
@@ -154,7 +160,8 @@ Rules:
 - bare-hash and “last line” parsing are intentionally unsupported;
 - v0.1 supports at most one transaction per step;
 - commands must not submit the transaction themselves;
-- malformed, missing, or multiply-written result data is an execution error;
+- malformed or multiply-written result data is an execution error;
+- a missing result is an execution error for a transaction-producing step, while creating a result is an execution error for a declared pure step;
 - a non-zero command exit is an execution error unless a future spec defines command-exit expectations.
 
 Runner-owned submission avoids the ambiguous case where a rejected transaction never receives a queryable hash.
@@ -163,14 +170,14 @@ Runner-owned submission avoids the ambiguous case where a rejected transaction n
 
 | Key | Values | Meaning |
 | --- | --- | --- |
-| `expect.status` | `"committed"` / `"rejected"` | Node outcome for this step's transaction |
+| `expect.tx` | `"committed"` / `"rejected"` | Node outcome for this step's transaction |
 | `expect.cycles.{lt,lte,eq,gte}` | non-negative integer | Total verification cycles |
 | `expect.error.code` | signed integer | Script error code for a rejected transaction |
 | `expect.error.group` | script-group reference | Exact lock/type group responsible for rejection |
 
-`expect.error.*` requires `expect.status = "rejected"`. Cycle and error comparators are mutually exclusive per field unless the schema explicitly permits a range (`gte` plus `lte`).
+`expect.error.*` requires `expect.tx = "rejected"`. Cycle and error comparators are mutually exclusive per field unless the schema explicitly permits a range (`gte` plus `lte`).
 
-`rejected` means the runner obtained a terminal node rejection for an otherwise parseable signed transaction. A malformed result envelope, invalid transaction JSON, command failure, submission timeout, or transaction that is accepted and then never reaches a terminal state is an execution error with no verdict—not a successful `rejected` expectation. The report classifies terminal rejection evidence as `script`, `malformed`, `fee`, `pool`, or `other`; only a `script` rejection can satisfy `expect.error.code` or `expect.error.group`. A bare rejected-status expectation asserts only that some terminal rejection occurred; a security-negative test should pin the script group and, when stable for that script, the error code.
+`rejected` means the runner obtained a terminal node rejection for an otherwise parseable signed transaction. A malformed result envelope, invalid transaction JSON, command failure, submission timeout, or transaction that is accepted and then never reaches a terminal state is an execution error with no verdict—not a successful `rejected` expectation. The MVP distinguishes only a rejection with normalized script evidence (`kind = "script"`) from another terminal node rejection (`kind = "node"`); only script evidence can satisfy `expect.error.code` or `expect.error.group`. A bare `tx = "rejected"` expectation asserts only that some terminal rejection occurred. A security-negative test should pin the script group and, when stable for that script, the error code. Free-form node messages are evidence but are excluded from the outcome digest.
 
 A script-group reference includes a role and script reference:
 
@@ -182,7 +189,7 @@ expect.error.group = { role = "lock", script = "quorum_lock", args = "0x0102" }
 
 ### 4.3 Immediate state assertions
 
-`[[step.assert.cell]]` and `[[step.assert.balance]]` use the same syntax as final assertions and run after the step reaches its terminal status. A rejected step does not advance chain state, but immediate assertions may verify that prior Cells remain live. This keeps transaction expectations under `step.expect` and state assertions under `step.assert`.
+`[[step.assert.cell]]` and `[[step.assert.balance]]` use the same syntax as final assertions. They run after a submitted transaction reaches its terminal status, or immediately after a declared pure step exits successfully. A rejected transaction does not advance chain state, but immediate assertions may verify that prior Cells remain live. This keeps transaction expectations under `step.expect` and state assertions under `step.assert`.
 
 ## 5. Assertions
 
@@ -299,7 +306,7 @@ The report records at minimum:
 - deployed binary hashes and resolved script/code-dep references;
 - per-step transaction hash, status, cycles, error evidence, and output references;
 - every expectation/assertion's normalized target, comparator, expected value, observed value, and outcome;
-- replay status and structured reasons.
+- the manifest's declared replay dependencies, replay status, and structured reasons.
 
 ### 6.2 Outcome digest
 
@@ -308,7 +315,7 @@ The report records at minimum:
 - the manifest's `meta.name`, manifest-spec version, and outcome-claims schema version;
 - normalized expectation and assertion definitions, including comparators and expected values;
 - each referenced script's resolved `code_hash`/`hash_type`, plus the binary hash for every repository-deployed artifact;
-- ordered step names, committed/rejected status, cycles, and normalized rejection `{ role, script, args, code }` when present;
+- ordered step names, committed/rejected status, cycles, and normalized rejection `kind`, plus `{ role, script, args, code }` when script evidence is present;
 - symbolic output targets such as `{ step, index }`; and
 - each assertion's normalized target, expected value, observed value, and pass/fail result.
 
@@ -336,17 +343,18 @@ The report contains:
 ```json
 {
   "replay": {
+    "declared_dependencies": [],
     "status": "stable",
     "reasons": []
   }
 }
 ```
 
-`stable` requires exact tool/runtime pins, a clean identifiable repository, the default fresh-devnet configuration, and no declared external time, randomness, fee-estimation, or network dependency. Otherwise the status is `tainted` and `reasons` contains `{ "scope": "environment" | "outcome", "code": "…", "detail": "…" }` entries.
+`stable` requires an explicit empty `[replay].dependencies` declaration, exact tool/runtime pins, a clean identifiable repository, and the default fresh-devnet configuration. Otherwise the status is `tainted` and `reasons` contains `{ "scope": "environment" | "outcome", "code": "…", "detail": "…" }` entries. Because `[replay]` is required, a missing declaration is a schema error and produces no verification verdict rather than an implicitly stable report.
 
-Examples of environment-scoped reasons are `version_drift`, `dirty_git`, and `nondefault_devnet`. Examples of outcome-scoped reasons are author-declared `external_time`, `randomness`, `fee_estimation`, and `external_network`. The hashes are still computed for a tainted run; the status prevents a hash from being misrepresented as evidence of clean replayability.
+Examples of environment-scoped reasons are `version_drift`, `dirty_git`, and `nondefault_devnet`. Each author-declared dependency becomes an outcome-scoped reason using its manifest value as the code, including `external_time`, `randomness`, `fee_estimation`, `dynamic_since`, or `external_network`. The hashes are still computed for a tainted run; the status prevents a hash from being misrepresented as evidence of clean replayability.
 
-The runner must not claim it can detect all nondeterminism in arbitrary project code. Authors are responsible for declaring such dependencies, and CI should deny external network access where practical.
+The runner must not claim it can detect all nondeterminism in arbitrary project code. Authors are responsible for making the declaration complete, and `stable` means only “stable under recorded inputs and the author's declaration,” not that the runner proved the command deterministic. CI should deny external network access where practical.
 
 Hex values are lowercase and `0x`-prefixed before canonicalization. Integers that may exceed JSON's interoperable range are decimal strings.
 
@@ -356,10 +364,10 @@ Abbreviated illustrative report shape; an actual report includes every field req
 
 ```json
 {
-  "schema": "spark-verify-report/0.1-draft.2",
+  "schema": "spark-verify-report/0.1-draft.3",
   "name": "quorum-cell-basic",
   "versions": {
-    "spec": "0.1.0-draft.2",
+    "spec": "0.1.0-draft.3",
     "runner": "0.1.0",
     "ckb": "0.209.0",
     "offckb": "0.4.11",
@@ -371,8 +379,8 @@ Abbreviated illustrative report shape; an actual report includes every field req
     ]
   },
   "outcome_claims": {
-    "schema": "spark-verify-outcome-claims/1",
-    "spec": "0.1.0-draft.2",
+    "schema": "spark-verify-outcome-claims/2",
+    "spec": "0.1.0-draft.3",
     "deployments": [],
     "steps": [
       {
@@ -380,6 +388,7 @@ Abbreviated illustrative report shape; an actual report includes every field req
         "status": "committed",
         "cycles": 4231889,
         "expectations": [
+          { "kind": "tx", "ok": true, "expected": "committed", "observed": "committed" },
           { "kind": "cycles.lt", "ok": true, "expected": 5000000, "observed": 4231889 }
         ]
       }
@@ -401,6 +410,7 @@ Abbreviated illustrative report shape; an actual report includes every field req
     "environment": "sha256:…"
   },
   "replay": {
+    "declared_dependencies": [],
     "status": "stable",
     "reasons": []
   }
@@ -435,15 +445,19 @@ The MVP emits JSON and a terminal summary. HTML output is deliberately deferred.
 The v0.1 release is incomplete without:
 
 1. a machine-readable schema for parsed TOML;
-2. valid and invalid manifest fixtures;
+2. valid and invalid manifest fixtures, including unknown-key rejection;
 3. outcome/environment canonicalization and digest fixtures;
 4. one committed-transaction fixture;
 5. one rejected-script fixture with group and code evidence;
-6. zero-match/vacuous-success regression fixtures;
-7. quantity overflow and UDT decoding fixtures;
-8. two consecutive clean runs that produce the same outcome digest and environment fingerprint;
-9. a version-drift fixture whose environment fingerprint changes and whose replay status taints or hard-fails as specified;
-10. a cross-environment fixture showing that equal outcome digests do not imply equal environment fingerprints.
+6. one non-script terminal node-rejection fixture that can satisfy only bare `tx = "rejected"`;
+7. a pure-step fixture whose immediate assertion runs without result data;
+8. result-contract fixtures for a transaction step with no result and a pure step that writes one;
+9. zero-match/vacuous-success regression fixtures;
+10. quantity overflow and UDT decoding fixtures;
+11. replay fixtures for a missing declaration, an explicit empty declaration, and each declared dependency;
+12. two consecutive clean runs that produce the same outcome digest and environment fingerprint;
+13. a version-drift fixture whose environment fingerprint changes and whose replay status taints or hard-fails as specified;
+14. a cross-environment fixture showing that equal outcome digests do not imply equal environment fingerprints.
 
 Error messages must include the manifest path, key path, and observed value where safe.
 
@@ -467,12 +481,15 @@ Declarative transaction construction, arbitrary genesis Cells, testnet/mainnet e
 ```toml
 [meta]
 name = "quorum-cell-basic"
-spec = "0.1.0-draft.2"
+spec = "0.1.0-draft.3"
 
 [toolchain]
 ckb = "0.209.0"
 offckb = "0.4.11"
 ckb-debugger = "1.1.1"
+
+[replay]
+dependencies = []
 
 [setup]
 accounts = 3
@@ -484,7 +501,7 @@ hash_type = "type"
 [[step]]
 name = "create protected cell"
 run = "pnpm tsx scripts/build-create.ts"
-expect.status = "committed"
+expect.tx = "committed"
 
 [[step.assert.cell]]
 out_point = { step = "create protected cell", index = 0 }
@@ -494,7 +511,7 @@ count = 1
 [[step]]
 name = "2-of-3 spend"
 run = "pnpm tsx scripts/build-spend.ts"
-expect.status = "committed"
+expect.tx = "committed"
 expect.cycles.lt = 5_000_000
 
 [[assert.cell]]
@@ -513,12 +530,15 @@ The immediate assertion checks the created output. The final out-point assertion
 ```toml
 [meta]
 name = "quorum-cell-unauthorized"
-spec = "0.1.0-draft.2"
+spec = "0.1.0-draft.3"
 
 [toolchain]
 ckb = "0.209.0"
 offckb = "0.4.11"
 ckb-debugger = "1.1.1"
+
+[replay]
+dependencies = []
 
 [setup]
 accounts = 3
@@ -530,12 +550,12 @@ hash_type = "type"
 [[step]]
 name = "create protected cell"
 run = "pnpm tsx scripts/build-create.ts"
-expect.status = "committed"
+expect.tx = "committed"
 
 [[step]]
 name = "one signer attempts 2-of-3 spend"
 run = "pnpm tsx scripts/build-unauthorized.ts"
-expect.status = "rejected"
+expect.tx = "rejected"
 expect.error.code = -101
 expect.error.group = { role = "lock", script = "quorum_lock", args = "0x0102" }
 
