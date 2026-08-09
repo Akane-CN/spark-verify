@@ -19,7 +19,7 @@ A `verify.toml` file can contain `run` commands. Running Spark Verify therefore 
 - Treat `SPARK_VERIFY_ACCOUNTS` keys as public devnet test keys. Never fund them with real assets.
 - Do not run a contributor's modified manifest or scripts in a privileged `pull_request_target` workflow.
 - Pin Action revisions and package/tool versions; do not execute an unpinned `latest` dependency in acceptance CI.
-- Review produced artifacts before publishing them. Reports and logs must redact environment values and private material not explicitly part of the public devnet context.
+- Review produced artifacts before publishing them. Reports and logs must redact environment values, URL credentials, remote userinfo, and private material not explicitly part of the public devnet context.
 
 ## GitHub Actions guidance
 

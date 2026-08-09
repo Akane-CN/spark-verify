@@ -22,7 +22,7 @@ The runner hard-fails unless the CKB RPC endpoint is loopback and its genesis fi
 A `verify.toml` contains:
 
 | Section | Cardinality | Purpose |
-|---|---:|---|
+| --- | ---: | --- |
 | `[meta]` | exactly one | Run identity and specification version |
 | `[toolchain]` | exactly one | Exact external tool versions |
 | `[setup]` | exactly one | Development accounts and script references |
@@ -123,7 +123,7 @@ Step names are required and unique. A step runs once, from the repository root, 
 
 The runner injects:
 
-- `CKB_RPC_URL` — loopback OffCKB proxy RPC used for read-only queries by the command;
+- `CKB_RPC_URL` — a loopback, read-only RPC facade used for command queries; the runner rejects write methods such as `send_transaction` on this endpoint;
 - `SPARK_VERIFY_ACCOUNTS` — path to a JSON array of deterministic devnet `{ address, lock, privkey }` records;
 - `SPARK_VERIFY_DEPLOYMENTS` — path to the resolved script map;
 - `SPARK_VERIFY_CONTEXT` — path to JSON containing spec/run IDs, genesis hash, current tip, and paths above;
@@ -156,7 +156,7 @@ Runner-owned submission avoids the ambiguous case where a rejected transaction n
 ### 4.2 Transaction expectations
 
 | Key | Values | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `expect.status` | `"committed"` / `"rejected"` | Node outcome for this step's transaction |
 | `expect.cycles.{lt,lte,eq,gte}` | non-negative integer | Total verification cycles |
 | `expect.error.code` | signed integer | Script error code for a rejected transaction |
@@ -279,7 +279,7 @@ The report records at minimum:
 
 - manifest bytes hash and selected spec version;
 - runner version;
-- Git commit, repository remote, and dirty-state digest;
+- Git commit, sanitized repository identity, and dirty-state digest; URL credentials and userinfo are never recorded;
 - relevant package-manager lockfile hashes;
 - requested and observed CKB, OffCKB, and ckb-debugger versions;
 - devnet genesis hash and sealing configuration fingerprint;

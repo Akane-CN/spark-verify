@@ -180,7 +180,7 @@ Anything exotic remains repository code. Spark Verify does not become a general 
 This is a pure technical-development proposal and deliberately stays at the standard $1,000 level. Although the integration spans several tools, the project reuses them rather than funding a second devnet/debugger stack. A request above $1,000 is not justified until the feasibility and adopter gates are closed.
 
 | Work package | Amount | Acceptance evidence |
-|---|---:|---|
+| --- | ---: | --- |
 | Feasibility slice + RFC/schema/conformance design | $200 | Published report; committed/rejected flow; maintainer/adopter feedback |
 | OffCKB execution adapter + result protocol | $300 | Fresh-devnet lifecycle and end-to-end fixtures |
 | Assertion engine + failure diffs | $250 | Status/error/cycles/cell/balance test matrix |

@@ -90,7 +90,7 @@ It will **not** express every deliverable. Examples outside v0.1 include header/
 ## Ecosystem overlap
 
 | Existing tool | Existing responsibility | Spark Verify boundary |
-|---|---|---|
+| --- | --- | --- |
 | [OffCKB](https://github.com/ckb-devrel/offckb) | Local devnet, accounts, script deployment, proxy/dumps, debug commands | Orchestrate a pinned run and normalize declared claims/report |
 | [CCC](https://github.com/ckb-devrel/ccc) | Transaction construction/signing and CKB queries | Accept a signed CCC-compatible JSON-RPC transaction from project code |
 | [ckb-debugger](https://github.com/nervosnetwork/ckb-standalone-debugger) | Execute/debug CKB script groups and cycles | Normalize relevant evidence into step expectations |
