@@ -2,7 +2,7 @@
 
 **Executable acceptance claims for CKB projects.**
 
-> **Status: pre-implementation RFC.** There is no released CLI or npm package yet. The manifest and report formats are drafts and may change in response to community and OffCKB maintainer feedback.
+> **Status: pre-implementation RFC.** There is no released CLI package yet. The manifest and report formats are drafts and may change in response to community and OffCKB maintainer feedback.
 
 Spark Verify proposes a small `verify.toml` format and a runner that turns a CKB project's “How to Verify” section into a repeatable local-devnet check. A project declares the transaction it wants to exercise and the observable on-chain claims that should hold. The runner uses the existing CKB stack—[OffCKB](https://github.com/ckb-devrel/offckb), [CCC](https://github.com/ckb-devrel/ccc), and [ckb-debugger](https://github.com/nervosnetwork/ckb-standalone-debugger)—and emits a structured report with a comparable outcome digest, a separate environment fingerprint, and explicit replay qualification.
 
@@ -64,7 +64,7 @@ hash_type = "type"
 
 [[step]]
 name = "create protected cell"
-run = "pnpm tsx scripts/create.ts"
+run = "bun run scripts/create.ts"
 expect.tx = "committed"
 expect.cycles.lt = 5_000_000
 

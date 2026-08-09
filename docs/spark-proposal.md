@@ -8,7 +8,7 @@
 
 **One-sentence summary:** A CKB-specific `verify.toml` format and thin runner that execute a project's declared devnet transaction flows, check observable Cell/balance/script outcomes, and emit a comparable evidence report.
 
-**Project type:** Developer tool / manifest specification / npm CLI
+**Project type:** Developer tool / manifest specification / Bun-based CLI
 
 Spark Verify turns a free-form “How to Verify” section into an executable artifact. A project author declares the CKB toolchain pins, setup scripts, transaction-building steps, and expected on-chain outcomes. A reviewer runs one command against a local OffCKB devnet and receives a pass/fail report with transaction status, cycles, script errors, final Cell/balance observations, an outcome digest, a separate environment fingerprint, and explicit replay qualification.
 
@@ -18,20 +18,14 @@ It does not infer whether a project is correct and does not replace security rev
 
 ## 2. Team Profile
 
-**Project lead and accountable applicant:** Akane
+**Applicant and maintainer:** Akane
 
 - GitHub: [Akane-CN](https://github.com/Akane-CN)
 - Nervos Talk: [Akane](https://talk.nervos.org/u/Akane)
 - Contact: [akane@random-walk.co.jp](mailto:akane@random-walk.co.jp)
-- Operator: Random Walk Co., Ltd., Japan
 - Role: specification, TypeScript implementation, OffCKB/CCC integration, conformance tests, examples, and documentation
 
-Relevant public CKB work:
-
-- [Fiber Link](https://github.com/Keith-CY/fiber-link) — CKB Fiber-based community payments project; Akane has participated in its public technical and acceptance work.
-- [QuorumCell](https://github.com/Akane-CN/quorum-cell) — a public CKB Cell-model design exploration. It is currently design-only, not an implemented script, and is listed as evidence of domain research rather than a shipped contract.
-
-The contact, operator, public GitHub identity repository, and CKB payout destination are disclosed in this draft so the committee can verify responsibility before approving funding.
+This is a personal open source project. The public GitHub identity, contact, and CKB payout destination are disclosed in this draft so the committee can verify responsibility before approving funding.
 
 ## 3. Project Background
 
@@ -89,7 +83,7 @@ hash_type = "type"
 
 [[step]]
 name = "create protected cell"
-run = "pnpm tsx scripts/build-create.ts"
+run = "bun run scripts/build-create.ts"
 
 [step.expect]
 tx = "committed"
@@ -126,7 +120,7 @@ Anything exotic remains repository code. Spark Verify does not become a general 
 
 ## 5. Technical Approach
 
-**Language and packaging:** TypeScript, Node.js 22, pnpm, npm CLI distribution.
+**Language and packaging:** TypeScript with Bun as the runtime and package manager. The repository will pin the exact Bun version and commit `bun.lock`; the finished CLI will be published as an installable package.
 
 **Dependencies:** OffCKB for devnet/deployment/proxy evidence; CCC-compatible JSON-RPC transactions from project adapters; ckb-debugger/OffCKB debug output for script groups, error codes, and cycles; a strict TOML parser plus runtime schema validation.
 
@@ -211,7 +205,7 @@ The architecture keeps one execution kernel behind three public layers: OffCKB l
 
 ### Week 6 — Release and verification package
 
-- publish the npm package and tagged v0.1 specification;
+- publish the CLI package and tagged v0.1 specification;
 - finalize schema, command, security, and integration documentation;
 - record a short end-to-end demo;
 - run the release verification checklist from a clean machine/runner;
@@ -234,7 +228,7 @@ This is a pure technical-development proposal and deliberately stays at the stan
 | Real example, dogfood manifest, release docs, demo, final report | $100 | Clean-checkout verification and public release |
 | **Total** | **$1,000** | |
 
-No budget is allocated to hosting or a web UI. npm, GitHub, and GitHub Actions are sufficient for the MVP; any paid CI overage is borne by the maintainer.
+No budget is allocated to hosting or a web UI. Bun's package tooling, GitHub, and GitHub Actions are sufficient for the MVP; any paid CI overage is borne by the maintainer.
 
 **Payout:** 100% CKB to the applicant-provided CKB mainnet address.
 
@@ -253,7 +247,7 @@ The address checksum, `ckb` mainnet prefix, and canonical round trip were valida
    - machine-readable parsed-TOML schema;
    - valid/invalid manifests plus outcome/environment digest fixtures.
 
-2. **`spark-verify` npm CLI**
+2. **Bun-based `spark-verify` CLI package**
    - `validate`, `run`, `digest`, and `check-digest`;
    - `tx`/cycles/script-error, Cell, and balance assertions;
    - JSON report and terminal summary.
@@ -277,19 +271,18 @@ The address checksum, `ckb` mainnet prefix, and canonical round trip were valida
 
 ### B. Independent verification
 
-From a clean Ubuntu 24.04 or supported macOS host with Git, normal download access, the exact Node.js runtime pinned by the repository (target major: 22), and the exact package-manager version pinned by `packageManager`:
+From a clean Ubuntu 24.04 or supported macOS host with Git, normal download access, and the exact Bun version pinned by the repository:
 
 ```bash
 git clone https://github.com/Akane-CN/spark-verify.git
 cd spark-verify
-corepack enable
-pnpm install --frozen-lockfile
-pnpm test
-pnpm build
-pnpm verify:release
+bun install --frozen-lockfile
+bun test
+bun run build
+bun run verify:release
 ```
 
-`pnpm verify:release` must:
+`bun run verify:release` must:
 
 1. validate the included manifests;
 2. run the repository-root `verify.toml` with the locally built CLI;
@@ -320,7 +313,7 @@ Completed before funding:
 
 Not completed:
 
-- no runnable CLI or npm package;
+- no runnable CLI package;
 - no machine-readable schema;
 - no OffCKB lifecycle adapter;
 - no committed/rejected feasibility slice;
@@ -365,7 +358,7 @@ The application is intended for submission before implementation. The following 
 - [x] CKB mainnet payout address disclosed and syntactically validated;
 - [x] current work separated explicitly from the requested funded work.
 
-No working CLI, npm package, machine-readable schema, feasibility run, or adopter integration is claimed. If funding is approved, Week 1 executes these go/no-go gates:
+No working CLI package, machine-readable schema, feasibility run, or adopter integration is claimed. If funding is approved, Week 1 executes these go/no-go gates:
 
 - [ ] produce a two-run feasibility slice with real committed/rejected output ([#1](https://github.com/Akane-CN/spark-verify/issues/1));
 - [ ] confirm one completed Spark project/adopter for the real example ([#3](https://github.com/Akane-CN/spark-verify/issues/3));

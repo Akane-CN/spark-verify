@@ -68,7 +68,7 @@ Bare TOML integers do not cover unsigned 128-bit token values, JavaScript JSON n
 
 ### P1 — The original scope was too broad for a standard Spark grant
 
-The draft included an RFC, kernel, parser, six-to-eight assertions, JSON and HTML reports, CLI, GitHub Action, two examples, npm publication, and self-verification over 6–8 weeks, with no numeric budget and no proof of deterministic replay.
+The draft included an RFC, kernel, parser, six-to-eight assertions, JSON and HTML reports, CLI, GitHub Action, two examples, package publication, and self-verification over 6–8 weeks, with no numeric budget and no proof of deterministic replay.
 
 **Decision:** request the standard **$1,000**, remove HTML and hosted services, use a six-week plan with a Week 1 feasibility gate, and bind every budget line to evidence. A request above $1,000 is not justified before demand and feasibility are proven.
 
@@ -146,14 +146,13 @@ The thin-wrapper objection remains legitimate. Funded Week 1 therefore asks an O
 2. **“Is this just OffCKB plus CI?”** Without a working negative-test and report/digest slice, the differentiation is still prose; funded Week 1 must resolve that uncertainty.
 3. **“Can arbitrary scripts really be reproducible?”** Only comparable provenance/claims can be qualified; external behavior cannot be guaranteed.
 4. **“Why fund $1,000 of tooling before a spike?”** Spark funds the implementation. The first funded milestone is deliberately a narrow, published go/no-go slice so later work stops or narrows if the premise fails.
-5. **“Who is accountable?”** Akane is named as accountable applicant, Random Walk Co., Ltd. as operator, and the proposal discloses the contact and applicant-provided CKB mainnet payout destination.
-6. **“Does the applicant have implementation evidence?”** QuorumCell is currently a design note with no code. It is not represented as a shipped script.
+5. **“Who is accountable?”** Akane is named as the applicant and maintainer, and the proposal discloses the public contact and applicant-provided CKB mainnet payout destination.
 
 ## Submission Administration
 
 The administrative publication requirements are now recorded explicitly:
 
-- [x] **Identity and contact:** Akane, `Akane-CN`, Random Walk Co., Ltd., and `akane@random-walk.co.jp` are disclosed ([#4](https://github.com/Akane-CN/spark-verify/issues/4)).
+- [x] **Identity and contact:** Akane, `Akane-CN`, and `akane@random-walk.co.jp` are disclosed ([#4](https://github.com/Akane-CN/spark-verify/issues/4)).
 - [x] **Payout:** the proposal discloses a syntactically validated CKB mainnet address and does not store signing credentials.
 - [x] **Funding boundary:** the repository states that no runner implementation, feasibility evidence, or adopter integration exists yet.
 

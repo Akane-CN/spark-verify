@@ -63,7 +63,7 @@ dependencies = []                 # explicit author declaration; required
 
 All toolchain fields are exact versions. `--allow-version-drift` permits a run but marks it tainted and records every expected/observed mismatch. The runner must not silently choose “latest.”
 
-The project's own command runtime and dependencies remain repository-controlled. A stable run requires exact runtime metadata (for example `.node-version` or an equivalent tool pin), an exact package-manager declaration, and a committed lockfile. The report records the requested and observed runtime/package-manager versions plus relevant metadata and lockfile hashes. CCC and other library versions are taken from the resolved lockfile. Missing or ranged runtime pins taint the run. A future spec may promote more of these fields into `[toolchain]` if the feasibility spike shows that repository pins are insufficient.
+The project's own command runtime and dependencies remain repository-controlled. A stable run requires exact runtime metadata (for example `mise.toml`, `.tool-versions`, or an equivalent tool pin), an exact package-manager declaration, and a committed lockfile. The report records the requested and observed runtime/package-manager versions plus relevant metadata and lockfile hashes. CCC and other library versions are taken from the resolved lockfile. Missing or ranged runtime pins taint the run. Spark Verify's own implementation and examples use an exact Bun version and `bun.lock`; target repositories may declare another pinned runtime. A future spec may promote more of these fields into `[toolchain]` if the feasibility spike shows that repository pins are insufficient.
 
 `[replay]` makes the author's nondeterminism declaration part of the manifest instead of relying on out-of-schema input. `dependencies` is a required array containing zero or more unique values from `external_time`, `randomness`, `fee_estimation`, `dynamic_since`, and `external_network`. An empty array explicitly declares that the author knows of no such dependency. Any listed dependency makes `replay.status` tainted with an outcome-scoped reason. The declaration is an attestation, not something the runner can prove complete; §6.4 defines the resulting qualification.
 
@@ -118,7 +118,7 @@ Seeded arbitrary genesis Cells are out of scope for v0.1.
 ```toml
 [[step]]
 name = "2-of-3 spend"
-run = "pnpm tsx scripts/build-spend.ts"
+run = "bun run scripts/build-spend.ts"
 timeout = "60s"                         # optional; default 60s
 expect.tx = "committed"
 expect.cycles.lt = 5_000_000
@@ -500,7 +500,7 @@ hash_type = "type"
 
 [[step]]
 name = "create protected cell"
-run = "pnpm tsx scripts/build-create.ts"
+run = "bun run scripts/build-create.ts"
 expect.tx = "committed"
 
 [[step.assert.cell]]
@@ -510,7 +510,7 @@ count = 1
 
 [[step]]
 name = "2-of-3 spend"
-run = "pnpm tsx scripts/build-spend.ts"
+run = "bun run scripts/build-spend.ts"
 expect.tx = "committed"
 expect.cycles.lt = 5_000_000
 
@@ -549,12 +549,12 @@ hash_type = "type"
 
 [[step]]
 name = "create protected cell"
-run = "pnpm tsx scripts/build-create.ts"
+run = "bun run scripts/build-create.ts"
 expect.tx = "committed"
 
 [[step]]
 name = "one signer attempts 2-of-3 spend"
-run = "pnpm tsx scripts/build-unauthorized.ts"
+run = "bun run scripts/build-unauthorized.ts"
 expect.tx = "rejected"
 expect.error.code = -101
 expect.error.group = { role = "lock", script = "quorum_lock", args = "0x0102" }

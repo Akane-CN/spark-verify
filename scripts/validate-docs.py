@@ -35,7 +35,7 @@ SECRET_PATTERNS = {
     "API key": re.compile(r"\bsk-[A-Za-z0-9]{20,}"),
     "private key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 }
-IGNORED_PARTS = {".git", ".pnpm-store", "coverage", "dist", "node_modules"}
+IGNORED_PARTS = {".bun", ".git", "coverage", "dist", "node_modules"}
 
 
 class Validation:
