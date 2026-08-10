@@ -63,7 +63,7 @@ An abbreviated, parser-valid manifest looks like this:
 
 ```toml
 [meta]
-name = "quorum-cell-basic"
+name = "sample-lock-basic"
 spec = "0.1.0-draft.3"
 
 [toolchain]
@@ -77,8 +77,8 @@ dependencies = []
 [setup]
 accounts = 3
 
-[setup.scripts.quorum_lock]
-binary = "build/quorum_lock"
+[setup.scripts.sample_lock]
+binary = "build/sample_lock"
 hash_type = "type"
 
 [[step]]
@@ -91,7 +91,7 @@ cycles.lt = 5_000_000
 
 [[step.assert.cell]]
 out_point = { step = "create protected cell", index = 0 }
-lock = { script = "quorum_lock", args = "0x0102" }
+lock = { script = "sample_lock", args = "0x0102" }
 count = 1
 
 [[assert.balance]]

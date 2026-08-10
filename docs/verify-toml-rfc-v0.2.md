@@ -46,7 +46,7 @@ Canonical normalized paths are `[meta]`, `[toolchain]`, `[replay]`, `[setup]`, `
 
 ```toml
 [meta]
-name = "quorum-cell-basic"       # required, unique within the repository
+name = "sample-lock-basic"       # required, unique within the repository
 spec = "0.1.0-draft.3"           # required manifest specification version
 description = "2-of-3 spend"     # optional
 
@@ -73,8 +73,8 @@ The project's own command runtime and dependencies remain repository-controlled.
 [setup]
 accounts = 3
 
-[setup.scripts.quorum_lock]
-binary = "build/quorum_lock"
+[setup.scripts.sample_lock]
+binary = "build/sample_lock"
 hash_type = "type"
 
 [setup.scripts.always_success]
@@ -125,7 +125,7 @@ expect.cycles.lt = 5_000_000
 
 [[step.assert.cell]]
 out_point = { step = "2-of-3 spend", index = 0 }
-lock = { script = "quorum_lock", args = "0x0102" }
+lock = { script = "sample_lock", args = "0x0102" }
 count = 1
 ```
 
@@ -182,7 +182,7 @@ Runner-owned submission avoids the ambiguous case where a rejected transaction n
 A script-group reference includes a role and script reference:
 
 ```toml
-expect.error.group = { role = "lock", script = "quorum_lock", args = "0x0102" }
+expect.error.group = { role = "lock", script = "sample_lock", args = "0x0102" }
 ```
 
 `role` is `"lock"` or `"type"`. If several groups still match, the expectation is invalid until the author supplies args or a group index.
@@ -200,7 +200,7 @@ A Cell assertion selects live Cells by a specific prior output or by scripts, th
 ```toml
 [[assert.cell]]
 out_point = { step = "create protected cell", index = 0 }
-lock = { script = "quorum_lock", args = "0x0102" }
+lock = { script = "sample_lock", args = "0x0102" }
 count = 1
 data.eq = "0x0102"
 data.len = 2
@@ -266,13 +266,13 @@ lock = { code_hash = "0x00000000000000000000000000000000000000000000000000000000
 It can instead use a named setup script with exact args:
 
 ```toml
-lock = { script = "quorum_lock", args = "0x0102" }
+lock = { script = "sample_lock", args = "0x0102" }
 ```
 
 Or it can use a named setup script with wildcard args:
 
 ```toml
-lock = "quorum_lock"
+lock = "sample_lock"
 ```
 
 A bare name or `{ script = "name" }` resolves `code_hash` and `hash_type` and treats omitted args as a wildcard. This wildcard behavior must be visible in the report. It does not mean empty args.
@@ -365,7 +365,7 @@ Abbreviated illustrative report shape; an actual report includes every field req
 ```json
 {
   "schema": "spark-verify-report/0.1-draft.3",
-  "name": "quorum-cell-basic",
+  "name": "sample-lock-basic",
   "versions": {
     "spec": "0.1.0-draft.3",
     "runner": "0.1.0",
@@ -480,7 +480,7 @@ Declarative transaction construction, arbitrary genesis Cells, testnet/mainnet e
 
 ```toml
 [meta]
-name = "quorum-cell-basic"
+name = "sample-lock-basic"
 spec = "0.1.0-draft.3"
 
 [toolchain]
@@ -494,8 +494,8 @@ dependencies = []
 [setup]
 accounts = 3
 
-[setup.scripts.quorum_lock]
-binary = "build/quorum_lock"
+[setup.scripts.sample_lock]
+binary = "build/sample_lock"
 hash_type = "type"
 
 [[step]]
@@ -505,7 +505,7 @@ expect.tx = "committed"
 
 [[step.assert.cell]]
 out_point = { step = "create protected cell", index = 0 }
-lock = { script = "quorum_lock", args = "0x0102" }
+lock = { script = "sample_lock", args = "0x0102" }
 count = 1
 
 [[step]]
@@ -529,7 +529,7 @@ The immediate assertion checks the created output. The final out-point assertion
 
 ```toml
 [meta]
-name = "quorum-cell-unauthorized"
+name = "sample-lock-unauthorized"
 spec = "0.1.0-draft.3"
 
 [toolchain]
@@ -543,8 +543,8 @@ dependencies = []
 [setup]
 accounts = 3
 
-[setup.scripts.quorum_lock]
-binary = "build/quorum_lock"
+[setup.scripts.sample_lock]
+binary = "build/sample_lock"
 hash_type = "type"
 
 [[step]]
@@ -557,7 +557,7 @@ name = "one signer attempts 2-of-3 spend"
 run = "bun run scripts/build-unauthorized.ts"
 expect.tx = "rejected"
 expect.error.code = -101
-expect.error.group = { role = "lock", script = "quorum_lock", args = "0x0102" }
+expect.error.group = { role = "lock", script = "sample_lock", args = "0x0102" }
 
 [[assert.cell]]
 out_point = { step = "create protected cell", index = 0 }
