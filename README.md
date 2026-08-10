@@ -87,7 +87,8 @@ See the full [`verify.toml` RFC draft 0.2](docs/verify-toml-rfc-v0.2.md).
 ## Repository map
 
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — current draft manifest, assertion, report, and digest semantics
-- [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application draft and budget
+- [`docs/spark-proposal.md`](docs/spark-proposal.md) — full Spark Program application and budget
+- [Nervos Talk application topic](https://talk.nervos.org/t/spark-program-spark-verify-reproducible-acceptance-checks-for-ckb-projects/10598) — submitted community proposal
 - [`docs/design-review.md`](docs/design-review.md) — review findings, decisions, and funded go/no-go gates
 - [`scripts/validate-docs.sh`](scripts/validate-docs.sh) — validator regression, embedded TOML/JSON, link, and secret-pattern checks
 - [`SECURITY.md`](SECURITY.md) — command-execution and CI trust boundary

@@ -1,6 +1,6 @@
 # Spark Program | Spark Verify — Executable Acceptance Claims for CKB Projects
 
-> **Application status: pre-implementation funding draft, not yet submitted.** This is proposal document revision **0.2** and accompanies the [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md). It follows the current Spark proposal structure. The repository intentionally contains the RFC and proposal before implementation; the runner, feasibility evidence, and adopter integration are funded deliverables rather than prerequisites.
+> **Application status: [submitted for Spark Program review on Nervos Talk](https://talk.nervos.org/t/spark-program-spark-verify-reproducible-acceptance-checks-for-ckb-projects/10598).** This is proposal document revision **0.2** and accompanies the [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md). The submission is intentionally pre-implementation; the runner, feasibility evidence, and adopter integration are funded deliverables rather than prerequisites.
 
 ## 1. Project Overview
 
@@ -351,10 +351,10 @@ The contribution also fits Spark's verification constraint directly: it reduces 
 
 ## 12. Submission Status and Funded Gates
 
-The application is intended for submission before implementation. The following administrative publication requirements are satisfied in this repository:
+The application was submitted before implementation in the dedicated Spark Program category on Nervos Talk. The following administrative publication requirements are satisfied in this repository:
 
 - [x] public applicant-owned GitHub repository;
-- [x] accountable applicant, operator, and contact disclosed ([#4](https://github.com/Akane-CN/spark-verify/issues/4));
+- [x] applicant, maintainer, and contact disclosed ([#4](https://github.com/Akane-CN/spark-verify/issues/4));
 - [x] CKB mainnet payout address disclosed and syntactically validated;
 - [x] current work separated explicitly from the requested funded work.
 
