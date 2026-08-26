@@ -1,6 +1,6 @@
 # `verify.toml` Schema & Assertion Vocabulary (RFC draft 0.2)
 
-> **Status:** pre-implementation RFC for community feedback. Nothing in this document is stable or implemented yet. The first release must publish a machine-readable schema and conformance fixtures matching the final text.
+> **Status:** design RFC for community feedback. The repository now implements and exercises the strict feasibility subset documented in the README; sections outside that subset remain proposals. Nothing in this document is a stable public interface yet. A first release must publish a machine-readable schema and conformance fixtures matching the final text.
 >
 > **Versioning:** this is document revision **0.2** for the intended `verify.toml` **v0.1** release. Draft manifests select `spec = "0.1.0-draft.3"`; draft.3 supersedes the briefly published draft.2 because the canonical transaction key and required replay declaration changed. The manifest-spec, outcome-claims, report-schema, and installed-runner versions are separate values.
 >
@@ -52,7 +52,7 @@ description = "2-of-3 spend"     # optional
 
 [toolchain]
 ckb = "0.209.0"                  # exact, no ranges
-offckb = "0.4.11"                # exact, no ranges
+offckb = "0.4.13"                # exact, no ranges
 ckb-debugger = "1.1.1"           # exact, no ranges
 
 [replay]
@@ -370,7 +370,7 @@ Abbreviated illustrative report shape; an actual report includes every field req
     "spec": "0.1.0-draft.3",
     "runner": "0.1.0",
     "ckb": "0.209.0",
-    "offckb": "0.4.11",
+    "offckb": "0.4.13",
     "ckb_debugger": "1.1.1"
   },
   "evidence": {
@@ -485,7 +485,7 @@ spec = "0.1.0-draft.3"
 
 [toolchain]
 ckb = "0.209.0"
-offckb = "0.4.11"
+offckb = "0.4.13"
 ckb-debugger = "1.1.1"
 
 [replay]
@@ -534,7 +534,7 @@ spec = "0.1.0-draft.3"
 
 [toolchain]
 ckb = "0.209.0"
-offckb = "0.4.11"
+offckb = "0.4.13"
 ckb-debugger = "1.1.1"
 
 [replay]

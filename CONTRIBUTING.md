@@ -1,6 +1,6 @@
 # Contributing
 
-Spark Verify is in RFC stage. The most valuable contribution is a concrete CKB flow that proves the vocabulary useful—or insufficient.
+Spark Verify has an unreleased, deliberately narrow `ckb-verify` feasibility runner alongside the broader RFC. The most valuable contribution is a concrete CKB flow that proves either the implemented subset or proposed vocabulary useful—or insufficient.
 
 ## Good feedback
 
@@ -41,12 +41,12 @@ Unknown keys are errors, so renames are breaking until a compatibility rule is d
 Run the repository validator before proposing an RFC/documentation change:
 
 ```bash
-./scripts/validate-docs.sh
+./scripts/validate-docs.sh --examples
 ```
 
 It runs validator regression tests, parses every TOML and JSON fence, applies selected high-risk draft invariants, checks local links and common secret patterns, runs the pinned Markdown linter, and checks both staged and unstaged Git whitespace. It is not the future machine-readable manifest schema and does not exhaustively reject every missing or unknown field. Add `--external-links` when intentionally rechecking every public URL.
 
-## Implementation standards (once coding starts)
+## Implementation standards
 
 - TypeScript strict mode;
 - no floating-point asset arithmetic;
@@ -54,12 +54,12 @@ It runs validator regression tests, parses every TOML and JSON fence, applies se
 - no shell-string interpolation for untrusted paths;
 - redaction tests for logs/reports;
 - unit tests plus real OffCKB integration fixtures;
-- clean-run outcome digest and environment fingerprint checked twice in CI;
+- clean-run outcome digest and environment fingerprint checked twice by `bun run test:devnet`;
 - Linux required, macOS targeted, Windows support claimed only after real verification.
 
 ## Security
 
-Read [`SECURITY.md`](SECURITY.md) before running any future implementation. A manifest executes repository commands and is not safe merely because it is declarative TOML.
+Read [`SECURITY.md`](SECURITY.md) before running the implementation. A manifest executes repository commands and is not safe merely because it is declarative TOML.
 
 ## License
 
