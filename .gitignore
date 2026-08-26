@@ -7,7 +7,11 @@ dist/
 coverage/
 *.tsbuildinfo
 
-# Spark Verify runtime artifacts
+# CKB Verify runtime artifacts
+ckb-verify-report.json
+.ckb-verify/
+
+# Legacy Spark Verify runtime artifacts
 spark-verify-report.json
 .spark-verify/
 

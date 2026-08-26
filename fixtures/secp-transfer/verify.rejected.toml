@@ -1,0 +1,22 @@
+[meta]
+name = "secp-transfer-rejected"
+spec = "0.1.0-draft.3"
+description = "A structurally valid transaction with a tampered secp256k1 signature is rejected."
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.13"
+ckb-debugger = "1.1.1"
+
+[replay]
+dependencies = []
+
+[setup]
+accounts = 2
+
+[[step]]
+name = "bad-signature"
+run = "bun run fixtures/secp-transfer/produce.ts rejected"
+timeout = "60s"
+expect.tx = "rejected"
+expect.error.code = -11
