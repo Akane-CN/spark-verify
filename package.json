@@ -11,6 +11,7 @@
   "scripts": {
     "test": "bun test",
     "showcase:secp-transfer": "bash showcases/secp-transfer/verify.sh",
+    "showcase:nervdao": "bash showcases/nervdao/verify.sh",
     "test:devnet": "bun run showcase:secp-transfer",
     "typecheck": "tsc --noEmit",
     "check": "bun test && bun run typecheck && git diff --check"

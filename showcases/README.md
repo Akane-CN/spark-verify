@@ -4,11 +4,12 @@ Showcases are bounded, executable integrations that demonstrate what `ckb-verify
 
 A showcase is deliberately **not** a plugin API. We add a new abstraction only when a real project cannot use the existing repository-command boundary.
 
-## Current showcase
+## Current showcases
 
 | Showcase | Scope | Acceptance command |
 | --- | --- | --- |
 | [`secp-transfer`](secp-transfer/) | Committed transfer, genuine script rejection, intentional assertion failure, and semantic digest stability | `bun run showcase:secp-transfer` |
+| [`nervdao`](nervdao/) | Bounded 200 CKB DAO deposit adaptation, tampered-signature rejection, intentional assertion failure, and semantic digest stability | `bun run showcase:nervdao` |
 
 ## Showcase contract
 
@@ -23,6 +24,6 @@ A repository showcase should contain:
 
 The producer interface is the canonical `CKB_VERIFY_*` environment documented in the [root README](../README.md). Runner-owned submission remains the seam between project-specific transaction construction and shared acceptance evidence.
 
-## Next target: CKB-UGMP
+## Further target: CKB-UGMP
 
-CKB-UGMP will be added in a separate follow-up after this runner/showcase baseline is merged. That integration will test whether a completed external project's real flow fits the existing command boundary and manifest vocabulary. It should deepen the shared runner only in response to a concrete incompatibility, not by pre-emptively introducing a generic adapter system.
+NervDAO is the first bounded adaptation of an external project's pinned transaction flow; it is independent feasibility evidence, not a maintainer endorsement or adopter claim. CKB-UGMP remains a separate follow-up for testing whether another completed external project's real flow fits the existing command boundary and manifest vocabulary. It should deepen the shared runner only in response to a concrete incompatibility, not by pre-emptively introducing a generic adapter system.

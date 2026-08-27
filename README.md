@@ -15,7 +15,7 @@ It composes the existing CKB stack instead of replacing it:
 
 A passing report is not an audit, a sandbox, or proof that the manifest declared every important property. It means the runner observed all declared claims passing in the recorded environment.
 
-## Verified showcase
+## Verified showcases
 
 The first repository showcase packages three secp256k1 transfer fixtures behind one reproducible acceptance command:
 
@@ -27,10 +27,13 @@ The acceptance harness runs the committed fixture twice on fresh devnets and req
 
 `PASS` means exactly: **All declared claims passed in the recorded environment.** It does not claim broader contract correctness or a security audit.
 
+The [`nervdao` showcase](showcases/nervdao/) adds a bounded, headless adaptation of the DAO deposit flow from [`ckb-devrel/nervdao@09fc1aea6f3d0527cc2af08f766d900780a32ae9`](https://github.com/ckb-devrel/nervdao/tree/09fc1aea6f3d0527cc2af08f766d900780a32ae9). It fixes the deposit at 200 CKB, resolves secp256k1 and DAO system scripts from the fresh OffCKB export, uses a deterministic `1_000n` fee rate, and signs without submitting so the runner retains the submission boundary. It covers only deposit, does not run the original browser UI unchanged, and carries no NervDAO maintainer endorsement.
+
 ```bash
 bun install --frozen-lockfile
 bun run check
 bun run showcase:secp-transfer
+bun run showcase:nervdao
 ```
 
 The current pinned fixture environment is:
@@ -64,7 +67,7 @@ A completed run uses these exit codes:
 - `1`: execution completed but at least one declared claim failed;
 - `2`: manifest, setup, producer, RPC, debugger, or evidence error; no valid verdict.
 
-The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) when validating all three paths because the harness checks that exit code and post-run cleanup explicitly.
+The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) for the transfer fixtures and `bun run showcase:nervdao` for the DAO deposit fixtures; each harness checks all three verdict paths, repeatability, report digests, and post-run cleanup explicitly.
 
 ## Implemented manifest subset
 
@@ -180,16 +183,18 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 - [`src/`](src/) — CLI, strict manifest parser, OffCKB adapter, runner, RPC boundary, and report canonicalization
 - [`showcases/`](showcases/) — bounded, executable integrations built on the runner
 - [`showcases/secp-transfer/`](showcases/secp-transfer/) — the first showcase: committed, rejected, and assertion-failure secp transfer paths
+- [`showcases/nervdao/`](showcases/nervdao/) — a bounded adaptation of NervDAO's pinned DAO deposit path
 - [`tests/`](tests/) — unit and orchestration tests
-- [`.github/workflows/verify.yml`](.github/workflows/verify.yml) — read-only CI for unit/docs checks and the fresh-devnet showcase
+- [`.github/workflows/verify.yml`](.github/workflows/verify.yml) — read-only CI for unit/docs checks and independent fresh-devnet showcase jobs
 - [`showcases/secp-transfer/verify.sh`](showcases/secp-transfer/verify.sh) — real fresh-devnet acceptance, cleanup, and digest-stability harness
+- [`showcases/nervdao/verify.sh`](showcases/nervdao/verify.sh) — fresh-devnet DAO deposit acceptance and repeatability harness
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — broader draft vocabulary and report design
 - [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material
 - [`docs/design-review.md`](docs/design-review.md) — prior design review and gates
 
-## Next conformance target
+## Further conformance targets
 
-The current secp transfer is a runner-owned fixture proving the orchestration mechanics. Adapting a completed real project, CKB-UGMP, is intentionally reserved for a separate follow-up change so project-specific integration does not blur the runner MVP review.
+The secp transfer remains the runner-owned fixture proving the orchestration mechanics. NervDAO pressure-tests the same boundary with one pinned external deposit flow, while CKB-UGMP remains intentionally reserved for a separate follow-up so each project's integration pressure stays independently reviewable.
 
 Relevant tracking issues:
 

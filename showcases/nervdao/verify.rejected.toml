@@ -1,0 +1,22 @@
+[meta]
+name = "nervdao-deposit-rejected"
+spec = "0.1.0-draft.3"
+description = "A ckb-devrel/nervdao@09fc1aea6f3d0527cc2af08f766d900780a32ae9 deposit with only its secp256k1 signature tampered is rejected."
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.13"
+ckb-debugger = "1.1.1"
+
+[replay]
+dependencies = []
+
+[setup]
+accounts = 1
+
+[[step]]
+name = "tampered-signature"
+run = "bun run showcases/nervdao/produce.ts tampered-signature"
+timeout = "60s"
+expect.tx = "rejected"
+expect.error.code = -11
