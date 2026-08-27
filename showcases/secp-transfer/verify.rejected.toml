@@ -16,7 +16,7 @@ accounts = 2
 
 [[step]]
 name = "bad-signature"
-run = "bun run fixtures/secp-transfer/produce.ts rejected"
+run = "bun run showcases/secp-transfer/produce.ts rejected"
 timeout = "60s"
 expect.tx = "rejected"
 expect.error.code = -11

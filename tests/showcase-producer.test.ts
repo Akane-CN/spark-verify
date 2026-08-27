@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
-const producer = join(root, "fixtures", "secp-transfer", "produce.ts");
+const producer = join(root, "showcases", "secp-transfer", "produce.ts");
 
-describe("secp transfer producer boundary", () => {
+describe("secp transfer showcase producer boundary", () => {
   test("fails before touching the chain when runner context is missing", () => {
     const result = Bun.spawnSync({
       cmd: [process.execPath, "run", producer, "committed"],

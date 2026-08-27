@@ -1,7 +1,7 @@
 [meta]
-name = "secp-transfer-assertion-failure"
+name = "secp-transfer-committed"
 spec = "0.1.0-draft.3"
-description = "The transaction commits but an intentionally false live-Cell claim fails."
+description = "A signed secp256k1 transfer commits and creates a live output Cell."
 
 [toolchain]
 ckb = "0.209.0"
@@ -15,10 +15,10 @@ accounts = 2
 
 [[step]]
 name = "transfer"
-run = "bun run fixtures/secp-transfer/produce.ts committed"
+run = "bun run showcases/secp-transfer/produce.ts committed"
 timeout = "60s"
 expect.tx = "committed"
 
 [[step.assert.cell]]
 out_point = { step = "transfer", index = 0 }
-count = 0
+count = 1

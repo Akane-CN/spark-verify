@@ -15,13 +15,26 @@ Commands:
 `;
 
 export interface CliDependencies {
-  runManifest: (options: { manifestPath: string; projectRoot: string }) => Promise<RunManifestResult>;
+  runManifest: (options: { manifestPath: string; projectRoot: string; signal: AbortSignal }) => Promise<RunManifestResult>;
+  subscribeSignals?: (handler: (signal: "SIGINT" | "SIGTERM") => void) => () => void;
   stdout: (text: string) => void;
   stderr: (text: string) => void;
 }
 
+export function subscribeProcessSignals(handler: (signal: "SIGINT" | "SIGTERM") => void): () => void {
+  const onSigint = () => handler("SIGINT");
+  const onSigterm = () => handler("SIGTERM");
+  process.once("SIGINT", onSigint);
+  process.once("SIGTERM", onSigterm);
+  return () => {
+    process.removeListener("SIGINT", onSigint);
+    process.removeListener("SIGTERM", onSigterm);
+  };
+}
+
 const DEFAULT_DEPENDENCIES: CliDependencies = {
   runManifest: executeManifest,
+  subscribeSignals: subscribeProcessSignals,
   stdout: (text) => process.stdout.write(text),
   stderr: (text) => process.stderr.write(text),
 };
@@ -41,11 +54,20 @@ export async function main(
   }
 
   if (args[0] === "run" && args.length <= 2) {
+    const controller = new AbortController();
+    let receivedSignal: "SIGINT" | "SIGTERM" | undefined;
+    const unsubscribe = dependencies.subscribeSignals?.((signal) => {
+      if (receivedSignal !== undefined) return;
+      receivedSignal = signal;
+      controller.abort(signal);
+    });
     try {
       const result = await dependencies.runManifest({
         manifestPath: args[1] ?? "verify.toml",
         projectRoot: process.cwd(),
+        signal: controller.signal,
       });
+      if (receivedSignal !== undefined) return receivedSignal === "SIGINT" ? 130 : 143;
       dependencies.stdout(
         `${result.verdict}: ${
           result.verdict === "PASS" ? "All declared claims passed." : "One or more declared claims failed."
@@ -56,8 +78,11 @@ export async function main(
       );
       return result.verdict === "PASS" ? 0 : 1;
     } catch (error) {
+      if (receivedSignal !== undefined) return receivedSignal === "SIGINT" ? 130 : 143;
       dependencies.stderr(`ERROR: ${error instanceof Error ? error.message : String(error)}\n`);
       return 2;
+    } finally {
+      unsubscribe?.();
     }
   }
 

@@ -135,11 +135,11 @@ Step names are required and unique. A step runs once, from the repository root, 
 
 The runner injects:
 
-- `CKB_RPC_URL` — a loopback, read-only RPC facade used for command queries; the runner rejects write methods such as `send_transaction` on this endpoint;
-- `SPARK_VERIFY_ACCOUNTS` — path to a JSON array of deterministic devnet `{ address, lock, privkey }` records;
-- `SPARK_VERIFY_DEPLOYMENTS` — path to the resolved script map;
-- `SPARK_VERIFY_CONTEXT` — path to JSON containing spec/run IDs, genesis hash, current tip, and paths above;
-- `SPARK_VERIFY_RESULT` — a fresh path at which a transaction-producing command must write its result atomically.
+- `CKB_VERIFY_RPC_URL` — a loopback RPC endpoint used for command queries;
+- `CKB_VERIFY_ACCOUNTS` — path to deterministic devnet account records;
+- `CKB_VERIFY_SYSTEM_SCRIPTS` — path to the resolved OffCKB system-script map;
+- `CKB_VERIFY_CONTEXT` — path to normalized devnet context JSON;
+- `CKB_VERIFY_RESULT` — a fresh path at which a transaction-producing command must write its result atomically.
 
 A transaction-producing command writes exactly one JSON object:
 
@@ -152,7 +152,7 @@ A transaction-producing command writes exactly one JSON object:
 
 `transaction` is a signed CKB JSON-RPC transaction. The runner validates it, computes its hash, submits it through OffCKB's proxy, and retains the transaction even if the node rejects it.
 
-A step is transaction-producing when it declares `expect.tx`; that declaration requires exactly one valid result object. `expect.cycles` and `expect.error` also require `expect.tx`. A pure step declares none of those keys, exits successfully without creating `SPARK_VERIFY_RESULT`, and may still have immediate state assertions.
+A step is transaction-producing when it declares `expect.tx`; that declaration requires exactly one valid result object. `expect.cycles` and `expect.error` also require `expect.tx`. A pure step declares none of those keys, exits successfully without creating `CKB_VERIFY_RESULT`, and may still have immediate state assertions.
 
 Rules:
 

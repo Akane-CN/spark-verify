@@ -107,7 +107,20 @@ export function buildEvidenceDigests(evidence: RunEvidence, environment: Environ
   };
 }
 
+export function verdictForOutcomeClaims(outcomeClaims: OutcomeClaims): "PASS" | "FAIL" {
+  const passed =
+    outcomeClaims.steps.every(
+      (step) =>
+        (step.expectedStatus === undefined || step.expectedStatus === step.observedStatus) &&
+        (step.expectedErrorCode === undefined || step.expectedErrorCode === step.rejection?.code) &&
+        step.claims.every((claim) => claim.ok),
+    ) && outcomeClaims.assertions.every((claim) => claim.ok);
+  return passed ? "PASS" : "FAIL";
+}
+
 export function verifyEvidenceDigests(report: {
+  verdict: string;
+  evidence: RunEvidence;
   outcomeClaims: OutcomeClaims;
   environment: EnvironmentEvidence;
   digests: EvidenceDigests;
@@ -115,6 +128,16 @@ export function verifyEvidenceDigests(report: {
   const actualOutcome = canonicalSha256(report.outcomeClaims);
   if (actualOutcome !== report.digests.outcome) {
     throw new EvidenceIntegrityError(`outcome digest mismatch: expected ${report.digests.outcome}, recomputed ${actualOutcome}`);
+  }
+  const evidenceOutcome = canonicalSha256(buildOutcomeClaims(report.evidence));
+  if (evidenceOutcome !== report.digests.outcome) {
+    throw new EvidenceIntegrityError(
+      `evidence outcome mismatch: expected ${report.digests.outcome}, recomputed ${evidenceOutcome}`,
+    );
+  }
+  const expectedVerdict = verdictForOutcomeClaims(report.outcomeClaims);
+  if (report.verdict !== expectedVerdict) {
+    throw new EvidenceIntegrityError(`verdict mismatch: expected ${expectedVerdict}, observed ${report.verdict}`);
   }
   const actualEnvironment = canonicalSha256(report.environment);
   if (actualEnvironment !== report.digests.environment) {

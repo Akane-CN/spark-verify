@@ -2,7 +2,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { OffckbDevnet, createOffckbPaths, type OffckbCommandRunner } from "../src/offckb";
+import {
+  OffckbDevnet,
+  createOffckbPaths,
+  waitForLocalEndpointsClosed,
+  type OffckbCommandRunner,
+} from "../src/offckb";
 import type { CommandResult } from "../src/process";
 
 const directories: string[] = [];
@@ -22,6 +27,29 @@ function success(command: string, fields: Record<string, unknown> = {}): Command
 
 afterEach(async () => {
   await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+});
+
+describe("OffCKB endpoint shutdown", () => {
+  test("waits until every local endpoint stops accepting connections", async () => {
+    let probes = 0;
+    await waitForLocalEndpointsClosed(["http://127.0.0.1:8114"], {
+      timeoutMs: 100,
+      intervalMs: 1,
+      probe: async () => ++probes < 3,
+    });
+
+    expect(probes).toBe(3);
+  });
+
+  test("fails instead of silently leaving a listener behind", async () => {
+    await expect(
+      waitForLocalEndpointsClosed(["http://127.0.0.1:28114"], {
+        timeoutMs: 5,
+        intervalMs: 1,
+        probe: async () => true,
+      }),
+    ).rejects.toThrow("OffCKB endpoints did not close");
+  });
 });
 
 describe("OffckbDevnet", () => {
@@ -183,5 +211,49 @@ describe("OffckbDevnet", () => {
 
     await expect(devnet.start()).rejects.toThrow("not ready");
     expect(stopped).toBe(true);
+  });
+
+  test("stops a daemon whose successful node command returns malformed output", async () => {
+    const repository = await mkdtemp(join(tmpdir(), "ckb-verify-offckb-node-output-"));
+    directories.push(repository);
+    let stopCalls = 0;
+    const run: OffckbCommandRunner = async (argv) => {
+      if (argv[0]?.endsWith("/offckb") && argv[1] === "--version") {
+        return { ...success("version"), stdout: "0.4.13\n" };
+      }
+      if (argv[2] === "node" && argv[3] === "stop") {
+        stopCalls += 1;
+        return success("node", { stopped: true });
+      }
+      if (argv[2] === "node") {
+        return { ...success("node"), stdout: '{"ok":true,"command":"accounts"}\n' };
+      }
+      return success(argv[2] ?? "unknown");
+    };
+    const devnet = new OffckbDevnet({ repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, run });
+
+    await expect(devnet.start()).rejects.toThrow("did not emit a successful node result");
+    expect(stopCalls).toBe(1);
+  });
+
+  test("preserves a partial-start cleanup failure alongside the startup error", async () => {
+    const repository = await mkdtemp(join(tmpdir(), "ckb-verify-offckb-cleanup-failure-"));
+    directories.push(repository);
+    const run: OffckbCommandRunner = async (argv) => {
+      if (argv[0]?.endsWith("/offckb") && argv[1] === "--version") {
+        return { ...success("version"), stdout: "0.4.13\n" };
+      }
+      if (argv[2] === "node" && argv[3] === "stop") {
+        return { ...success("node"), exitCode: 1, stderr: "stop failed" };
+      }
+      if (argv[2] === "node") {
+        return success("node", { rpcUrl: "http://127.0.0.1:8114", proxyUrl: "http://127.0.0.1:28114" });
+      }
+      if (argv[2] === "devnet") return success("devnet.info", { ready: false });
+      return success(argv[2] ?? "unknown");
+    };
+    const devnet = new OffckbDevnet({ repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, run });
+
+    await expect(devnet.start()).rejects.toThrow("OffCKB startup failed: OffCKB devnet is not ready; cleanup failed");
   });
 });

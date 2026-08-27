@@ -19,7 +19,7 @@ accounts = 2
 
 [[step]]
 name = "transfer"
-run = "bun run fixtures/secp-transfer/produce.ts committed"
+run = "bun run showcases/secp-transfer/produce.ts committed"
 timeout = "45s"
 expect.tx = "committed"
 
@@ -55,7 +55,7 @@ describe("parseManifestText", () => {
       steps: [
         {
           name: "transfer",
-          run: "bun run fixtures/secp-transfer/produce.ts committed",
+          run: "bun run showcases/secp-transfer/produce.ts committed",
           timeoutMs: 45_000,
           expect: { tx: "committed" },
           assertions: [

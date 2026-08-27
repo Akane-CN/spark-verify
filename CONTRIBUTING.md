@@ -1,6 +1,6 @@
 # Contributing
 
-Spark Verify has an unreleased, deliberately narrow `ckb-verify` feasibility runner alongside the broader RFC. The most valuable contribution is a concrete CKB flow that proves either the implemented subset or proposed vocabulary useful—or insufficient.
+Spark Verify has an unreleased, deliberately narrow `ckb-verify` feasibility runner and executable showcase alongside the broader RFC. The most valuable contribution is a concrete CKB flow that proves either the implemented subset or proposed vocabulary useful—or insufficient.
 
 ## Good feedback
 
@@ -54,7 +54,7 @@ It runs validator regression tests, parses every TOML and JSON fence, applies se
 - no shell-string interpolation for untrusted paths;
 - redaction tests for logs/reports;
 - unit tests plus real OffCKB integration fixtures;
-- clean-run outcome digest and environment fingerprint checked twice by `bun run test:devnet`;
+- clean-run outcome digest and environment fingerprint checked twice by `bun run showcase:secp-transfer`;
 - Linux required, macOS targeted, Windows support claimed only after real verification.
 
 ## Security

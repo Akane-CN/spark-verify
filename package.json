@@ -10,7 +10,8 @@
   },
   "scripts": {
     "test": "bun test",
-    "test:devnet": "bash scripts/test-devnet.sh",
+    "showcase:secp-transfer": "bash showcases/secp-transfer/verify.sh",
+    "test:devnet": "bun run showcase:secp-transfer",
     "typecheck": "tsc --noEmit",
     "check": "bun test && bun run typecheck && git diff --check"
   },

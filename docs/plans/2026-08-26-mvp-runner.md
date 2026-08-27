@@ -28,7 +28,7 @@ Result protocol:
 {"protocol":1,"transaction":{"version":"0x0","cell_deps":[],"header_deps":[],"inputs":[],"outputs":[],"outputs_data":[],"witnesses":[]}}
 ```
 
-The runner injects both canonical `CKB_VERIFY_*` variables and deprecated `SPARK_VERIFY_*` aliases for the transition. Commands receive a read-only loopback query facade when implemented; the feasibility fixture initially receives the local node query endpoint and cannot count as isolated CI for untrusted repositories. The CLI must print that it executes trusted repository code.
+The runner injects the canonical `CKB_VERIFY_*` variables. Commands receive a read-only loopback query facade when implemented; the feasibility showcase initially receives the local node query endpoint and cannot count as isolated CI for untrusted repositories. The CLI must print that it executes trusted repository code.
 
 Explicitly excluded from this PR: browser wallet automation, public networks, hosted dependencies, arbitrary OffCKB versions, script deployment, balance/UDT assertions, multi-transaction steps, generic plugins, dashboards, signed attestations, package publication, and security/audit verdicts.
 
@@ -178,10 +178,10 @@ Commit `feat: run signed CKB acceptance claims`.
 
 **Files:**
 
-- Create: `fixtures/secp-transfer/produce.ts`
-- Create: `fixtures/secp-transfer/verify-committed.toml`
-- Create: `fixtures/secp-transfer/verify-rejected.toml`
-- Create: `fixtures/secp-transfer/verify-assertion-failure.toml`
+- Create: `showcases/secp-transfer/produce.ts`
+- Create: `showcases/secp-transfer/verify.committed.toml`
+- Create: `showcases/secp-transfer/verify.rejected.toml`
+- Create: `showcases/secp-transfer/verify.assertion-failure.toml`
 - Create: `tests/integration/runner.test.ts`
 - Modify: `package.json`
 

@@ -45,4 +45,23 @@ describe("runCommand", () => {
     expect(result.timedOut).toBe(true);
     expect(existsSync(marker)).toBe(false);
   });
+
+  test("terminates the process group when its abort signal fires", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ckb-verify-process-abort-"));
+    directories.push(directory);
+    const marker = join(directory, "leaked");
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 30);
+
+    const result = await runCommand(`sleep 0.2; printf leaked > ${JSON.stringify(marker)}`, {
+      cwd: directory,
+      timeoutMs: 1_000,
+      signal: controller.signal,
+    });
+    await Bun.sleep(300);
+
+    expect(result.timedOut).toBe(false);
+    expect(result.signal).toBe("SIGTERM");
+    expect(existsSync(marker)).toBe(false);
+  });
 });

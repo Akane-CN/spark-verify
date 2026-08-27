@@ -15,9 +15,9 @@ It composes the existing CKB stack instead of replacing it:
 
 A passing report is not an audit, a sandbox, or proof that the manifest declared every important property. It means the runner observed all declared claims passing in the recorded environment.
 
-## Verified vertical slice
+## Verified showcase
 
-The repository includes three secp256k1 transfer fixtures:
+The first repository showcase packages three secp256k1 transfer fixtures behind one reproducible acceptance command:
 
 1. A signed transfer commits and output `0` is asserted live.
 2. The same transaction with a tampered signature is rejected with script error `-11`; the runner records `Inputs[0].Lock`, the resolved script and script hash, and debugger cycles.
@@ -28,7 +28,7 @@ The acceptance harness runs the committed fixture twice on fresh devnets and req
 ```bash
 bun install --frozen-lockfile
 bun run check
-bun run test:devnet
+bun run showcase:secp-transfer
 ```
 
 The current pinned fixture environment is:
@@ -52,8 +52,8 @@ ckb-verify --version
 Run one fixture directly:
 
 ```bash
-bun run src/cli.ts run fixtures/secp-transfer/verify.committed.toml
-bun run src/cli.ts run fixtures/secp-transfer/verify.rejected.toml
+bun run src/cli.ts run showcases/secp-transfer/verify.committed.toml
+bun run src/cli.ts run showcases/secp-transfer/verify.rejected.toml
 ```
 
 A completed run uses these exit codes:
@@ -62,7 +62,7 @@ A completed run uses these exit codes:
 - `1`: execution completed but at least one declared claim failed;
 - `2`: manifest, setup, producer, RPC, debugger, or evidence error; no valid verdict.
 
-The intentionally failing fixture therefore returns `1`. Use `bun run test:devnet` when validating all three paths because the harness checks that exit code explicitly.
+The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) when validating all three paths because the harness checks that exit code and post-run cleanup explicitly.
 
 ## Implemented manifest subset
 
@@ -83,7 +83,7 @@ accounts = 2
 
 [[step]]
 name = "transfer"
-run = "bun run fixtures/secp-transfer/produce.ts committed"
+run = "bun run showcases/secp-transfer/produce.ts committed"
 timeout = "60s"
 expect.tx = "committed"
 
@@ -135,9 +135,7 @@ The producer writes exactly one object to `CKB_VERIFY_RESULT`:
 }
 ```
 
-`transaction` must be a signed CKB JSON-RPC transaction. Stdout and stderr are logs only. The producer must not submit the transaction; `ckb-verify` computes the raw transaction hash and submits through OffCKB's proxy so rejected transactions remain available for debugger replay.
-
-Legacy `SPARK_VERIFY_*` aliases are exported temporarily for migration, but new fixtures should use `CKB_VERIFY_*`.
+`transaction` must be a signed CKB JSON-RPC transaction. Stdout and stderr are logs only. The producer must not submit the transaction; `ckb-verify` computes the raw transaction hash and submits through OffCKB's proxy so rejected transactions remain available for debugger replay. The unreleased interface exports only the canonical `CKB_VERIFY_*` namespace.
 
 ## Evidence and digests
 
@@ -163,7 +161,7 @@ It emits two RFC-8785 canonical SHA-256 identities:
 - **outcome digest**: declared claims and normalized observations, excluding raw transaction identity and runtime paths;
 - **environment fingerprint**: the recorded manifest, source, toolchain, runtime, platform, genesis, and system-script environment.
 
-The runner recomputes both embedded canonical objects before writing the report. It also scans the run evidence for the selected OffCKB development private keys; any match is redacted and turns the run into an execution error. The temporary account file is removed when the devnet stops.
+The runner recomputes both embedded canonical objects before writing the report, checks that normalized evidence agrees with the embedded outcome claims, and verifies that the top-level verdict is the verdict derived from those claims. It also scans the run evidence for the selected OffCKB development private keys with case-insensitive matching; any match is redacted and turns the run into an execution error. The temporary account file is removed when the devnet stops.
 
 ## Trust and safety
 
@@ -173,14 +171,16 @@ The producer receives a loopback node URL for queries, but the current feasibili
 
 OffCKB `0.4.13` advertises the proxy through a loopback URL but its proxy process binds port `28114` on the wildcard interface. The adapter cannot narrow that inherited bind behavior. Run behind a host firewall or inside a disposable VM/container whose devnet ports are not reachable from untrusted networks.
 
-See [`SECURITY.md`](SECURITY.md) before adding CI execution.
+See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 
 ## Repository map
 
 - [`src/`](src/) — CLI, strict manifest parser, OffCKB adapter, runner, RPC boundary, and report canonicalization
-- [`fixtures/secp-transfer/`](fixtures/secp-transfer/) — committed, rejected, and assertion-failure fixtures
+- [`showcases/`](showcases/) — bounded, executable integrations built on the runner
+- [`showcases/secp-transfer/`](showcases/secp-transfer/) — the first showcase: committed, rejected, and assertion-failure secp transfer paths
 - [`tests/`](tests/) — unit and orchestration tests
-- [`scripts/test-devnet.sh`](scripts/test-devnet.sh) — real fresh-devnet acceptance and digest-stability harness
+- [`.github/workflows/verify.yml`](.github/workflows/verify.yml) — read-only CI for unit/docs checks and the fresh-devnet showcase
+- [`showcases/secp-transfer/verify.sh`](showcases/secp-transfer/verify.sh) — real fresh-devnet acceptance, cleanup, and digest-stability harness
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — broader draft vocabulary and report design
 - [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material
 - [`docs/design-review.md`](docs/design-review.md) — prior design review and gates

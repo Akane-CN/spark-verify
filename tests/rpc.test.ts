@@ -63,6 +63,27 @@ describe("rpcCall", () => {
       "get_tip_header timed out after 5ms",
     );
   });
+
+  test("forwards an external abort to the transport before rejecting", async () => {
+    const controller = new AbortController();
+    let transportObservedAbort = false;
+    const never: FetchLike = async (_input, init) =>
+      await new Promise<Response>(() => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => {
+            transportObservedAbort = true;
+          },
+          { once: true },
+        );
+      });
+
+    const pending = rpcCall("http://127.0.0.1:8114", "get_tip_header", [], never, 100, controller.signal);
+    controller.abort();
+
+    await expect(pending).rejects.toThrow("get_tip_header aborted");
+    expect(transportObservedAbort).toBe(true);
+  });
 });
 
 describe("waitForTransaction", () => {
@@ -88,10 +109,46 @@ describe("waitForTransaction", () => {
   });
 
   test("enforces the overall deadline when an injected RPC call never settles", async () => {
-    const never = async () => await new Promise<unknown>(() => undefined);
+    let transportObservedAbort = false;
+    const never = async (_url: string, _method: string, _params: unknown[], signal?: AbortSignal) =>
+      await new Promise<unknown>(() => {
+        signal?.addEventListener(
+          "abort",
+          () => {
+            transportObservedAbort = true;
+          },
+          { once: true },
+        );
+      });
     await expect(
       waitForTransaction("unused", "0xabc", { call: never, intervalMs: 0, timeoutMs: 5 }),
     ).rejects.toThrow("transaction 0xabc did not reach a terminal state after 5ms");
+    expect(transportObservedAbort).toBe(true);
+  });
+
+  test("aborts an in-flight transaction wait when the run is interrupted", async () => {
+    const controller = new AbortController();
+    let transportObservedAbort = false;
+    setTimeout(() => controller.abort(), 5);
+
+    await expect(
+      waitForTransaction("unused", "0xabc", {
+        call: async (_url: string, _method: string, _params: unknown[], signal?: AbortSignal) =>
+          await new Promise<never>(() => {
+            signal?.addEventListener(
+              "abort",
+              () => {
+                transportObservedAbort = true;
+              },
+              { once: true },
+            );
+          }),
+        intervalMs: 0,
+        timeoutMs: 100,
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow("transaction wait aborted");
+    expect(transportObservedAbort).toBe(true);
   });
 });
 

@@ -1,5 +1,7 @@
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createConnection } from "node:net";
 import { join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { rpcCall } from "./rpc";
 import { runProcess, type CommandResult, type RunCommandOptions } from "./process";
 
@@ -245,6 +247,61 @@ function localRpcUrl(value: unknown, path: string): string {
   return parsed.toString().replace(/\/$/, "");
 }
 
+type EndpointProbe = (endpoint: string) => Promise<boolean>;
+
+export interface EndpointShutdownOptions {
+  timeoutMs?: number;
+  intervalMs?: number;
+  probe?: EndpointProbe;
+}
+
+async function isEndpointListening(endpoint: string): Promise<boolean> {
+  const parsed = new URL(endpoint);
+  if (parsed.protocol !== "http:" || parsed.hostname !== "127.0.0.1") {
+    throw new OffckbProtocolError(`cannot probe non-local OffCKB endpoint ${endpoint}`);
+  }
+  const port = parsed.port === "" ? 80 : Number.parseInt(parsed.port, 10);
+  return await new Promise<boolean>((resolveProbe) => {
+    const socket = createConnection({ host: parsed.hostname, port });
+    let settled = false;
+    const finish = (listening: boolean): void => {
+      if (settled) return;
+      settled = true;
+      socket.removeAllListeners();
+      socket.destroy();
+      resolveProbe(listening);
+    };
+    socket.setTimeout(250, () => finish(false));
+    socket.once("connect", () => finish(true));
+    socket.once("error", () => finish(false));
+  });
+}
+
+export async function waitForLocalEndpointsClosed(
+  endpoints: readonly string[],
+  options: EndpointShutdownOptions = {},
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 5_000;
+  const intervalMs = options.intervalMs ?? 50;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new OffckbProtocolError("shutdown timeout must be positive");
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    throw new OffckbProtocolError("shutdown polling interval must be positive");
+  }
+  const probe = options.probe ?? isEndpointListening;
+  const deadline = Date.now() + timeoutMs;
+
+  while (endpoints.length > 0) {
+    const states = await Promise.all(endpoints.map(async (endpoint) => ({ endpoint, listening: await probe(endpoint) })));
+    const open = states.filter(({ listening }) => listening).map(({ endpoint }) => endpoint);
+    if (open.length === 0) return;
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      throw new OffckbProtocolError(`OffCKB endpoints did not close within ${timeoutMs}ms: ${open.join(", ")}`);
+    }
+    await delay(Math.min(intervalMs, remainingMs));
+  }
+}
+
 export class OffckbDevnet {
   readonly paths: OffckbPaths;
   readonly repositoryRoot: string;
@@ -254,6 +311,7 @@ export class OffckbDevnet {
   private readonly rpc: OffckbRpcCaller;
   private readonly timeoutMs: number;
   private started = false;
+  private activeEndpoints: string[] = [];
 
   constructor(options: OffckbDevnetOptions) {
     if (!/^\d+\.\d+\.\d+$/.test(options.ckbVersion)) {
@@ -329,14 +387,15 @@ export class OffckbDevnet {
       await this.command(["config", "set", "ckb-version", this.ckbVersion]);
       await this.command(["clean"]);
       const node = await this.command(["node", this.ckbVersion, "--daemon"]);
-      parseOffckbResult(node.stdout, "node");
       this.started = true;
+      parseOffckbResult(node.stdout, "node");
 
       const infoOutput = await this.command(["devnet", "info"]);
       const info = parseOffckbResult(infoOutput.stdout, "devnet.info");
       if (info.ready !== true) throw new OffckbProtocolError("OffCKB devnet is not ready");
       const rpcUrl = localRpcUrl(info.rpcUrl, "devnet.info.rpcUrl");
       const proxyUrl = localRpcUrl(info.proxyUrl, "devnet.info.proxyUrl");
+      this.activeEndpoints = [rpcUrl, proxyUrl];
 
       const accountOutput = await this.command(["accounts", "--show-private-keys"], { sensitive: true });
       const accounts = parseAccountsResult(parseOffckbResult(accountOutput.stdout, "accounts"), this.accountCount);
@@ -386,7 +445,16 @@ export class OffckbDevnet {
       );
       return context;
     } catch (error) {
-      await this.stop().catch(() => undefined);
+      try {
+        await this.stop();
+      } catch (cleanupError) {
+        const startupMessage = error instanceof Error ? error.message : String(error);
+        const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+        throw new AggregateError(
+          [error, cleanupError],
+          `OffCKB startup failed: ${startupMessage}; cleanup failed: ${cleanupMessage}`,
+        );
+      }
       throw error;
     }
   }
@@ -440,10 +508,13 @@ export class OffckbDevnet {
   }
 
   async stop(): Promise<void> {
+    const endpoints = this.activeEndpoints;
     try {
       if (this.started) await this.command(["node", "stop"], { timeoutMs: 60_000 });
+      await waitForLocalEndpointsClosed(endpoints);
     } finally {
       this.started = false;
+      this.activeEndpoints = [];
       await rm(this.paths.accountsPath, { force: true });
     }
   }

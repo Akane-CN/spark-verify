@@ -67,4 +67,40 @@ describe("CLI run command", () => {
     expect(stdout).toEqual([]);
     expect(stderr.join("")).toContain("ERROR: node failed");
   });
+
+  test("turns SIGTERM into an abort, waits for cleanup, and returns the conventional signal exit code", async () => {
+    let sawAbort = false;
+    let disposed = false;
+    const deps: CliDependencies = {
+      runManifest: async (options) => {
+        const signal = (options as { signal?: AbortSignal }).signal;
+        await Promise.race([
+          new Promise<never>((_resolve, reject) => {
+            const abort = () => {
+              sawAbort = true;
+              reject(new Error("run interrupted"));
+            };
+            if (signal?.aborted === true) abort();
+            else signal?.addEventListener("abort", abort, { once: true });
+          }),
+          Bun.sleep(50).then(() => {
+            throw new Error("signal was not forwarded");
+          }),
+        ]);
+        throw new Error("unreachable");
+      },
+      subscribeSignals: (handler) => {
+        queueMicrotask(() => handler("SIGTERM"));
+        return () => {
+          disposed = true;
+        };
+      },
+      stdout: () => undefined,
+      stderr: () => undefined,
+    };
+
+    expect(await main(["run", "verify.toml"], deps)).toBe(143);
+    expect(sawAbort).toBe(true);
+    expect(disposed).toBe(true);
+  });
 });

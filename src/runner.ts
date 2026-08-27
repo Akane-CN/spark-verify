@@ -1,6 +1,6 @@
-import { access, copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, copyFile, lstat, mkdir, readFile, readdir, readlink, rm, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { sha256Bytes } from "./canonical";
+import { canonicalSha256, sha256Bytes } from "./canonical";
 import { loadManifest } from "./manifest";
 import type { OffckbRunContext, OffckbPaths } from "./offckb";
 import { OffckbDevnet } from "./offckb";
@@ -8,6 +8,7 @@ import { runCommand, runProcess, type CommandResult, type RunCommandOptions } fr
 import {
   buildEvidenceDigests,
   buildOutcomeClaims,
+  verdictForOutcomeClaims,
   verifyEvidenceDigests,
   type EnvironmentEvidence,
   type RunEvidence,
@@ -35,7 +36,7 @@ import { VERSION } from "./version";
 export type Verdict = "PASS" | "FAIL" | "ERROR";
 
 export type StepCommandRunner = (command: string, options: RunCommandOptions) => Promise<CommandResult>;
-export type RunnerRpcCaller = (url: string, method: string, params?: unknown[]) => Promise<unknown>;
+export type RunnerRpcCaller = (url: string, method: string, params?: unknown[], signal?: AbortSignal) => Promise<unknown>;
 
 export interface DevnetAdapter {
   paths: Pick<OffckbPaths, "transactionsPath" | "fullTransactionsPath">;
@@ -66,6 +67,7 @@ export interface RunManifestOptions {
   devnet?: DevnetAdapter;
   runStep?: StepCommandRunner;
   rpc?: RunnerRpcCaller;
+  signal?: AbortSignal;
 }
 
 export interface RunManifestResult {
@@ -77,6 +79,10 @@ export interface RunManifestResult {
 function slug(value: string): string {
   const normalized = value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
   return normalized === "" ? "run" : normalized;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) throw new Error("run interrupted");
 }
 
 async function readSecrets(path: string): Promise<string[]> {
@@ -94,8 +100,15 @@ async function readSecrets(path: string): Promise<string[]> {
   ].sort((left, right) => right.length - left.length);
 }
 
+function regexEscape(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function redact(text: string, secrets: readonly string[]): string {
-  return secrets.reduce((result, secret) => result.replaceAll(secret, "[REDACTED]"), text);
+  return secrets.reduce(
+    (result, secret) => result.replace(new RegExp(regexEscape(secret), "gi"), "[REDACTED]"),
+    text,
+  );
 }
 
 function outputDirectory(root: string, manifest: Manifest): string {
@@ -103,30 +116,62 @@ function outputDirectory(root: string, manifest: Manifest): string {
   return join(root, ".ckb-verify", "runs", `${timestamp}-${process.pid}-${slug(manifest.meta.name)}`);
 }
 
-interface SourceRevision {
+export interface SourceRevision {
   gitCommit: string | null;
   dirty: boolean | null;
+  dirtyDigest: string | null;
 }
 
-async function collectSourceRevision(projectRoot: string): Promise<SourceRevision> {
+export async function collectSourceRevision(projectRoot: string): Promise<SourceRevision> {
   try {
     const commit = await runProcess(["git", "rev-parse", "--verify", "HEAD"], {
       cwd: projectRoot,
       timeoutMs: 10_000,
     });
-    if (commit.timedOut || commit.exitCode !== 0) return { gitCommit: null, dirty: null };
+    if (commit.timedOut || commit.exitCode !== 0) return { gitCommit: null, dirty: null, dirtyDigest: null };
     const gitCommit = commit.stdout.trim();
-    if (!/^[0-9a-f]{40}$/.test(gitCommit)) return { gitCommit: null, dirty: null };
+    if (!/^[0-9a-f]{40}$/.test(gitCommit)) return { gitCommit: null, dirty: null, dirtyDigest: null };
     const status = await runProcess(["git", "status", "--porcelain=v1", "--untracked-files=all"], {
       cwd: projectRoot,
       timeoutMs: 10_000,
     });
+    if (status.timedOut || status.exitCode !== 0) return { gitCommit, dirty: null, dirtyDigest: null };
+    if (status.stdout.trim() === "") return { gitCommit, dirty: false, dirtyDigest: null };
+
+    const [diff, untracked] = await Promise.all([
+      runProcess(["git", "diff", "--binary", "--no-ext-diff", "HEAD", "--"], {
+        cwd: projectRoot,
+        timeoutMs: 10_000,
+      }),
+      runProcess(["git", "ls-files", "--others", "--exclude-standard", "-z"], {
+        cwd: projectRoot,
+        timeoutMs: 10_000,
+      }),
+    ]);
+    if (diff.timedOut || diff.exitCode !== 0 || untracked.timedOut || untracked.exitCode !== 0) {
+      return { gitCommit, dirty: true, dirtyDigest: null };
+    }
+    const untrackedEntries = await Promise.all(
+      untracked.stdout
+        .split("\0")
+        .filter((path) => path !== "")
+        .sort()
+        .map(async (path) => {
+          const absolutePath = resolve(projectRoot, path);
+          const metadata = await lstat(absolutePath);
+          const symlink = metadata.isSymbolicLink();
+          const bytes = symlink ? Buffer.from(await readlink(absolutePath), "utf8") : await readFile(absolutePath);
+          const mode = symlink ? "120000" : (metadata.mode & 0o111) === 0 ? "100644" : "100755";
+          return { path, kind: symlink ? "symlink" : "file", mode, digest: sha256Bytes(bytes) };
+        }),
+    );
     return {
       gitCommit,
-      dirty: status.timedOut || status.exitCode !== 0 ? null : status.stdout.trim() !== "",
+      dirty: true,
+      dirtyDigest: canonicalSha256({ status: status.stdout, trackedDiff: diff.stdout, untracked: untrackedEntries }),
     };
   } catch {
-    return { gitCommit: null, dirty: null };
+    return { gitCommit: null, dirty: null, dirtyDigest: null };
   }
 }
 
@@ -161,6 +206,7 @@ async function evaluateCell(
   transactionOutputCounts: ReadonlyMap<string, number>,
   rpcUrl: string,
   rpc: RunnerRpcCaller,
+  signal?: AbortSignal,
 ): Promise<ClaimEvidence> {
   const txHash = transactionHashes.get(assertion.outPoint.step);
   if (txHash === undefined) throw new Error(`assertion references step ${assertion.outPoint.step} without a transaction`);
@@ -179,12 +225,26 @@ async function evaluateCell(
     };
   }
   const outPoint = { tx_hash: txHash, index: `0x${assertion.outPoint.index.toString(16)}` };
-  const result = await rpc(rpcUrl, "get_live_cell", [outPoint, true]);
+  const result = await rpc(rpcUrl, "get_live_cell", [outPoint, true], signal);
   if (result === null || typeof result !== "object" || Array.isArray(result)) {
     throw new Error("get_live_cell result must be an object");
   }
   const record = result as Record<string, unknown>;
-  const count = record.status === "live" ? 1 : 0;
+  let count: number;
+  if (record.status === "live") {
+    if (record.cell === null || typeof record.cell !== "object" || Array.isArray(record.cell)) {
+      throw new Error("get_live_cell live result must include cell.output");
+    }
+    const cell = record.cell as Record<string, unknown>;
+    if (cell.output === null || typeof cell.output !== "object" || Array.isArray(cell.output)) {
+      throw new Error("get_live_cell live result must include cell.output");
+    }
+    count = 1;
+  } else if (record.status === "dead" || record.status === "unknown") {
+    count = 0;
+  } else {
+    throw new Error("get_live_cell status must be live, dead, or unknown");
+  }
   return {
     kind: "cell",
     target: assertion.outPoint,
@@ -207,6 +267,7 @@ async function resolveRejectedScript(
   transaction: CkbJsonRpcTransaction,
   rpcUrl: string,
   rpc: RunnerRpcCaller,
+  signal?: AbortSignal,
 ): Promise<{ rejection: RejectionEvidence; evidence: unknown }> {
   if (rejection.source === undefined || rejection.role === undefined) {
     throw new Error("script rejection is missing its source or role");
@@ -217,7 +278,7 @@ async function resolveRejectedScript(
   if (rejection.source.cell === "input") {
     const input = requireRecord(transaction.inputs[rejection.source.index], `transaction.inputs[${rejection.source.index}]`);
     const outPoint = requireRecord(input.previous_output, `transaction.inputs[${rejection.source.index}].previous_output`);
-    const response = await rpc(rpcUrl, "get_live_cell", [outPoint, true]);
+    const response = await rpc(rpcUrl, "get_live_cell", [outPoint, true], signal);
     const responseRecord = requireRecord(response, "get_live_cell result");
     if (responseRecord.status !== "live") {
       throw new Error(`rejected input ${rejection.source.index} is not a live Cell`);
@@ -237,16 +298,6 @@ async function resolveRejectedScript(
   };
 }
 
-function evidencePasses(evidence: RunEvidence): boolean {
-  return (
-    evidence.steps.every(
-      (step) =>
-        (step.expectedStatus === undefined || step.expectedStatus === step.observedStatus) &&
-        (step.expectedErrorCode === undefined || step.expectedErrorCode === step.rejection?.code) &&
-        step.claims.every((claim) => claim.ok),
-    ) && evidence.assertions.every((claim) => claim.ok)
-  );
-}
 
 async function writeJson(path: string, value: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
@@ -279,8 +330,9 @@ async function scanEvidenceForSecrets(root: string, secrets: readonly string[]):
         throw new Error(`evidence contains an unsupported filesystem entry: ${relative(root, path)}`);
       }
       const text = await readFile(path, "utf8");
-      if (!secrets.some((secret) => text.includes(secret))) continue;
-      await writeFile(path, redact(text, secrets));
+      const redacted = redact(text, secrets);
+      if (redacted === text) continue;
+      await writeFile(path, redacted);
       leaked.push(relative(root, path));
     }
   }
@@ -296,7 +348,9 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   const sourceRevision = await collectSourceRevision(projectRoot);
   const outputDir = resolve(options.outputDir ?? outputDirectory(projectRoot, manifest));
   const runStep = options.runStep ?? runCommand;
-  const rpc = options.rpc ?? rpcCall;
+  const rpc: RunnerRpcCaller =
+    options.rpc ??
+    ((url, method, params = [], signal) => rpcCall(url, method, params, fetch, 30_000, signal));
   const devnet =
     options.devnet ??
     new OffckbDevnet({
@@ -313,7 +367,9 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   let secrets: string[] = [];
   let primaryError: unknown;
   try {
+    throwIfAborted(options.signal);
     context = await devnet.start();
+    throwIfAborted(options.signal);
     if (manifest.toolchain.ckbDebugger !== undefined) {
       await devnet.installDebugger();
       observedDebuggerVersion = await devnet.debuggerVersion();
@@ -330,6 +386,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     const steps: RunEvidence["steps"] = [];
 
     for (const [index, step] of manifest.steps.entries()) {
+      throwIfAborted(options.signal);
       const stepDirectory = join(outputDir, "steps", `${String(index + 1).padStart(2, "0")}-${slug(step.name)}`);
       await mkdir(stepDirectory, { recursive: true });
       const resultPath = join(stepDirectory, "result.json");
@@ -342,13 +399,10 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
           CKB_VERIFY_ACCOUNTS: context.accountsPath,
           CKB_VERIFY_SYSTEM_SCRIPTS: context.systemScriptsPath,
           CKB_VERIFY_CONTEXT: context.contextPath,
-          SPARK_VERIFY_RESULT: resultPath,
-          SPARK_VERIFY_RPC_URL: context.rpcUrl,
-          SPARK_VERIFY_ACCOUNTS: context.accountsPath,
-          SPARK_VERIFY_SYSTEM_SCRIPTS: context.systemScriptsPath,
-          SPARK_VERIFY_CONTEXT: context.contextPath,
         },
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
       });
+      throwIfAborted(options.signal);
       await writeFile(join(stepDirectory, "stdout.txt"), redact(commandResult.stdout, secrets));
       await writeFile(join(stepDirectory, "stderr.txt"), redact(commandResult.stderr, secrets));
       if (commandResult.timedOut || commandResult.exitCode !== 0) {
@@ -368,7 +422,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       let observedStatus: "committed" | "rejected";
       let rejection: RejectionEvidence | undefined;
       try {
-        const dryRun = parseRpcCycles(await rpc(context.rpcUrl, "test_tx_pool_accept", [tx]));
+        const dryRun = parseRpcCycles(await rpc(context.rpcUrl, "test_tx_pool_accept", [tx], options.signal));
         cycles = dryRun.cycles;
       } catch (error) {
         if (!(error instanceof RpcError)) throw error;
@@ -380,52 +434,60 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       }
 
       try {
-        const submittedHash = await rpc(context.proxyUrl, "send_transaction", [tx]);
+        const submittedHash = await rpc(context.proxyUrl, "send_transaction", [tx], options.signal);
         if (submittedHash !== txHash) {
           throw new Error(`send_transaction returned ${String(submittedHash)} instead of computed ${txHash}`);
         }
         const terminal = await waitForTransaction(context.rpcUrl, txHash, {
-          call: (url, method, params) => rpc(url, method, params),
+          call: (url, method, params, signal) => rpc(url, method, params, signal),
           intervalMs: 100,
           timeoutMs: 60_000,
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
         });
         observedStatus = terminal.status;
-        const transactionRecord = await rpc(context.rpcUrl, "get_transaction", [txHash]);
+        const transactionRecord = await rpc(context.rpcUrl, "get_transaction", [txHash], options.signal);
         await writeJson(join(stepDirectory, "get-transaction.json"), transactionRecord);
       } catch (error) {
         if (!(error instanceof RpcError) || error.method !== "send_transaction") throw error;
+        const parsedRejection = parseRejection(error);
+        if (
+          parsedRejection.kind !== "script" ||
+          parsedRejection.code === undefined ||
+          parsedRejection.source === undefined ||
+          parsedRejection.role === undefined
+        ) {
+          throw new Error(`send_transaction failed without a recognized script rejection (RPC ${error.code})`, {
+            cause: error,
+          });
+        }
         observedStatus = "rejected";
-        rejection = parseRejection(error);
+        const debugSource = parsedRejection.source;
+        const debugRole = parsedRejection.role;
+        rejection = parsedRejection;
         await writeJson(join(stepDirectory, "rpc-error.json"), {
           code: error.code,
           message: error.message,
           data: error.data,
         });
-        if (rejection.kind === "script" && rejection.source !== undefined && rejection.role !== undefined) {
-          const debugSource = rejection.source;
-          const debugRole = rejection.role;
-          const resolvedScript = await resolveRejectedScript(rejection, tx, context.rpcUrl, rpc);
-          rejection = resolvedScript.rejection;
-          await writeJson(join(stepDirectory, "script-group.json"), resolvedScript.evidence);
-          if (observedDebuggerVersion === undefined) {
-            await devnet.installDebugger();
-            observedDebuggerVersion = await devnet.debuggerVersion();
-          }
-          const debug = await devnet.debugScript(txHash, { ...debugSource, role: debugRole });
-          const debuggerOutput = redact(`${debug.stdout}${debug.stderr === "" ? "" : `\n${debug.stderr}`}`, secrets);
-          await writeFile(join(stepDirectory, "debugger.txt"), debuggerOutput);
-          const debuggerResult = parseDebuggerResult(debuggerOutput);
-          if (rejection.code !== undefined && debuggerResult.result !== rejection.code) {
-            throw new Error(
-              `ckb-debugger result ${debuggerResult.result} does not match RPC script code ${rejection.code}`,
-            );
-          }
-          cycles = debuggerResult.cycles;
-          await copyIfExists(
-            join(devnet.paths.fullTransactionsPath, `${txHash}.json`),
-            join(stepDirectory, "debug-full-transaction.json"),
-          );
+        const resolvedScript = await resolveRejectedScript(rejection, tx, context.rpcUrl, rpc, options.signal);
+        rejection = resolvedScript.rejection;
+        await writeJson(join(stepDirectory, "script-group.json"), resolvedScript.evidence);
+        if (observedDebuggerVersion === undefined) {
+          await devnet.installDebugger();
+          observedDebuggerVersion = await devnet.debuggerVersion();
         }
+        const debug = await devnet.debugScript(txHash, { ...debugSource, role: debugRole });
+        const debuggerOutput = redact(`${debug.stdout}${debug.stderr === "" ? "" : `\n${debug.stderr}`}`, secrets);
+        await writeFile(join(stepDirectory, "debugger.txt"), debuggerOutput);
+        const debuggerResult = parseDebuggerResult(debuggerOutput);
+        if (debuggerResult.result !== rejection.code) {
+          throw new Error(`ckb-debugger result ${debuggerResult.result} does not match RPC script code ${rejection.code}`);
+        }
+        cycles = debuggerResult.cycles;
+        await copyIfExists(
+          join(devnet.paths.fullTransactionsPath, `${txHash}.json`),
+          join(stepDirectory, "debug-full-transaction.json"),
+        );
       }
       await copyIfExists(
         join(devnet.paths.transactionsPath, `${txHash}.json`),
@@ -434,7 +496,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
 
       const claims: ClaimEvidence[] = [];
       for (const assertion of step.assertions) {
-        claims.push(await evaluateCell(assertion, transactionHashes, transactionOutputCounts, context.rpcUrl, rpc));
+        claims.push(await evaluateCell(assertion, transactionHashes, transactionOutputCounts, context.rpcUrl, rpc, options.signal));
       }
       steps.push({
         name: step.name,
@@ -451,7 +513,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
 
     const assertions: ClaimEvidence[] = [];
     for (const assertion of manifest.assertions) {
-      assertions.push(await evaluateCell(assertion, transactionHashes, transactionOutputCounts, context.rpcUrl, rpc));
+      assertions.push(await evaluateCell(assertion, transactionHashes, transactionOutputCounts, context.rpcUrl, rpc, options.signal));
     }
     const evidence: RunEvidence = {
       name: manifest.meta.name,
@@ -459,6 +521,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       steps,
       assertions,
     };
+    throwIfAborted(options.signal);
     const environment = environmentEvidence(
       manifest,
       manifestBytes,
@@ -468,7 +531,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     );
     const outcomeClaims = buildOutcomeClaims(evidence);
     const digests = buildEvidenceDigests(evidence, environment);
-    const verdict: Verdict = evidencePasses(evidence) ? "PASS" : "FAIL";
+    const verdict = verdictForOutcomeClaims(outcomeClaims);
     const report: CkbVerifyReport = {
       schema: "ckb-verify-report/1",
       verdict,

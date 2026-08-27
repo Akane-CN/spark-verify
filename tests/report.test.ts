@@ -74,16 +74,25 @@ describe("evidence report digests", () => {
   });
 
   test("recomputes both embedded canonical objects and rejects tampering", () => {
-    const outcomeClaims = buildOutcomeClaims(evidence());
-    const digests = buildEvidenceDigests(evidence(), ENVIRONMENT);
+    const runEvidence = evidence();
+    const outcomeClaims = buildOutcomeClaims(runEvidence);
+    const digests = buildEvidenceDigests(runEvidence, ENVIRONMENT);
+    const report = { verdict: "PASS", evidence: runEvidence, outcomeClaims, environment: ENVIRONMENT, digests };
 
-    expect(() => verifyEvidenceDigests({ outcomeClaims, environment: ENVIRONMENT, digests })).not.toThrow();
+    expect(() => verifyEvidenceDigests(report)).not.toThrow();
     expect(() =>
       verifyEvidenceDigests({
+        verdict: "PASS",
+        evidence: runEvidence,
         outcomeClaims: { ...outcomeClaims, name: "tampered" },
         environment: ENVIRONMENT,
         digests,
       }),
     ).toThrow(EvidenceIntegrityError);
+    expect(() => verifyEvidenceDigests({ ...report, verdict: "FAIL" })).toThrow("verdict mismatch");
+
+    const tamperedEvidence = evidence();
+    tamperedEvidence.steps[0]!.observedStatus = "rejected";
+    expect(() => verifyEvidenceDigests({ ...report, evidence: tamperedEvidence })).toThrow("evidence outcome mismatch");
   });
 });

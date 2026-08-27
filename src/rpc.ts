@@ -51,6 +51,7 @@ export async function rpcCall<T = unknown>(
   params: unknown[] = [],
   fetchImplementation: FetchLike = fetch,
   timeoutMs = 30_000,
+  signal?: AbortSignal,
 ): Promise<T> {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
     throw new RpcProtocolError(`${method} timeout must be a positive safe integer`);
@@ -58,8 +59,24 @@ export async function rpcCall<T = unknown>(
   const id = nextRequestId++;
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
+  let abortFailure: RpcProtocolError | undefined;
   let body: unknown;
+  const abortTransport = (error: RpcProtocolError, reason: unknown = error): RpcProtocolError => {
+    if (abortFailure !== undefined) return abortFailure;
+    abortFailure = error;
+    controller.abort(reason);
+    return error;
+  };
   try {
+    let externalAbortRace: Promise<never> | undefined;
+    if (signal !== undefined) {
+      externalAbortRace = new Promise<never>((_resolve, reject) => {
+        onAbort = () => reject(abortTransport(new RpcProtocolError(`${method} aborted`), signal.reason));
+        if (signal.aborted) onAbort();
+        else signal.addEventListener("abort", onAbort, { once: true });
+      });
+    }
     const operation = async (): Promise<unknown> => {
       let response: Response;
       try {
@@ -70,6 +87,7 @@ export async function rpcCall<T = unknown>(
           signal: controller.signal,
         });
       } catch (error) {
+        if (abortFailure !== undefined) throw abortFailure;
         throw new RpcProtocolError(`${method}: transport failed`, error instanceof Error ? { cause: error } : undefined);
       }
       if (!response.ok) throw new RpcProtocolError(`${method}: HTTP ${response.status}`);
@@ -79,17 +97,19 @@ export async function rpcCall<T = unknown>(
         throw new RpcProtocolError(`${method}: response is not JSON`, error instanceof Error ? { cause: error } : undefined);
       }
     };
-    body = await Promise.race([
+    const races: Promise<unknown>[] = [
       operation(),
       new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => {
-          controller.abort();
-          reject(new RpcProtocolError(`${method} timed out after ${timeoutMs}ms`));
+          reject(abortTransport(new RpcProtocolError(`${method} timed out after ${timeoutMs}ms`)));
         }, timeoutMs);
       }),
-    ]);
+    ];
+    if (externalAbortRace !== undefined) races.push(externalAbortRace);
+    body = await Promise.race(races);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
+    if (onAbort !== undefined) signal?.removeEventListener("abort", onAbort);
   }
   if (!isObject(body)) throw new RpcProtocolError(`${method}: response must be an object`);
   if (body.id !== id) throw new RpcProtocolError(`${method}: response id does not match request`);
@@ -108,9 +128,27 @@ export type TerminalTransaction =
   | { status: "rejected"; reason?: string };
 
 interface WaitOptions {
-  call?: (url: string, method: string, params: unknown[]) => Promise<unknown>;
+  call?: (url: string, method: string, params: unknown[], signal: AbortSignal) => Promise<unknown>;
   intervalMs?: number;
   timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
+async function abortable<T>(operation: Promise<T>, signal: AbortSignal | undefined, message: string): Promise<T> {
+  if (signal === undefined) return await operation;
+  if (signal.aborted) throw new RpcProtocolError(message);
+  let onAbort: (() => void) | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_resolve, reject) => {
+        onAbort = () => reject(new RpcProtocolError(message));
+        signal.addEventListener("abort", onAbort, { once: true });
+      }),
+    ]);
+  } finally {
+    if (onAbort !== undefined) signal.removeEventListener("abort", onAbort);
+  }
 }
 
 export async function waitForTransaction(
@@ -118,7 +156,8 @@ export async function waitForTransaction(
   txHash: string,
   options: WaitOptions = {},
 ): Promise<TerminalTransaction> {
-  const call = options.call ?? rpcCall;
+  const call: NonNullable<WaitOptions["call"]> =
+    options.call ?? ((callUrl, method, params, signal) => rpcCall(callUrl, method, params, fetch, 30_000, signal));
   const intervalMs = options.intervalMs ?? 500;
   const timeoutMs = options.timeoutMs ?? 60_000;
   if (!Number.isSafeInteger(intervalMs) || intervalMs < 0) throw new RpcProtocolError("poll interval must be a safe integer");
@@ -127,18 +166,40 @@ export async function waitForTransaction(
   const timeoutError = () => new RpcProtocolError(`transaction ${txHash} did not reach a terminal state after ${timeoutMs}ms`);
 
   while (performance.now() < deadline) {
+    if (options.signal?.aborted === true) throw new RpcProtocolError("transaction wait aborted");
     const remainingMs = Math.max(1, Math.ceil(deadline - performance.now()));
+    const callController = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
+    let abortRace: Promise<never> | undefined;
     let recordValue: unknown;
+    if (options.signal !== undefined) {
+      abortRace = new Promise<never>((_resolve, reject) => {
+        onAbort = () => {
+          const error = new RpcProtocolError("transaction wait aborted");
+          reject(error);
+          callController.abort(options.signal?.reason ?? error);
+        };
+        if (options.signal?.aborted === true) onAbort();
+        else options.signal?.addEventListener("abort", onAbort, { once: true });
+      });
+    }
     try {
-      recordValue = await Promise.race([
-        call(url, "get_transaction", [txHash]),
+      const races: Promise<unknown>[] = [
+        call(url, "get_transaction", [txHash], callController.signal),
         new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(() => reject(timeoutError()), remainingMs);
+          timer = setTimeout(() => {
+            const error = timeoutError();
+            reject(error);
+            callController.abort(error);
+          }, remainingMs);
         }),
-      ]);
+      ];
+      if (abortRace !== undefined) races.push(abortRace);
+      recordValue = await Promise.race(races);
     } finally {
       if (timer !== undefined) clearTimeout(timer);
+      if (onAbort !== undefined) options.signal?.removeEventListener("abort", onAbort);
     }
     if (isObject(recordValue) && isObject(recordValue.tx_status)) {
       const status = recordValue.tx_status.status;
@@ -148,7 +209,9 @@ export async function waitForTransaction(
       }
     }
     const delayMs = Math.min(intervalMs, Math.max(0, Math.ceil(deadline - performance.now())));
-    if (delayMs > 0) await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    if (delayMs > 0) {
+      await abortable(new Promise<void>((resolve) => setTimeout(resolve, delayMs)), options.signal, "transaction wait aborted");
+    }
   }
   throw timeoutError();
 }

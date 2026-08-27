@@ -4,6 +4,7 @@ export interface RunCommandOptions {
   cwd: string;
   timeoutMs: number;
   env?: NodeJS.ProcessEnv;
+  signal?: AbortSignal;
 }
 
 export interface CommandResult {
@@ -46,17 +47,24 @@ export async function runProcess(argv: readonly string[], options: RunCommandOpt
 
   let timedOut = false;
   let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    if (child.pid === undefined) return;
+  const terminate = (): void => {
+    if (child.exitCode !== null || child.pid === undefined) return;
     if (process.platform === "win32") child.kill("SIGTERM");
     else killProcessGroup(child.pid, "SIGTERM");
+    if (forceKillTimer !== undefined) return;
     forceKillTimer = setTimeout(() => {
       if (child.exitCode !== null || child.pid === undefined) return;
       if (process.platform === "win32") child.kill("SIGKILL");
       else killProcessGroup(child.pid, "SIGKILL");
     }, 200);
     forceKillTimer.unref();
+  };
+  const onAbort = (): void => terminate();
+  if (options.signal?.aborted === true) onAbort();
+  else options.signal?.addEventListener("abort", onAbort, { once: true });
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    terminate();
   }, options.timeoutMs);
   timeout.unref();
 
@@ -78,6 +86,7 @@ export async function runProcess(argv: readonly string[], options: RunCommandOpt
   } finally {
     clearTimeout(timeout);
     if (forceKillTimer !== undefined) clearTimeout(forceKillTimer);
+    options.signal?.removeEventListener("abort", onAbort);
   }
 }
 
