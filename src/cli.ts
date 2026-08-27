@@ -70,7 +70,9 @@ export async function main(
       if (receivedSignal !== undefined) return receivedSignal === "SIGINT" ? 130 : 143;
       dependencies.stdout(
         `${result.verdict}: ${
-          result.verdict === "PASS" ? "All declared claims passed." : "One or more declared claims failed."
+          result.verdict === "PASS"
+            ? "All declared claims passed in the recorded environment."
+            : "One or more declared claims failed."
         }\n` +
           `report: ${result.reportPath}\n` +
           `outcome: ${result.report.digests.outcome}\n` +

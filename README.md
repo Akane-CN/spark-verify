@@ -25,6 +25,8 @@ The first repository showcase packages three secp256k1 transfer fixtures behind 
 
 The acceptance harness runs the committed fixture twice on fresh devnets and requires identical outcome and environment digests.
 
+`PASS` means exactly: **All declared claims passed in the recorded environment.** It does not claim broader contract correctness or a security audit.
+
 ```bash
 bun install --frozen-lockfile
 bun run check
