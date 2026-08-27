@@ -4,11 +4,12 @@ Showcases are bounded, executable integrations that demonstrate what `ckb-verify
 
 A showcase is deliberately **not** a plugin API. We add a new abstraction only when a real project cannot use the existing repository-command boundary.
 
-## Current showcase
+## Current showcases
 
 | Showcase | Scope | Acceptance command |
 | --- | --- | --- |
 | [`secp-transfer`](secp-transfer/) | Committed transfer, genuine script rejection, intentional assertion failure, and semantic digest stability | `bun run showcase:secp-transfer` |
+| [`ckb-ugmp`](ckb-ugmp/) | Fixed-revision CKB-UGMP Spore mint with fresh OffCKB identity injection, genuine rejection, intentional assertion failure, and digest stability | `bun run showcase:ckb-ugmp` |
 
 ## Showcase contract
 
@@ -23,6 +24,6 @@ A repository showcase should contain:
 
 The producer interface is the canonical `CKB_VERIFY_*` environment documented in the [root README](../README.md). Runner-owned submission remains the seam between project-specific transaction construction and shared acceptance evidence.
 
-## Candidate external showcase: CKB-UGMP
+## CKB-UGMP status and maintainer-consent boundary
 
-A bounded Spore-mint adaptation is implemented in [PR #7](https://github.com/Akane-CN/spark-verify/pull/7). It reuses a fixed CKB-UGMP revision and the existing command boundary without adding a generic adapter system. Until that PR is reviewed and the upstream maintainer independently agrees to trial the format, it is feasibility evidence only—not adoption, endorsement, or a current `main` showcase.
+The CKB-UGMP entry is a bounded repository-side adaptation of a fixed public revision, prepared independently at a grant cost of $0. It is feasibility evidence only—not maintainer consent, adoption, endorsement, or a funded pilot. The integration reuses the existing command boundary and does not justify a generic adapter system by itself.

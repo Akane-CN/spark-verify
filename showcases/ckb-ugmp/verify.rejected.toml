@@ -1,0 +1,22 @@
+[meta]
+name = "ckb-ugmp-spore-rejected"
+spec = "0.1.0-draft.3"
+description = "The pinned CKB-UGMP mint flow returns a structurally valid Spore transaction whose signature is deliberately tampered."
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.13"
+ckb-debugger = "1.1.1"
+
+[replay]
+dependencies = []
+
+[setup]
+accounts = 1
+
+[[step]]
+name = "mint-spore-bad-signature"
+run = "bun run showcases/ckb-ugmp/produce.ts rejected"
+timeout = "60s"
+expect.tx = "rejected"
+expect.error.code = -11
