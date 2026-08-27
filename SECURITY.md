@@ -2,11 +2,11 @@
 
 ## Pre-release status
 
-Spark Verify is currently a specification draft. No released CLI exists. Security reports about future behavior should begin as design issues until implementation starts.
+Spark Verify now includes an unreleased `ckb-verify` feasibility implementation. Its supported manifest subset and trust boundary are documented in the README; broader RFC behavior is not implemented merely because it appears in a draft.
 
 ## Core trust boundary
 
-A `verify.toml` file can contain `run` commands. Running Spark Verify therefore executes code from the target repository with the current operating-system user's permissions.
+A `verify.toml` file can contain `run` commands. Running `ckb-verify` therefore executes code from the target repository with the current operating-system user's permissions.
 
 **A passing report does not mean the repository is safe.** It means the runner evaluated the declared claims and observed passing values.
 
@@ -15,8 +15,8 @@ A `verify.toml` file can contain `run` commands. Running Spark Verify therefore 
 - Run only repositories and revisions you trust.
 - Use an isolated machine, VM, container, or disposable CI runner.
 - Remove production wallets, API tokens, cloud credentials, SSH agents, and unrelated secrets.
-- Never point a manifest at mainnet or testnet. v0.1 must accept only a fresh loopback OffCKB devnet with the expected genesis fingerprint.
-- Treat `SPARK_VERIFY_ACCOUNTS` keys as public devnet test keys. Never fund them with real assets.
+- Never point a manifest at mainnet or testnet. v0.1 starts its own fresh loopback OffCKB devnet and records the observed genesis fingerprint, but it does not yet compare that fingerprint with an independent allowlist.
+- Treat `CKB_VERIFY_ACCOUNTS` keys as public devnet test keys. Never fund them with real assets.
 - Do not run a contributor's modified manifest or scripts in a privileged `pull_request_target` workflow.
 - Pin Action revisions and package/tool versions; do not execute an unpinned `latest` dependency in acceptance CI.
 - Review produced artifacts before publishing them. Reports and logs must redact environment values, URL credentials, remote userinfo, and private material not explicitly part of the public devnet context.
@@ -38,11 +38,15 @@ A fork pull request is untrusted code even if its `verify.toml` looks harmless; 
 
 The runner design requires:
 
-1. RPC URL is loopback.
-2. Node genesis/config fingerprint matches the fresh run.
-3. Production address prefixes or external private-key inputs are rejected.
-4. The account context is clearly marked `devnet_only`.
-5. Cleanup targets only the run-specific temporary directory.
+1. The runner obtains RPC and proxy URLs from a fresh OffCKB devnet and requires loopback HTTP endpoints.
+2. The report records the observed genesis hash, CKB version, OffCKB system scripts, and source revision.
+3. The runner supplies only freshly selected OffCKB development accounts; arbitrary trusted repository code can still access its ambient process environment and filesystem.
+4. Producer logs and evidence are checked against the selected development private keys, matches are redacted, and the account file is removed on shutdown.
+5. Runtime cleanup targets the repository's ignored `.ckb-verify/` area through the pinned OffCKB adapter.
+
+The producer receives the local node RPC URL for queries. The current feasibility implementation does not enforce a read-only RPC facade or network namespace, so runner-owned submission is a protocol for trusted code rather than a hostile-code security boundary.
+
+The pinned OffCKB `0.4.13` proxy advertises a loopback URL but binds proxy port `28114` on the wildcard interface. `ckb-verify` currently cannot narrow that inherited bind. Keep the host firewalled or use a disposable VM/container whose devnet ports are unreachable from untrusted networks.
 
 External network denial is recommended in CI but may not be enforceable portably in the MVP. The report must not imply a sandbox when none was applied.
 

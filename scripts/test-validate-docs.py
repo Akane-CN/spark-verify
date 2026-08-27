@@ -64,7 +64,7 @@ class ValidatorTests(unittest.TestCase):
     def test_full_manifest_requires_replay_declaration(self) -> None:
         manifest = {
             "meta": {"name": "x", "spec": "0.1.0-draft.3"},
-            "toolchain": {"ckb": "0.209.0", "offckb": "0.4.11", "ckb-debugger": "1.1.1"},
+            "toolchain": {"ckb": "0.209.0", "offckb": "0.4.13", "ckb-debugger": "1.1.1"},
             "setup": {"accounts": 0},
         }
         errors = self.validate_manifest(manifest)
@@ -73,7 +73,21 @@ class ValidatorTests(unittest.TestCase):
     def test_full_manifest_accepts_explicit_empty_replay_declaration(self) -> None:
         manifest = {
             "meta": {"name": "x", "spec": "0.1.0-draft.3"},
-            "toolchain": {"ckb": "0.209.0", "offckb": "0.4.11", "ckb-debugger": "1.1.1"},
+            "toolchain": {"ckb": "0.209.0", "offckb": "0.4.13"},
+            "replay": {"dependencies": []},
+            "setup": {"accounts": 0},
+            "assert": {"balance": [{"account": 0, "gte": "0 CKB"}]},
+        }
+        self.assertEqual(self.validate_manifest(manifest), [])
+
+    def test_full_manifest_accepts_optional_debugger_version(self) -> None:
+        manifest = {
+            "meta": {"name": "x", "spec": "0.1.0-draft.3"},
+            "toolchain": {
+                "ckb": "0.209.0",
+                "offckb": "0.4.13",
+                "ckb-debugger": "1.1.1",
+            },
             "replay": {"dependencies": []},
             "setup": {"accounts": 0},
             "assert": {"balance": [{"account": 0, "gte": "0 CKB"}]},
@@ -83,7 +97,7 @@ class ValidatorTests(unittest.TestCase):
     def test_full_manifest_rejects_empty_claim_set(self) -> None:
         manifest = {
             "meta": {"name": "x", "spec": "0.1.0-draft.3"},
-            "toolchain": {"ckb": "0.209.0", "offckb": "0.4.11", "ckb-debugger": "1.1.1"},
+            "toolchain": {"ckb": "0.209.0", "offckb": "0.4.13", "ckb-debugger": "1.1.1"},
             "replay": {"dependencies": []},
             "setup": {"accounts": 0},
         }

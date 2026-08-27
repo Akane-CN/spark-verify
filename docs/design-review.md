@@ -16,7 +16,7 @@ The original draft had enough semantic and validation gaps that implementing it 
 
 The original command submitted its own transaction and returned a hash. On CKB, a script-invalid transaction may be rejected by `send_transaction` before it becomes queryable. That leaves negative tests without a reliable hash or retained transaction, even though `expect.error.code` and `expect.error.script` depend on exactly that evidence.
 
-**Decision:** a step writes one signed JSON-RPC transaction to `SPARK_VERIFY_RESULT`; the runner submits it through OffCKB's proxy. stdout/stderr are logs only. v0.1 supports one transaction per step.
+**Decision:** a step writes one signed JSON-RPC transaction to `CKB_VERIFY_RESULT`; the runner submits it through OffCKB's proxy. stdout/stderr are logs only. v0.1 supports one transaction per step.
 
 ### P0 — “Pinned CKB” did not make the run reproducible
 

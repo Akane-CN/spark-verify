@@ -1,6 +1,6 @@
 # `verify.toml` Schema & Assertion Vocabulary (RFC draft 0.2)
 
-> **Status:** pre-implementation RFC for community feedback. Nothing in this document is stable or implemented yet. The first release must publish a machine-readable schema and conformance fixtures matching the final text.
+> **Status:** design RFC for community feedback. The repository now implements and exercises the strict feasibility subset documented in the README; sections outside that subset remain proposals. Nothing in this document is a stable public interface yet. A first release must publish a machine-readable schema and conformance fixtures matching the final text.
 >
 > **Versioning:** this is document revision **0.2** for the intended `verify.toml` **v0.1** release. Draft manifests select `spec = "0.1.0-draft.3"`; draft.3 supersedes the briefly published draft.2 because the canonical transaction key and required replay declaration changed. The manifest-spec, outcome-claims, report-schema, and installed-runner versions are separate values.
 >
@@ -52,7 +52,7 @@ description = "2-of-3 spend"     # optional
 
 [toolchain]
 ckb = "0.209.0"                  # exact, no ranges
-offckb = "0.4.11"                # exact, no ranges
+offckb = "0.4.13"                # exact, no ranges
 ckb-debugger = "1.1.1"           # exact, no ranges
 
 [replay]
@@ -135,11 +135,11 @@ Step names are required and unique. A step runs once, from the repository root, 
 
 The runner injects:
 
-- `CKB_RPC_URL` — a loopback, read-only RPC facade used for command queries; the runner rejects write methods such as `send_transaction` on this endpoint;
-- `SPARK_VERIFY_ACCOUNTS` — path to a JSON array of deterministic devnet `{ address, lock, privkey }` records;
-- `SPARK_VERIFY_DEPLOYMENTS` — path to the resolved script map;
-- `SPARK_VERIFY_CONTEXT` — path to JSON containing spec/run IDs, genesis hash, current tip, and paths above;
-- `SPARK_VERIFY_RESULT` — a fresh path at which a transaction-producing command must write its result atomically.
+- `CKB_VERIFY_RPC_URL` — a loopback RPC endpoint used for command queries;
+- `CKB_VERIFY_ACCOUNTS` — path to deterministic devnet account records;
+- `CKB_VERIFY_SYSTEM_SCRIPTS` — path to the resolved OffCKB system-script map;
+- `CKB_VERIFY_CONTEXT` — path to normalized devnet context JSON;
+- `CKB_VERIFY_RESULT` — a fresh path at which a transaction-producing command must write its result atomically.
 
 A transaction-producing command writes exactly one JSON object:
 
@@ -152,7 +152,7 @@ A transaction-producing command writes exactly one JSON object:
 
 `transaction` is a signed CKB JSON-RPC transaction. The runner validates it, computes its hash, submits it through OffCKB's proxy, and retains the transaction even if the node rejects it.
 
-A step is transaction-producing when it declares `expect.tx`; that declaration requires exactly one valid result object. `expect.cycles` and `expect.error` also require `expect.tx`. A pure step declares none of those keys, exits successfully without creating `SPARK_VERIFY_RESULT`, and may still have immediate state assertions.
+A step is transaction-producing when it declares `expect.tx`; that declaration requires exactly one valid result object. `expect.cycles` and `expect.error` also require `expect.tx`. A pure step declares none of those keys, exits successfully without creating `CKB_VERIFY_RESULT`, and may still have immediate state assertions.
 
 Rules:
 
@@ -370,7 +370,7 @@ Abbreviated illustrative report shape; an actual report includes every field req
     "spec": "0.1.0-draft.3",
     "runner": "0.1.0",
     "ckb": "0.209.0",
-    "offckb": "0.4.11",
+    "offckb": "0.4.13",
     "ckb_debugger": "1.1.1"
   },
   "evidence": {
@@ -485,7 +485,7 @@ spec = "0.1.0-draft.3"
 
 [toolchain]
 ckb = "0.209.0"
-offckb = "0.4.11"
+offckb = "0.4.13"
 ckb-debugger = "1.1.1"
 
 [replay]
@@ -534,7 +534,7 @@ spec = "0.1.0-draft.3"
 
 [toolchain]
 ckb = "0.209.0"
-offckb = "0.4.11"
+offckb = "0.4.13"
 ckb-debugger = "1.1.1"
 
 [replay]

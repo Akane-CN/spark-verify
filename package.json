@@ -1,0 +1,31 @@
+{
+  "name": "ckb-verify",
+  "version": "0.0.1",
+  "description": "Executable acceptance claims for CKB projects",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "ckb-verify": "./src/cli.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "showcase:secp-transfer": "bash showcases/secp-transfer/verify.sh",
+    "test:devnet": "bun run showcase:secp-transfer",
+    "typecheck": "tsc --noEmit",
+    "check": "bun test && bun run typecheck && git diff --check"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.19",
+    "typescript": "5.9.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "bun@1.2.19",
+  "dependencies": {
+    "@ckb-ccc/core": "1.14.0",
+    "@offckb/cli": "0.4.13",
+    "json-canonicalize": "3.0.0"
+  }
+}

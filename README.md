@@ -1,130 +1,201 @@
-# Spark Verify
+# Spark Verify / `ckb-verify`
 
 **Executable acceptance claims for CKB projects.**
 
-> **Status: pre-implementation RFC.** There is no released CLI package yet. The manifest and report formats are drafts and may change in response to community and OffCKB maintainer feedback.
+> **Status: unreleased feasibility implementation.** This repository now contains a working vertical slice, not only an RFC. The implemented manifest vocabulary is intentionally smaller than the draft RFC and is not a stable public interface yet.
 
-Spark Verify proposes a small `verify.toml` format and a runner that turns a CKB project's “How to Verify” section into a repeatable local-devnet check. A project declares the transaction it wants to exercise and the observable on-chain claims that should hold. The runner uses the existing CKB stack—[OffCKB](https://github.com/ckb-devrel/offckb), [CCC](https://github.com/ckb-devrel/ccc), and [ckb-debugger](https://github.com/nervosnetwork/ckb-standalone-debugger)—and emits a structured report with a comparable outcome digest, a separate environment fingerprint, and explicit replay qualification.
+`ckb-verify` starts a fresh pinned [OffCKB](https://github.com/ckb-devrel/offckb) devnet, lets trusted project code construct and sign one transaction per step, submits that transaction itself, evaluates declared CKB outcomes, and writes a structured evidence report.
 
-Spark Verify is **not** a substitute for code review, an audit, or a proof that a manifest lists every important property. It checks the claims that the author actually declared.
+It composes the existing CKB stack instead of replacing it:
 
-## The gap
+- **OffCKB** owns the isolated devnet, deterministic development accounts, built-in scripts, and failed-transaction cache.
+- **CCC** builds and signs fixture transactions.
+- **CKB RPC** is the authority for transaction status and live Cells.
+- **ckb-debugger** replays rejected script groups and reports error codes and cycles.
 
-The CKB toolchain already handles the hard lower layers:
+A passing report is not an audit, a sandbox, or proof that the manifest declared every important property. It means the runner observed all declared claims passing in the recorded environment.
 
-- **OffCKB** starts a local devnet, provides deterministic development accounts, deploys scripts, and records failed transactions.
-- **CCC** builds and signs CKB transactions.
-- **ckb-debugger** executes script groups and reports cycles and error codes.
-- **ckb-testtool** supports unit tests for individual CKB scripts.
+## Verified showcase
 
-What is still mostly project-specific is the acceptance layer: start the environment, run a real flow, identify the transaction, query final Cells and balances, compare the observations with the project's claims, and package the evidence in one report. Spark Verify is deliberately limited to that layer.
+The first repository showcase packages three secp256k1 transfer fixtures behind one reproducible acceptance command:
 
-## Proposed workflow
+1. A signed transfer commits and output `0` is asserted live.
+2. The same transaction with a tampered signature is rejected with script error `-11`; the runner records `Inputs[0].Lock`, the resolved script and script hash, and debugger cycles.
+3. A valid committed transfer intentionally declares the wrong live-Cell count and returns `FAIL` with process exit code `1`.
 
-```text
-verify.toml + trusted repository
-            │
-            ▼
-  pinned OffCKB devnet
-            │
-            ▼
- project step builds a signed transaction
-            │
-            ▼
- runner submits it and records status/errors/cycles
-            │
-            ▼
- final Cell and balance assertions
-            │
-            ▼
- report.json + outcome/environment hashes
+The acceptance harness runs the committed fixture twice on fresh devnets and requires identical outcome and environment digests.
+
+`PASS` means exactly: **All declared claims passed in the recorded environment.** It does not claim broader contract correctness or a security audit.
+
+```bash
+bun install --frozen-lockfile
+bun run check
+bun run showcase:secp-transfer
 ```
 
-Illustrative manifest:
+The current pinned fixture environment is:
+
+- Bun `1.2.19`
+- `@offckb/cli` `0.4.13`
+- CKB `0.209.0`
+- `@ckb-ccc/core` `1.14.0`
+- ckb-debugger `1.1.1` for rejected-script replay
+
+The first devnet run may download the pinned CKB binary and debugger.
+
+## CLI
+
+```text
+ckb-verify run [manifest]
+ckb-verify --help
+ckb-verify --version
+```
+
+Run one fixture directly:
+
+```bash
+bun run src/cli.ts run showcases/secp-transfer/verify.committed.toml
+bun run src/cli.ts run showcases/secp-transfer/verify.rejected.toml
+```
+
+A completed run uses these exit codes:
+
+- `0`: all declared claims passed;
+- `1`: execution completed but at least one declared claim failed;
+- `2`: manifest, setup, producer, RPC, debugger, or evidence error; no valid verdict.
+
+The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) when validating all three paths because the harness checks that exit code and post-run cleanup explicitly.
+
+## Implemented manifest subset
 
 ```toml
 [meta]
-name = "sample-lock-basic"
+name = "secp-transfer-committed"
 spec = "0.1.0-draft.3"
 
 [toolchain]
 ckb = "0.209.0"
-offckb = "0.4.11"
-ckb-debugger = "1.1.1"
+offckb = "0.4.13"
 
 [replay]
 dependencies = []
 
 [setup]
-accounts = 3
-
-[setup.scripts.sample_lock]
-binary = "build/sample_lock"
-hash_type = "type"
+accounts = 2
 
 [[step]]
-name = "create protected cell"
-run = "bun run scripts/create.ts"
+name = "transfer"
+run = "bun run showcases/secp-transfer/produce.ts committed"
+timeout = "60s"
 expect.tx = "committed"
-expect.cycles.lt = 5_000_000
 
 [[step.assert.cell]]
-out_point = { step = "create protected cell", index = 0 }
-lock = { script = "sample_lock", args = "0x0102" }
+out_point = { step = "transfer", index = 0 }
 count = 1
-
-[[assert.balance]]
-account = 1
-gte = "999 CKB"
 ```
 
-A transaction-producing command writes one signed CKB JSON-RPC transaction to the file named by `SPARK_VERIFY_RESULT`. The runner—not the command—submits it. This lets the runner observe both successful and rejected submissions consistently. Arbitrary stdout is treated as logs, never as a transaction protocol.
+The feasibility implementation supports only:
 
-The required `[replay].dependencies` array makes known time, randomness, fee-estimation, dynamic-`since`, or external-network dependencies explicit. An empty array is an author attestation, not proof that the runner detected every source of nondeterminism.
+- exact spec `0.1.0-draft.3`;
+- exact CKB and OffCKB versions accepted by the current adapter;
+- optional exact ckb-debugger version;
+- `[replay].dependencies = []`;
+- `1..20` OffCKB development accounts;
+- one signed transaction envelope per step;
+- `expect.tx = "committed"` or `"rejected"`;
+- optional `expect.error.code` for a rejected script;
+- exact live-Cell count assertions targeting `{ step, index }`.
 
-See the full [`verify.toml` RFC draft 0.2](docs/verify-toml-rfc-v0.2.md).
+Unknown keys fail closed. Script deployment declarations, balance/UDT assertions, script filters, cycle comparators, non-empty replay dependencies, and multi-transaction steps remain RFC targets and are not silently accepted.
+
+See [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) for the broader design. Its unimplemented sections are proposals, not current CLI behavior.
+
+## Producer boundary
+
+For each step the runner executes the trusted repository command with:
+
+- `CKB_VERIFY_RESULT`: fresh path for the result envelope;
+- `CKB_VERIFY_RPC_URL`: loopback OffCKB node RPC for chain queries;
+- `CKB_VERIFY_ACCOUNTS`: mode-`0600` JSON file containing selected OffCKB development accounts;
+- `CKB_VERIFY_SYSTEM_SCRIPTS`: OffCKB system-script export;
+- `CKB_VERIFY_CONTEXT`: normalized devnet context.
+
+The producer writes exactly one object to `CKB_VERIFY_RESULT`:
+
+```json
+{
+  "protocol": 1,
+  "transaction": {
+    "version": "0x0",
+    "cell_deps": [],
+    "header_deps": [],
+    "inputs": [],
+    "outputs": [],
+    "outputs_data": [],
+    "witnesses": []
+  }
+}
+```
+
+`transaction` must be a signed CKB JSON-RPC transaction. Stdout and stderr are logs only. The producer must not submit the transaction; `ckb-verify` computes the raw transaction hash and submits through OffCKB's proxy so rejected transactions remain available for debugger replay. The unreleased interface exports only the canonical `CKB_VERIFY_*` namespace.
+
+## Evidence and digests
+
+Each run writes an ignored directory under:
+
+```text
+.ckb-verify/runs/<timestamp>-<pid>-<manifest-name>/
+```
+
+Evidence includes the manifest, producer result and sanitized logs, signed transaction, RPC response or structured rejection, resolved script-group evidence, debugger output/full transaction when applicable, Cell query responses, and `report.json`.
+
+The report records:
+
+- expected and observed transaction status;
+- script RPC code, script error code, source Cell/index, role, normalized script, script hash, and debugger cycles;
+- exact Cell assertion definitions and observations;
+- requested and observed tool versions;
+- Git commit and dirty state;
+- manifest hash, platform, genesis hash, and normalized OffCKB system scripts.
+
+It emits two RFC-8785 canonical SHA-256 identities:
+
+- **outcome digest**: declared claims and normalized observations, excluding raw transaction identity and runtime paths;
+- **environment fingerprint**: the recorded manifest, source, toolchain, runtime, platform, genesis, and system-script environment.
+
+The runner recomputes both embedded canonical objects before writing the report, checks that normalized evidence agrees with the embedded outcome claims, independently derives each Cell result from observation validity plus expected and observed counts, and verifies that the top-level verdict is the verdict derived from those claims. It scans the run evidence for the selected OffCKB development private keys with case-insensitive matching; any match is redacted and turns the run into an execution error. `report.json` is published only after that scan and devnet shutdown both succeed, so an execution or cleanup error leaves no valid verdict artifact. The temporary account file is removed when the devnet stops.
+
+## Trust and safety
+
+`run` executes arbitrary repository code with the current user's permissions. The MVP is **not a security sandbox**. Use only trusted repositories on a disposable environment with no production wallets, SSH agents, cloud credentials, or unrelated secrets.
+
+The producer receives a loopback node URL for queries, but the current feasibility implementation does not provide a network namespace or cryptographically enforce read-only access. Runner-owned submission is an architectural protocol for trusted code, not a containment boundary.
+
+OffCKB `0.4.13` advertises the proxy through a loopback URL but its proxy process binds port `28114` on the wildcard interface. The adapter cannot narrow that inherited bind behavior. Run behind a host firewall or inside a disposable VM/container whose devnet ports are not reachable from untrusted networks.
+
+See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 
 ## Repository map
 
-- [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — current draft manifest, assertion, report, and digest semantics
-- [`docs/spark-proposal.md`](docs/spark-proposal.md) — full Spark Program application and budget
-- [Nervos Talk application topic](https://talk.nervos.org/t/spark-program-spark-verify-reproducible-acceptance-checks-for-ckb-projects/10598) — submitted community proposal
-- [`docs/design-review.md`](docs/design-review.md) — review findings, decisions, and funded go/no-go gates
-- [`scripts/validate-docs.sh`](scripts/validate-docs.sh) — validator regression, embedded TOML/JSON, link, and secret-pattern checks
-- [`SECURITY.md`](SECURITY.md) — command-execution and CI trust boundary
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to review field names and assertion coverage
+- [`src/`](src/) — CLI, strict manifest parser, OffCKB adapter, runner, RPC boundary, and report canonicalization
+- [`showcases/`](showcases/) — bounded, executable integrations built on the runner
+- [`showcases/secp-transfer/`](showcases/secp-transfer/) — the first showcase: committed, rejected, and assertion-failure secp transfer paths
+- [`tests/`](tests/) — unit and orchestration tests
+- [`.github/workflows/verify.yml`](.github/workflows/verify.yml) — read-only CI for unit/docs checks and the fresh-devnet showcase
+- [`showcases/secp-transfer/verify.sh`](showcases/secp-transfer/verify.sh) — real fresh-devnet acceptance, cleanup, and digest-stability harness
+- [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — broader draft vocabulary and report design
+- [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material
+- [`docs/design-review.md`](docs/design-review.md) — prior design review and gates
 
-## Design principles
+## Next conformance target
 
-1. **CKB-specific, not a generic test DSL.** Cell filters, script groups, capacity, UDT amounts, cycles, and CKB error codes are first-class.
-2. **Thin orchestration.** Existing tools remain responsible for devnet, transaction construction, deployment, and script execution.
-3. **Runner-owned submission.** Negative tests must retain the rejected transaction and node/debugger evidence.
-4. **No vacuous success.** A Cell property assertion always requires at least one match; an exact-zero absence assertion cannot include per-Cell properties.
-5. **Two comparable identities.** The outcome digest covers declared claims and observations; the environment fingerprint covers Git, toolchain, runtime, lockfiles, OS/architecture, and devnet provenance.
-6. **Honest trust model.** `run` executes repository code. v0.1 is for trusted repositories and must not be run with production secrets.
+The current secp transfer is a runner-owned fixture proving the orchestration mechanics. Adapting a completed real project, CKB-UGMP, is intentionally reserved for a separate follow-up change so project-specific integration does not blur the runner MVP review.
 
-## What feedback is most useful
-
-- Can `cell`, `balance`, and step-level `tx`/cycles/error checks express a real CKB deliverable you maintain?
-- Is runner-owned transaction submission practical for CCC-based repositories?
-- Should OffCKB built-in scripts use a dedicated `builtin = "…"` reference or a generic deployment-source model?
-- Is output targeting by `{ step, index }` sufficient for v0.1?
-- Which completed Spark project would be the best real conformance example?
-- Should this remain a standalone thin CLI, become an OffCKB subcommand/plugin, or define only the format and conformance suite?
-
-Please open an issue with a concrete transaction flow or a manifest that cannot express it.
-
-## Grant status
-
-The repository contains a pre-implementation funding application **draft**, not a submitted or approved grant. Applicant/contact/payment details are disclosed in the proposal. The application intentionally requests the implementation budget before a runner exists.
-
-If funding is approved, these issues become Week 1 go/no-go gates:
+Relevant tracking issues:
 
 - [#1 — committed/rejected transaction feasibility and two-hash replay](https://github.com/Akane-CN/spark-verify/issues/1)
 - [#2 — OffCKB package boundary and built-in script references](https://github.com/Akane-CN/spark-verify/issues/2)
-- [#3 — confirmed completed-Spark-project example](https://github.com/Akane-CN/spark-verify/issues/3)
-
-Administrative applicant/contact/payout readiness is recorded in [#4](https://github.com/Akane-CN/spark-verify/issues/4). None of the open funded gates is presented as completed implementation evidence.
+- [#3 — completed-project conformance example](https://github.com/Akane-CN/spark-verify/issues/3)
 
 ## License
 

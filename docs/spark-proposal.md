@@ -68,7 +68,7 @@ spec = "0.1.0-draft.3"
 
 [toolchain]
 ckb = "0.209.0"
-offckb = "0.4.11"
+offckb = "0.4.13"
 ckb-debugger = "1.1.1"
 
 [replay]

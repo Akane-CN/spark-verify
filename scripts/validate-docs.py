@@ -35,7 +35,7 @@ SECRET_PATTERNS = {
     "API key": re.compile(r"\bsk-[A-Za-z0-9]{20,}"),
     "private key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 }
-IGNORED_PARTS = {".bun", ".git", "coverage", "dist", "node_modules"}
+IGNORED_PARTS = {".bun", ".ckb-verify", ".git", "coverage", "dist", "node_modules"}
 
 
 class Validation:
@@ -257,9 +257,14 @@ def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str,
 
     toolchain = obj.get("toolchain")
     if isinstance(toolchain, dict):
-        required = {"ckb", "offckb", "ckb-debugger"}
-        if set(toolchain) != required:
-            v.error(file, line, f"toolchain keys must be exactly {sorted(required)}")
+        required = {"ckb", "offckb"}
+        allowed = required | {"ckb-debugger"}
+        if not required.issubset(toolchain) or set(toolchain) - allowed:
+            v.error(
+                file,
+                line,
+                "toolchain requires ckb/offckb and permits optional ckb-debugger",
+            )
         for name, version in toolchain.items():
             if not isinstance(version, str) or not VERSION_RE.fullmatch(version):
                 v.error(file, line, f"toolchain.{name} must be an exact version, not a range")
@@ -399,6 +404,11 @@ def check_external_links(v: Validation, links: set[str]) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--examples",
+        action="store_true",
+        help="explicitly request embedded TOML/JSON validation (enabled by default)",
+    )
     parser.add_argument("--external-links", action="store_true", help="also fetch every external Markdown link")
     args = parser.parse_args()
 
