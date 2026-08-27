@@ -4,11 +4,12 @@ Showcases are bounded, executable integrations that demonstrate what `ckb-verify
 
 A showcase is deliberately **not** a plugin API. We add a new abstraction only when a real project cannot use the existing repository-command boundary.
 
-## Current showcase
+## Current showcases
 
 | Showcase | Scope | Acceptance command |
 | --- | --- | --- |
 | [`secp-transfer`](secp-transfer/) | Committed transfer, genuine script rejection, intentional assertion failure, and semantic digest stability | `bun run showcase:secp-transfer` |
+| [`somo-pixel-territory`](somo-pixel-territory/) | Fixed-revision SoMo Cluster creation with fresh OffCKB Cluster/ACP injection, tampered-signature rejection, intentional assertion failure, and semantic digest stability | `bun run showcase:somo-pixel-territory` |
 
 ## Showcase contract
 
@@ -23,6 +24,6 @@ A repository showcase should contain:
 
 The producer interface is the canonical `CKB_VERIFY_*` environment documented in the [root README](../README.md). Runner-owned submission remains the seam between project-specific transaction construction and shared acceptance evidence.
 
-## Next target: CKB-UGMP
+## Maintainer-consent boundary
 
-CKB-UGMP will be added in a separate follow-up after this runner/showcase baseline is merged. That integration will test whether a completed external project's real flow fits the existing command boundary and manifest vocabulary. It should deepen the shared runner only in response to a concrete incompatibility, not by pre-emptively introducing a generic adapter system.
+SoMo is a repository-side bounded adaptation of a fixed public revision, not evidence of maintainer endorsement or official adopter status. CKB-UGMP remains isolated in its own PR. Neither integration justifies a generic adapter system by itself.

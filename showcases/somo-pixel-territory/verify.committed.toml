@@ -1,0 +1,24 @@
+[meta]
+name = "somo-cluster-committed"
+spec = "0.1.0-draft.3"
+description = "A locally adapted SoMo ACP-locked Spore Cluster commits and creates a live output Cell."
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.13"
+
+[replay]
+dependencies = []
+
+[setup]
+accounts = 1
+
+[[step]]
+name = "create-cluster"
+run = "bun run showcases/somo-pixel-territory/produce.ts committed"
+timeout = "60s"
+expect.tx = "committed"
+
+[[step.assert.cell]]
+out_point = { step = "create-cluster", index = 0 }
+count = 1

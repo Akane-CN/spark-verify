@@ -15,9 +15,9 @@ It composes the existing CKB stack instead of replacing it:
 
 A passing report is not an audit, a sandbox, or proof that the manifest declared every important property. It means the runner observed all declared claims passing in the recorded environment.
 
-## Verified showcase
+## Verified showcases
 
-The first repository showcase packages three secp256k1 transfer fixtures behind one reproducible acceptance command:
+The baseline repository showcase packages three secp256k1 transfer fixtures behind one reproducible acceptance command:
 
 1. A signed transfer commits and output `0` is asserted live.
 2. The same transaction with a tampered signature is rejected with script error `-11`; the runner records `Inputs[0].Lock`, the resolved script and script hash, and debugger cycles.
@@ -27,10 +27,13 @@ The acceptance harness runs the committed fixture twice on fresh devnets and req
 
 `PASS` means exactly: **All declared claims passed in the recorded environment.** It does not claim broader contract correctness or a security audit.
 
+The [`somo-pixel-territory` showcase](showcases/somo-pixel-territory/) adds a bounded, headless adaptation of the Cluster-creation seam from [`LusoCryptoLabs/somo-github-release@d8db7f90b62645d83c58427545fa7fafdaa047d8`](https://github.com/LusoCryptoLabs/somo-github-release/tree/d8db7f90b62645d83c58427545fa7fafdaa047d8). It injects the fresh OffCKB Cluster and Anyone-Can-Pay identities, locks the output with local ACP, and returns a signed transaction without submitting it. It does not run the full UI/backend/DOB pipeline unchanged, does not execute the ACP spend path, and carries no SoMo maintainer endorsement.
+
 ```bash
 bun install --frozen-lockfile
 bun run check
 bun run showcase:secp-transfer
+bun run showcase:somo-pixel-territory
 ```
 
 The current pinned fixture environment is:
@@ -39,6 +42,7 @@ The current pinned fixture environment is:
 - `@offckb/cli` `0.4.13`
 - CKB `0.209.0`
 - `@ckb-ccc/core` `1.14.0`
+- `@ckb-ccc/spore` `0.0.0-canary-20251025011602` for the SoMo producer
 - ckb-debugger `1.1.1` for rejected-script replay
 
 The first devnet run may download the pinned CKB binary and debugger.
@@ -64,7 +68,7 @@ A completed run uses these exit codes:
 - `1`: execution completed but at least one declared claim failed;
 - `2`: manifest, setup, producer, RPC, debugger, or evidence error; no valid verdict.
 
-The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) when validating all three paths because the harness checks that exit code and post-run cleanup explicitly.
+The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) for the transfer fixtures and `bun run showcase:somo-pixel-territory` for the Cluster fixtures; each harness checks all three verdict paths, repeatability, recorded script identity and deps, report digests, and post-run cleanup explicitly.
 
 ## Implemented manifest subset
 
@@ -180,16 +184,18 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 - [`src/`](src/) — CLI, strict manifest parser, OffCKB adapter, runner, RPC boundary, and report canonicalization
 - [`showcases/`](showcases/) — bounded, executable integrations built on the runner
 - [`showcases/secp-transfer/`](showcases/secp-transfer/) — the first showcase: committed, rejected, and assertion-failure secp transfer paths
+- [`showcases/somo-pixel-territory/`](showcases/somo-pixel-territory/) — bounded SoMo Cluster creation with fresh local Cluster/ACP injection
 - [`tests/`](tests/) — unit and orchestration tests
 - [`.github/workflows/verify.yml`](.github/workflows/verify.yml) — read-only CI for unit/docs checks and the fresh-devnet showcase
 - [`showcases/secp-transfer/verify.sh`](showcases/secp-transfer/verify.sh) — real fresh-devnet acceptance, cleanup, and digest-stability harness
+- [`showcases/somo-pixel-territory/verify.sh`](showcases/somo-pixel-territory/verify.sh) — fresh-devnet Cluster acceptance, identity/dependency readback, and repeatability harness
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — broader draft vocabulary and report design
 - [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material
 - [`docs/design-review.md`](docs/design-review.md) — prior design review and gates
 
-## Next conformance target
+## External-project status
 
-The current secp transfer is a runner-owned fixture proving the orchestration mechanics. Adapting a completed real project, CKB-UGMP, is intentionally reserved for a separate follow-up change so project-specific integration does not blur the runner MVP review.
+The secp transfer remains the runner-owned fixture proving the orchestration mechanics. SoMo pressure-tests the same boundary with a pinned Cluster/ACP flow. This is repository-side feasibility evidence: maintainer consent and official adopter status remain separate, and CKB-UGMP is handled in its own PR.
 
 Relevant tracking issues:
 
