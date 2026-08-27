@@ -15,7 +15,7 @@ A `verify.toml` file can contain `run` commands. Running `ckb-verify` therefore 
 - Run only repositories and revisions you trust.
 - Use an isolated machine, VM, container, or disposable CI runner.
 - Remove production wallets, API tokens, cloud credentials, SSH agents, and unrelated secrets.
-- Never point a manifest at mainnet or testnet. v0.1 must accept only a fresh loopback OffCKB devnet with the expected genesis fingerprint.
+- Never point a manifest at mainnet or testnet. v0.1 starts its own fresh loopback OffCKB devnet and records the observed genesis fingerprint, but it does not yet compare that fingerprint with an independent allowlist.
 - Treat `CKB_VERIFY_ACCOUNTS` keys as public devnet test keys. Never fund them with real assets.
 - Do not run a contributor's modified manifest or scripts in a privileged `pull_request_target` workflow.
 - Pin Action revisions and package/tool versions; do not execute an unpinned `latest` dependency in acceptance CI.

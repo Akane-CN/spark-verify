@@ -94,5 +94,46 @@ describe("evidence report digests", () => {
     const tamperedEvidence = evidence();
     tamperedEvidence.steps[0]!.observedStatus = "rejected";
     expect(() => verifyEvidenceDigests({ ...report, evidence: tamperedEvidence })).toThrow("evidence outcome mismatch");
+
+    const contradictoryEvidence = evidence();
+    contradictoryEvidence.steps[0]!.claims = [
+      {
+        kind: "cell",
+        target: { step: "mint", index: 0 },
+        expected: { count: 1 },
+        observed: { count: 0 },
+        ok: true,
+      },
+    ];
+    const contradictoryClaims = buildOutcomeClaims(contradictoryEvidence);
+    expect(() =>
+      verifyEvidenceDigests({
+        verdict: "PASS",
+        evidence: contradictoryEvidence,
+        outcomeClaims: contradictoryClaims,
+        environment: ENVIRONMENT,
+        digests: buildEvidenceDigests(contradictoryEvidence, ENVIRONMENT),
+      }),
+    ).toThrow("Cell claim result mismatch");
+
+    const contradictoryAssertionEvidence = evidence();
+    contradictoryAssertionEvidence.assertions = [
+      {
+        kind: "cell",
+        target: { step: "mint", index: 0 },
+        expected: { count: 1 },
+        observed: { count: 1 },
+        ok: false,
+      },
+    ];
+    expect(() =>
+      verifyEvidenceDigests({
+        verdict: "FAIL",
+        evidence: contradictoryAssertionEvidence,
+        outcomeClaims: buildOutcomeClaims(contradictoryAssertionEvidence),
+        environment: ENVIRONMENT,
+        digests: buildEvidenceDigests(contradictoryAssertionEvidence, ENVIRONMENT),
+      }),
+    ).toThrow("Cell claim result mismatch");
   });
 });

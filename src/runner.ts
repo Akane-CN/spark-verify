@@ -1,4 +1,4 @@
-import { access, copyFile, lstat, mkdir, readFile, readdir, readlink, rm, writeFile } from "node:fs/promises";
+import { access, copyFile, lstat, mkdir, readFile, readdir, readlink, rename, rm, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { canonicalSha256, sha256Bytes } from "./canonical";
 import { loadManifest } from "./manifest";
@@ -347,6 +347,8 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   const { manifest, bytes: manifestBytes } = await loadManifest(manifestPath);
   const sourceRevision = await collectSourceRevision(projectRoot);
   const outputDir = resolve(options.outputDir ?? outputDirectory(projectRoot, manifest));
+  const reportPath = join(outputDir, "report.json");
+  const pendingReportPath = join(outputDir, ".report.json.pending");
   const runStep = options.runStep ?? runCommand;
   const rpc: RunnerRpcCaller =
     options.rpc ??
@@ -360,12 +362,15 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     });
 
   await mkdir(join(outputDir, "steps"), { recursive: true });
+  await rm(reportPath, { force: true });
+  await rm(pendingReportPath, { force: true });
   await writeFile(join(outputDir, "manifest.toml"), manifestBytes);
 
   let context: OffckbRunContext | undefined;
   let observedDebuggerVersion: string | undefined;
   let secrets: string[] = [];
   let primaryError: unknown;
+  let reportToPublish: RunManifestResult | undefined;
   try {
     throwIfAborted(options.signal);
     context = await devnet.start();
@@ -542,9 +547,9 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       digests,
     };
     verifyEvidenceDigests(report);
-    const reportPath = join(outputDir, "report.json");
-    await writeJson(reportPath, report);
-    return { verdict, reportPath, report };
+    await writeJson(pendingReportPath, report);
+    reportToPublish = { verdict, reportPath, report };
+    return reportToPublish;
   } catch (error) {
     primaryError = error;
     throw error;
@@ -560,10 +565,35 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     } catch (error) {
       cleanupErrors.push(error);
     }
+    if (primaryError !== undefined || cleanupErrors.length > 0) {
+      for (const path of [pendingReportPath, reportPath]) {
+        try {
+          await rm(path, { force: true });
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+      }
+    }
     if (cleanupErrors.length > 0) {
       const errors = primaryError === undefined ? cleanupErrors : [primaryError, ...cleanupErrors];
       const message = errors.map((error) => (error instanceof Error ? error.message : String(error))).join("; ");
       throw new AggregateError(errors, message);
+    }
+    if (primaryError === undefined && reportToPublish !== undefined) {
+      try {
+        await rename(pendingReportPath, reportPath);
+      } catch (error) {
+        const publicationErrors: unknown[] = [error];
+        try {
+          await rm(pendingReportPath, { force: true });
+        } catch (cleanupError) {
+          publicationErrors.push(cleanupError);
+        }
+        throw new AggregateError(
+          publicationErrors,
+          publicationErrors.map((entry) => (entry instanceof Error ? entry.message : String(entry))).join("; "),
+        );
+      }
     }
   }
 }

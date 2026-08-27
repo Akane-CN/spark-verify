@@ -163,7 +163,7 @@ It emits two RFC-8785 canonical SHA-256 identities:
 - **outcome digest**: declared claims and normalized observations, excluding raw transaction identity and runtime paths;
 - **environment fingerprint**: the recorded manifest, source, toolchain, runtime, platform, genesis, and system-script environment.
 
-The runner recomputes both embedded canonical objects before writing the report, checks that normalized evidence agrees with the embedded outcome claims, and verifies that the top-level verdict is the verdict derived from those claims. It also scans the run evidence for the selected OffCKB development private keys with case-insensitive matching; any match is redacted and turns the run into an execution error. The temporary account file is removed when the devnet stops.
+The runner recomputes both embedded canonical objects before writing the report, checks that normalized evidence agrees with the embedded outcome claims, independently derives each Cell result from observation validity plus expected and observed counts, and verifies that the top-level verdict is the verdict derived from those claims. It scans the run evidence for the selected OffCKB development private keys with case-insensitive matching; any match is redacted and turns the run into an execution error. `report.json` is published only after that scan and devnet shutdown both succeed, so an execution or cleanup error leaves no valid verdict artifact. The temporary account file is removed when the devnet stops.
 
 ## Trust and safety
 

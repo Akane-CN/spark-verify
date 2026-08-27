@@ -39,6 +39,10 @@ export interface RunEvidence {
   assertions: ClaimEvidence[];
 }
 
+export interface OutcomeClaim extends Omit<ClaimEvidence, "evidence"> {
+  observationValid: boolean;
+}
+
 export interface OutcomeClaims {
   schema: "ckb-verify-outcome/1";
   name: string;
@@ -50,9 +54,9 @@ export interface OutcomeClaims {
     observedStatus?: TransactionExpectation;
     cycles?: number;
     rejection?: RejectionEvidence;
-    claims: Array<Omit<ClaimEvidence, "evidence">>;
+    claims: OutcomeClaim[];
   }>;
-  assertions: Array<Omit<ClaimEvidence, "evidence">>;
+  assertions: OutcomeClaim[];
 }
 
 export interface EnvironmentEvidence {
@@ -72,12 +76,13 @@ export class EvidenceIntegrityError extends Error {
   }
 }
 
-function normalizeClaim(claim: ClaimEvidence): Omit<ClaimEvidence, "evidence"> {
+function normalizeClaim(claim: ClaimEvidence): OutcomeClaim {
   return {
     kind: claim.kind,
     target: claim.target,
     expected: claim.expected,
     observed: claim.observed,
+    observationValid: claim.evidence?.reason !== "output-index-out-of-range",
     ok: claim.ok,
   };
 }
@@ -107,14 +112,26 @@ export function buildEvidenceDigests(evidence: RunEvidence, environment: Environ
   };
 }
 
+function cellClaimPassed(claim: OutcomeClaim): boolean {
+  const derived = claim.observationValid && claim.expected.count === claim.observed.count;
+  if (claim.ok !== derived) {
+    throw new EvidenceIntegrityError(
+      `Cell claim result mismatch for ${claim.target.step}[${claim.target.index}]: expected ok=${derived}, observed ok=${claim.ok}`,
+    );
+  }
+  return derived;
+}
+
 export function verdictForOutcomeClaims(outcomeClaims: OutcomeClaims): "PASS" | "FAIL" {
+  const stepClaimsPassed = outcomeClaims.steps.map((step) => step.claims.map(cellClaimPassed).every(Boolean));
+  const assertionsPassed = outcomeClaims.assertions.map(cellClaimPassed).every(Boolean);
   const passed =
     outcomeClaims.steps.every(
-      (step) =>
+      (step, index) =>
         (step.expectedStatus === undefined || step.expectedStatus === step.observedStatus) &&
         (step.expectedErrorCode === undefined || step.expectedErrorCode === step.rejection?.code) &&
-        step.claims.every((claim) => claim.ok),
-    ) && outcomeClaims.assertions.every((claim) => claim.ok);
+        stepClaimsPassed[index] === true,
+    ) && assertionsPassed;
   return passed ? "PASS" : "FAIL";
 }
 

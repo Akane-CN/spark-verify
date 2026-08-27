@@ -158,6 +158,7 @@ describe("runManifest", () => {
       claims: [{ expected: { count: 1 }, observed: { count: 1 }, ok: true }],
     });
     expect(await Bun.file(result.reportPath).exists()).toBe(true);
+    expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
     expect(result.report.digests.outcome).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(result.report.digests.environment).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(result.report.environment).toMatchObject({
@@ -206,6 +207,37 @@ describe("runManifest", () => {
       ok: false,
     });
     expect(await Bun.file(result.reportPath).exists()).toBe(true);
+  });
+
+  test("does not publish a verdict when devnet shutdown fails", async () => {
+    const { project, manifestPath, outputDir } = await projectWithManifest(1);
+    const devnet = fakeDevnet(project);
+    let reportVisibleDuringStop: boolean | undefined;
+    devnet.stop = async () => {
+      reportVisibleDuringStop = await Bun.file(join(outputDir, "report.json")).exists();
+      throw new Error("simulated shutdown failure");
+    };
+    const runStep: StepCommandRunner = async (_command, options) => {
+      const resultPath = options.env?.CKB_VERIFY_RESULT;
+      if (resultPath === undefined) throw new Error("missing result path");
+      await writeFile(resultPath, JSON.stringify({ protocol: 1, transaction: TRANSACTION }));
+      return commandResult();
+    };
+    const txHash = transactionHash(TRANSACTION);
+    const rpc = async (_url: string, method: string): Promise<unknown> => {
+      if (method === "test_tx_pool_accept") return { cycles: "0x64", fee: "0xa" };
+      if (method === "send_transaction") return txHash;
+      if (method === "get_transaction") return { transaction: TRANSACTION, tx_status: { status: "committed" } };
+      if (method === "get_live_cell") return { status: "live", cell: { output: {}, data: { content: "0x" } } };
+      throw new Error(`unexpected RPC ${method}`);
+    };
+
+    await expect(runManifest({ manifestPath, projectRoot: project, outputDir, devnet, runStep, rpc })).rejects.toThrow(
+      "simulated shutdown failure",
+    );
+    expect(reportVisibleDuringStop).toBe(false);
+    expect(await Bun.file(join(outputDir, "report.json")).exists()).toBe(false);
+    expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
   });
 
   test("fails a vacuous count-zero claim that references an output the transaction did not create", async () => {
@@ -393,10 +425,8 @@ describe("runManifest", () => {
     expect(await Bun.file(join(outputDir, "steps", "01-transfer", "linked-evidence.txt")).exists()).toBe(false);
   });
 
-  test("redacts and rejects evidence containing an OffCKB development private key", async () => {
+  test("does not publish a report whose normalized evidence contains an OffCKB development private key", async () => {
     const { project, manifestPath, outputDir } = await projectWithManifest(1);
-    const manifest = await Bun.file(manifestPath).text();
-    await writeFile(manifestPath, manifest.replace('spec = "0.1.0-draft.3"', `spec = "0.1.0-draft.3"\ndescription = "${KEY}"`));
     const runStep: StepCommandRunner = async (_command, options) => {
       const resultPath = options.env?.CKB_VERIFY_RESULT;
       if (resultPath === undefined) throw new Error("missing result path");
@@ -408,7 +438,9 @@ describe("runManifest", () => {
       if (method === "test_tx_pool_accept") return { cycles: "0x64", fee: "0xa" };
       if (method === "send_transaction") return txHash;
       if (method === "get_transaction") return { transaction: TRANSACTION, tx_status: { status: "committed" } };
-      if (method === "get_live_cell") return { status: "live", cell: { output: {}, data: { content: "0x" } } };
+      if (method === "get_live_cell") {
+        return { status: "live", cell: { output: { lock: { args: KEY } }, data: { content: "0x" } } };
+      }
       throw new Error(`unexpected RPC ${method}`);
     };
 
@@ -416,6 +448,8 @@ describe("runManifest", () => {
       runManifest({ manifestPath, projectRoot: project, outputDir, devnet: fakeDevnet(project), runStep, rpc }),
     ).rejects.toThrow("development private key");
     expect(await Bun.file(join(outputDir, "manifest.toml")).text()).not.toContain(KEY);
+    expect(await Bun.file(join(outputDir, "report.json")).exists()).toBe(false);
+    expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
   });
 
   test("does not misclassify a send_transaction infrastructure error as an expected rejection", async () => {
