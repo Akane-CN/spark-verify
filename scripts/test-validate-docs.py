@@ -31,6 +31,11 @@ class ValidatorTests(unittest.TestCase):
         VALIDATOR.validate_toml_semantics(result, VALIDATOR_PATH, 1, manifest)
         return result.errors
 
+    def validate_report(self, report: dict) -> list[str]:
+        result = VALIDATOR.Validation()
+        VALIDATOR.validate_report_example(result, VALIDATOR_PATH, 1, report)
+        return result.errors
+
     def assert_error(self, errors: list[str], text: str) -> None:
         self.assertTrue(any(text in error for error in errors), errors)
 
@@ -127,6 +132,52 @@ class ValidatorTests(unittest.TestCase):
             result = VALIDATOR.Validation()
             VALIDATOR.validate_markdown(result, path, set())
         self.assert_error(result.errors, "replay.declared_dependencies")
+
+    def test_current_report_requires_the_implemented_top_level_contract(self) -> None:
+        report = """```json
+{"schema":"ckb-verify-report/1","verdict":"PASS","digests":{"outcome":"sha256:0000000000000000000000000000000000000000000000000000000000000000","environment":"sha256:0000000000000000000000000000000000000000000000000000000000000000"}}
+```
+"""
+        with tempfile.TemporaryDirectory(dir=VALIDATOR.ROOT) as directory:
+            path = Path(directory) / "report.md"
+            path.write_text(report, encoding="utf-8")
+            result = VALIDATOR.Validation()
+            VALIDATOR.validate_markdown(result, path, set())
+        self.assert_error(result.errors, "current report requires top-level fields")
+
+    def test_current_report_accepts_the_implemented_envelope(self) -> None:
+        digest = "sha256:" + ("0" * 64)
+        report = {
+            "schema": "ckb-verify-report/1",
+            "verdict": "PASS",
+            "createdAt": "2026-09-08T00:00:00.000Z",
+            "evidence": {},
+            "outcomeClaims": {"schema": "ckb-verify-outcome/1"},
+            "environment": {"schema": "ckb-verify-environment/1"},
+            "digests": {"outcome": digest, "environment": digest},
+        }
+        self.assertEqual(self.validate_report(report), [])
+
+    def test_current_report_rejects_invalid_nested_contracts(self) -> None:
+        report = {
+            "schema": "ckb-verify-report/1",
+            "verdict": "ERROR",
+            "createdAt": "",
+            "evidence": [],
+            "outcomeClaims": {"schema": "spark-verify-outcome/0"},
+            "environment": {"schema": "spark-verify-environment/0"},
+            "digests": {"outcome": "not-a-digest", "environment": "also-invalid"},
+        }
+        errors = self.validate_report(report)
+        for message in (
+            "verdict must be PASS or FAIL",
+            "requires createdAt",
+            "requires evidence",
+            "requires ckb-verify-outcome/1",
+            "requires ckb-verify-environment/1",
+            "digest must be canonical sha256",
+        ):
+            self.assert_error(errors, message)
 
 
 if __name__ == "__main__":

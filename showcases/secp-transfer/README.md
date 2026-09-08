@@ -38,4 +38,4 @@ The first run may download the pinned CKB `0.209.0` binary and ckb-debugger `1.1
 
 ## What this does not prove
 
-This showcase is a bounded conformance flow, not a security audit, hostile-code sandbox, package release, or claim that arbitrary CKB applications already fit the vocabulary. The next validation target is CKB-UGMP, kept separate so its real integration pressure can reveal which shared abstractions are actually needed.
+This showcase is a bounded conformance flow, not a security audit, hostile-code sandbox, package release, or claim that arbitrary CKB applications already fit the vocabulary. A separate CKB-UGMP candidate integration exists in [PR #7](https://github.com/Akane-CN/spark-verify/pull/7); it remains independent feasibility work unless its maintainer explicitly agrees to a trial.

@@ -5,6 +5,8 @@
 > **Versioning:** this is document revision **0.2** for the intended `verify.toml` **v0.1** release. Draft manifests select `spec = "0.1.0-draft.3"`; draft.3 supersedes the briefly published draft.2 because the canonical transaction key and required replay declaration changed. The manifest-spec, outcome-claims, report-schema, and installed-runner versions are separate values.
 >
 > **Changes from draft 0.1:** the runner-owned result-file contract is retained; the uploaded `expect.tx` vocabulary is canonical; immediate state checks use `[[step.assert.*]]`; result identity is split into an outcome digest and an environment fingerprint; `[replay].dependencies` makes replay qualification authorable; pure-step/result semantics are explicit; zero-match Cell behavior remains explicit; and the report/replay semantics distinguish a hash from a reproducibility claim.
+>
+> **Implementation note:** the CLI/package name is now `ckb-verify`. The report in §7 preserves the broader pre-implementation draft shape for review; it is not sample output from the current runner. See the [checked `ckb-verify-report/1` example and field guide](evidence-report.md) for implemented behavior. Stabilizing and reconciling these contracts is explicitly remaining v0.1 work.
 
 ## Design goals
 
@@ -19,7 +21,7 @@
 
 A manifest can execute `run` commands from the repository. The MVP does **not** promise a security sandbox. Run it only for repositories you trust, in an environment with no production credentials or wallets. A GitHub Action must not expose secrets to a workflow that executes untrusted pull-request code.
 
-The runner hard-fails unless the CKB RPC endpoint is loopback and its genesis fingerprint matches the freshly created OffCKB devnet. The MVP never targets testnet or mainnet and never accepts production private keys. The account file contains public, deterministic OffCKB development keys and must be labelled accordingly.
+The runner hard-fails unless the CKB RPC endpoint is loopback and its genesis fingerprint matches the freshly created OffCKB devnet. The MVP never targets testnet or mainnet and never accepts production private keys. The account file contains only publicly known, deterministic OffCKB development private keys and must be labelled accordingly.
 
 ## 1. Document structure
 
@@ -420,14 +422,14 @@ Abbreviated illustrative report shape; an actual report includes every field req
 Proposed CLI:
 
 ```text
-spark-verify run [path]
+ckb-verify run [path]
   --report <file>
   --json
   --allow-version-drift
 
-spark-verify validate [path]
-spark-verify digest <report.json> [--kind outcome|environment]
-spark-verify check-digest <report.json> --kind <outcome|environment> <sha256:...>
+ckb-verify validate [path]
+ckb-verify digest <report.json> [--kind outcome|environment]
+ckb-verify check-digest <report.json> --kind <outcome|environment> <sha256:...>
 ```
 
 Without `--kind`, `digest` recomputes and prints both hashes. `check-digest` recomputes the selected embedded object, verifies the stored value, and then compares it with the supplied hash.

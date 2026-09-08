@@ -4,6 +4,8 @@
 
 > **Status: unreleased feasibility implementation.** This repository now contains a working vertical slice, not only an RFC. The implemented manifest vocabulary is intentionally smaller than the draft RFC and is not a stable public interface yet.
 
+Start with the [line-by-line annotated manifest](docs/annotated-manifest.md), then inspect the [evidence report anatomy and checked fresh-devnet example](docs/evidence-report.md). The [Spark Program application](docs/spark-proposal.md) records the exact pre-funding implementation and remaining requested scope.
+
 `ckb-verify` starts a fresh pinned [OffCKB](https://github.com/ckb-devrel/offckb) devnet, lets trusted project code construct and sign one transaction per step, submits that transaction itself, evaluates declared CKB outcomes, and writes a structured evidence report.
 
 It composes the existing CKB stack instead of replacing it:
@@ -184,12 +186,14 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 - [`.github/workflows/verify.yml`](.github/workflows/verify.yml) — read-only CI for unit/docs checks and the fresh-devnet showcase
 - [`showcases/secp-transfer/verify.sh`](showcases/secp-transfer/verify.sh) — real fresh-devnet acceptance, cleanup, and digest-stability harness
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — broader draft vocabulary and report design
+- [`docs/annotated-manifest.md`](docs/annotated-manifest.md) — every field in the currently executable manifest subset
+- [`docs/evidence-report.md`](docs/evidence-report.md) — current report contract, digest boundaries, and checked real output
 - [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material
 - [`docs/design-review.md`](docs/design-review.md) — prior design review and gates
 
 ## Next conformance target
 
-The current secp transfer is a runner-owned fixture proving the orchestration mechanics. Adapting a completed real project, CKB-UGMP, is intentionally reserved for a separate follow-up change so project-specific integration does not blur the runner MVP review.
+The current secp transfer is a runner-owned fixture proving the orchestration mechanics. A bounded, independently prepared CKB-UGMP Spore-mint adaptation is available in [PR #7](https://github.com/Akane-CN/spark-verify/pull/7). It remains outside `main` pending review and is technical feasibility evidence, not CKB-UGMP maintainer adoption, endorsement, or a funded deliverable already completed.
 
 Relevant tracking issues:
 
