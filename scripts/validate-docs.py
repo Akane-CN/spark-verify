@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Spark Verify's pre-implementation Markdown and embedded examples."""
+"""Validate Spark Verify documentation and embedded examples."""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ VERSION_RE = re.compile(r"^[0-9]+(?:\.[0-9]+){1,2}(?:[-+][0-9A-Za-z.-]+)?$")
 CKB_AMOUNT_RE = re.compile(r"^(?:0|[1-9][0-9]*)(?:\.[0-9]{1,8})? CKB$|^(?:0|[1-9][0-9]*) shannon$")
 TOKEN_AMOUNT_RE = re.compile(r"^(?:0|[1-9][0-9]*)$")
 HEX_RE = re.compile(r"^0x(?:[0-9a-fA-F]{2})*$")
+SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 FENCE_RE = re.compile(r"```(?P<lang>toml|json)\n(?P<body>.*?)\n```", re.DOTALL)
 LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 SECRET_PATTERNS = {
@@ -346,6 +347,59 @@ def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str,
             v.error(file, line, "code_hash examples must contain exactly 32 bytes of hex")
 
 
+def validate_report_example(v: Validation, file: Path, line: int, obj: dict[str, Any]) -> None:
+    schema = obj.get("schema")
+    if schema == "ckb-verify-report/1":
+        required = {
+            "schema",
+            "verdict",
+            "createdAt",
+            "evidence",
+            "outcomeClaims",
+            "environment",
+            "digests",
+        }
+        if set(obj) != required:
+            v.error(
+                file,
+                line,
+                f"current report requires top-level fields {sorted(required)}",
+            )
+        if obj.get("verdict") not in {"PASS", "FAIL"}:
+            v.error(file, line, "current report verdict must be PASS or FAIL")
+        if not isinstance(obj.get("createdAt"), str) or not obj["createdAt"]:
+            v.error(file, line, "current report requires createdAt")
+
+        evidence = obj.get("evidence")
+        if not isinstance(evidence, dict):
+            v.error(file, line, "current report requires evidence")
+        outcome = obj.get("outcomeClaims")
+        if not isinstance(outcome, dict) or outcome.get("schema") != "ckb-verify-outcome/1":
+            v.error(file, line, "current report requires ckb-verify-outcome/1 outcomeClaims")
+        environment = obj.get("environment")
+        if not isinstance(environment, dict) or environment.get("schema") != "ckb-verify-environment/1":
+            v.error(file, line, "current report requires ckb-verify-environment/1 environment")
+
+        digests = obj.get("digests")
+        if not isinstance(digests, dict) or set(digests) != {"outcome", "environment"}:
+            v.error(file, line, "current report requires outcome and environment digests")
+        else:
+            for name, digest in digests.items():
+                if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
+                    v.error(file, line, f"current report {name} digest must be canonical sha256")
+        return
+
+    if isinstance(schema, str) and schema.startswith("spark-verify-report/"):
+        digests = obj.get("digests")
+        replay = obj.get("replay")
+        if not isinstance(digests, dict) or set(digests) != {"outcome", "environment"}:
+            v.error(file, line, "report example requires outcome and environment digests")
+        if not isinstance(replay, dict) or replay.get("status") not in {"stable", "tainted"}:
+            v.error(file, line, "report example requires replay.status")
+        elif not isinstance(replay.get("declared_dependencies"), list):
+            v.error(file, line, "report example requires replay.declared_dependencies")
+
+
 def validate_markdown(v: Validation, file: Path, external_links: set[str]) -> None:
     text = file.read_text(encoding="utf-8")
     for label, pattern in SECRET_PATTERNS.items():
@@ -364,15 +418,8 @@ def validate_markdown(v: Validation, file: Path, external_links: set[str]) -> No
             else:
                 obj = json.loads(body)
                 v.json_count += 1
-                if isinstance(obj, dict) and str(obj.get("schema", "")).startswith("spark-verify-report/"):
-                    digests = obj.get("digests")
-                    replay = obj.get("replay")
-                    if not isinstance(digests, dict) or set(digests) != {"outcome", "environment"}:
-                        v.error(file, line, "report example requires outcome and environment digests")
-                    if not isinstance(replay, dict) or replay.get("status") not in {"stable", "tainted"}:
-                        v.error(file, line, "report example requires replay.status")
-                    elif not isinstance(replay.get("declared_dependencies"), list):
-                        v.error(file, line, "report example requires replay.declared_dependencies")
+                if isinstance(obj, dict):
+                    validate_report_example(v, file, line, obj)
         except (tomllib.TOMLDecodeError, json.JSONDecodeError) as exc:
             v.error(file, line, f"invalid {lang} fence: {exc}")
 

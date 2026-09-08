@@ -23,6 +23,6 @@ A repository showcase should contain:
 
 The producer interface is the canonical `CKB_VERIFY_*` environment documented in the [root README](../README.md). Runner-owned submission remains the seam between project-specific transaction construction and shared acceptance evidence.
 
-## Next target: CKB-UGMP
+## Candidate external showcase: CKB-UGMP
 
-CKB-UGMP will be added in a separate follow-up after this runner/showcase baseline is merged. That integration will test whether a completed external project's real flow fits the existing command boundary and manifest vocabulary. It should deepen the shared runner only in response to a concrete incompatibility, not by pre-emptively introducing a generic adapter system.
+A bounded Spore-mint adaptation is implemented in [PR #7](https://github.com/Akane-CN/spark-verify/pull/7). It reuses a fixed CKB-UGMP revision and the existing command boundary without adding a generic adapter system. Until that PR is reviewed and the upstream maintainer independently agrees to trial the format, it is feasibility evidence only—not adoption, endorsement, or a current `main` showcase.

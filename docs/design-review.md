@@ -1,14 +1,16 @@
-# Design review and funded go/no-go gates
+# Historical design review and original go/no-go gates
 
-This review compares the original Spark Verify proposal/RFC with current Spark requirements and the CKB toolchain. It records the important changes made before creating the public repository and distinguishes submission administration from post-approval funded work.
+> This review records the pre-implementation decision state at submission. The core runner-owned transaction feasibility question was later resolved as independent pre-funding work; broader provenance criteria remain v0.1 scope. For current implementation status, funding boundaries, and remaining gates, see [proposal revision 0.3](spark-proposal.md), the [annotated manifest](annotated-manifest.md), and the [checked report guide](evidence-report.md).
+
+This review compares the original Spark Verify proposal/RFC with the Spark requirements and CKB toolchain available at submission. It records the changes made before creating the public repository and preserves the reasoning behind the original gates.
 
 ## Verdict
 
-**Application-ready as an explicitly pre-implementation Spark funding proposal; implementation and adoption risks remain.**
+**Submission-time verdict:** application-ready as an explicitly pre-implementation Spark funding proposal; implementation and adoption risks remained.
 
 The core gap is credible: OffCKB, CCC, ckb-debugger, and ckb-testtool do not currently define a shared, declarative end-to-end acceptance-claim format. The strongest version of Spark Verify is a **thin claim/evidence layer**, not a replacement devnet, transaction builder, debugger, CI platform, or audit tool.
 
-The original draft had enough semantic and validation gaps that implementing it immediately would likely freeze the wrong contract. The revised RFC addresses the document-level blockers, and the administrative publication requirements are now satisfied. Three open technical, demand, and upstream-fit questions remain as funded Week 1 go/no-go gates rather than pre-submission prerequisites.
+The original draft had enough semantic and validation gaps that implementing it immediately would likely freeze the wrong contract. The revised RFC addressed the document-level blockers, and three technical, demand, and upstream-fit questions were designated as go/no-go gates. The core transaction/evidence feasibility question was later resolved by the pre-funding implementation; full provenance/taint behavior, demand, and upstream fit remain open.
 
 ## Priority findings
 
@@ -138,14 +140,14 @@ It will **not** express every deliverable. Examples outside v0.1 include header/
 | [ckb-debugger](https://github.com/nervosnetwork/ckb-standalone-debugger) | Execute/debug CKB script groups and cycles | Normalize relevant evidence into step expectations |
 | [ckb-testtool](https://github.com/nervosnetwork/ckb-testtool) | Script-level unit-test helpers | End-to-end repository acceptance flow and final live-chain state |
 
-The thin-wrapper objection remains legitimate. Funded Week 1 therefore asks an OffCKB maintainer whether this belongs as an OffCKB command/plugin or as an external conformance layer. The durable asset should be the manifest/report semantics and fixtures, regardless of package boundary.
+The thin-wrapper objection remains legitimate. The remaining scope therefore asks an OffCKB maintainer whether this belongs as an OffCKB command/plugin or as an external conformance layer. The durable asset should be the manifest/report semantics and fixtures, regardless of package boundary.
 
 ## Likely committee objections
 
-1. **“Who will use it?”** No adopter or completed Spark example is currently confirmed; Week 1 treats this as a funded demand gate rather than pretending adoption already exists.
-2. **“Is this just OffCKB plus CI?”** Without a working negative-test and report/digest slice, the differentiation is still prose; funded Week 1 must resolve that uncertainty.
+1. **“Who will use it?”** A CKB-UGMP technical probe now exists, but no project maintainer has consented to a trial; the funded demand gate remains open.
+2. **“Is this just OffCKB plus CI?”** The working negative-test and report/digest slice now demonstrates the claim/evidence layer mechanically; whether it deserves a standalone package still requires OffCKB maintainer feedback.
 3. **“Can arbitrary scripts really be reproducible?”** Only comparable provenance/claims can be qualified; external behavior cannot be guaranteed.
-4. **“Why fund $1,000 of tooling before a spike?”** Spark funds the implementation. The first funded milestone is deliberately a narrow, published go/no-go slice so later work stops or narrows if the premise fails.
+4. **“Why fund $1,000 after the spike exists?”** Proposal revision 0.3 assigns the existing runner, docs, report, CI, and technical probes a grant cost of $0 and reallocates the request only to the remaining v0.1 contracts, assertions, release surface, and external-pilot or demand-validation work.
 5. **“Who is accountable?”** Akane is named as the applicant and maintainer, and the proposal discloses the public contact and applicant-provided CKB mainnet payout destination.
 
 ## Submission Administration
@@ -154,18 +156,16 @@ The administrative publication requirements are now recorded explicitly:
 
 - [x] **Identity and contact:** Akane, `Akane-CN`, and `akane@random-walk.co.jp` are disclosed ([#4](https://github.com/Akane-CN/spark-verify/issues/4)).
 - [x] **Payout:** the proposal discloses a syntactically validated CKB mainnet address and does not store signing credentials.
-- [x] **Funding boundary:** the repository states that no runner implementation, feasibility evidence, or adopter integration exists yet.
+- [x] **Funding boundary:** proposal revision 0.3 inventories completed pre-funding work at $0 and separates it from every remaining paid deliverable.
 
-## Funded Week 1 go/no-go gates
+## Status after the pre-funding implementation
 
-These are requested deliverables after approval, not prerequisites that would force the applicant to implement the proposal before requesting its budget:
-
-- [ ] **Feasibility:** capture committed and script-rejected transactions, cycles, one Cell assertion, and two clean runs with comparable outcome digests and environment fingerprints ([#1](https://github.com/Akane-CN/spark-verify/issues/1)).
-- [ ] **Demand:** ask one CKB maintainer/project to trial the format and supply a concrete flow. Prefer a completed Spark project; CKB-UGMP is a possible Spore/CCC candidate but is not confirmed ([#3](https://github.com/Akane-CN/spark-verify/issues/3)).
+- [x] **Core feasibility mechanics:** committed and script-rejected transactions, debugger cycles, an intentional assertion failure, and two clean runs with matching outcome/environment identities are in [PR #5](https://github.com/Akane-CN/spark-verify/pull/5). This was completed independently and is not billable. [Issue #1](https://github.com/Akane-CN/spark-verify/issues/1) remains open for its additional version-drift/taint and complete provenance criteria.
+- [ ] **Demand:** CKB-UGMP is technically probed in [PR #7](https://github.com/Akane-CN/spark-verify/pull/7), but its maintainer has not consented to a trial or adoption ([#3](https://github.com/Akane-CN/spark-verify/issues/3)).
 - [ ] **Upstream fit:** obtain public OffCKB maintainer feedback on standalone versus plugin/subcommand placement and built-in script references ([#2](https://github.com/Akane-CN/spark-verify/issues/2)).
 
 Each gate remains an issue with linked evidence. Failure produces a documented scope/no-go decision, not a fabricated success claim.
 
 ## Recommendation
 
-Publish the budget request as an explicitly pre-implementation Spark proposal. If approved, start with the funded Week 1 gates before spending the remaining budget. If the feasibility slice reveals that rejected transactions or comparable devnet replay require invasive OffCKB changes, prefer an upstream contribution or a smaller schema/conformance-only scope instead of expanding the wrapper.
+Ask the committee to review proposal revision 0.3 as a remaining-work request, not as retroactive funding for the now-complete spike. Freeze the v0.1 contracts first; keep maintainer consent and upstream fit as explicit gates; and reduce the integration scope if either gate fails instead of expanding the wrapper or inventing adoption.
