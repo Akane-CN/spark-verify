@@ -17,9 +17,9 @@ It composes the existing CKB stack instead of replacing it:
 
 A passing report is not an audit, a sandbox, or proof that the manifest declared every important property. It means the runner observed all declared claims passing in the recorded environment.
 
-## Verified showcase
+## Verified showcases
 
-The first repository showcase packages three secp256k1 transfer fixtures behind one reproducible acceptance command:
+The baseline repository showcase packages three secp256k1 transfer fixtures behind one reproducible acceptance command:
 
 1. A signed transfer commits and output `0` is asserted live.
 2. The same transaction with a tampered signature is rejected with script error `-11`; the runner records `Inputs[0].Lock`, the resolved script and script hash, and debugger cycles.
@@ -29,10 +29,13 @@ The acceptance harness runs the committed fixture twice on fresh devnets and req
 
 `PASS` means exactly: **All declared claims passed in the recorded environment.** It does not claim broader contract correctness or a security audit.
 
+The [`ckb-ugmp` showcase](showcases/ckb-ugmp/) adds a bounded, headless adaptation of the Spore mint seam from [`HNO3Miracle/CKB-UGMP@543def6e717b2d67f619a76c3d9283e55b211b83`](https://github.com/HNO3Miracle/CKB-UGMP/tree/543def6e717b2d67f619a76c3d9283e55b211b83). It injects the fresh OffCKB Spore deployment into the upstream project's pinned `@ckb-ccc/spore@1.5.17` construction path, uses deterministic local DOB/0-shaped data, and returns a signed transaction without submitting it. It does not run the browser UI unchanged and carries no CKB-UGMP maintainer endorsement.
+
 ```bash
 bun install --frozen-lockfile
 bun run check
 bun run showcase:secp-transfer
+bun run showcase:ckb-ugmp
 ```
 
 The current pinned fixture environment is:
@@ -41,6 +44,7 @@ The current pinned fixture environment is:
 - `@offckb/cli` `0.4.13`
 - CKB `0.209.0`
 - `@ckb-ccc/core` `1.14.0`
+- `@ckb-ccc/spore` `1.5.17` for the CKB-UGMP producer
 - ckb-debugger `1.1.1` for rejected-script replay
 
 The first devnet run may download the pinned CKB binary and debugger.
@@ -66,7 +70,7 @@ A completed run uses these exit codes:
 - `1`: execution completed but at least one declared claim failed;
 - `2`: manifest, setup, producer, RPC, debugger, or evidence error; no valid verdict.
 
-The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) when validating all three paths because the harness checks that exit code and post-run cleanup explicitly.
+The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) for the transfer fixtures and `bun run showcase:ckb-ugmp` for the Spore fixtures; each harness checks all three verdict paths, repeatability, recorded script identity and deps, report digests, and post-run cleanup explicitly.
 
 ## Implemented manifest subset
 
@@ -182,18 +186,20 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 - [`src/`](src/) — CLI, strict manifest parser, OffCKB adapter, runner, RPC boundary, and report canonicalization
 - [`showcases/`](showcases/) — bounded, executable integrations built on the runner
 - [`showcases/secp-transfer/`](showcases/secp-transfer/) — the first showcase: committed, rejected, and assertion-failure secp transfer paths
+- [`showcases/ckb-ugmp/`](showcases/ckb-ugmp/) — a bounded CKB-UGMP Spore mint with fresh local script injection
 - [`tests/`](tests/) — unit and orchestration tests
 - [`.github/workflows/verify.yml`](.github/workflows/verify.yml) — read-only CI for unit/docs checks and the fresh-devnet showcase
 - [`showcases/secp-transfer/verify.sh`](showcases/secp-transfer/verify.sh) — real fresh-devnet acceptance, cleanup, and digest-stability harness
+- [`showcases/ckb-ugmp/verify.sh`](showcases/ckb-ugmp/verify.sh) — fresh-devnet Spore acceptance, script-identity readback, and repeatability harness
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — broader draft vocabulary and report design
 - [`docs/annotated-manifest.md`](docs/annotated-manifest.md) — every field in the currently executable manifest subset
 - [`docs/evidence-report.md`](docs/evidence-report.md) — current report contract, digest boundaries, and checked real output
 - [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material
 - [`docs/design-review.md`](docs/design-review.md) — prior design review and gates
 
-## Next conformance target
+## External-project status
 
-The current secp transfer is a runner-owned fixture proving the orchestration mechanics. A bounded, independently prepared CKB-UGMP Spore-mint adaptation is available in [PR #7](https://github.com/Akane-CN/spark-verify/pull/7). It remains outside `main` pending review and is technical feasibility evidence, not CKB-UGMP maintainer adoption, endorsement, or a funded deliverable already completed.
+The secp transfer remains the runner-owned fixture proving the orchestration mechanics. CKB-UGMP pressure-tests the same boundary with one pinned completed-project flow. This bounded repository-side adaptation was prepared independently at a grant cost of $0 and is technical feasibility evidence only: maintainer consent, adoption, endorsement, and a funded pilot remain separate.
 
 Relevant tracking issues:
 
