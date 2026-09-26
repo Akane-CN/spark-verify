@@ -70,6 +70,22 @@ async function projectWithRejectedManifest(): Promise<{ project: string; manifes
   return { project, manifestPath, outputDir };
 }
 
+async function projectWithTerminalRejectedManifest(): Promise<{
+  project: string;
+  manifestPath: string;
+  outputDir: string;
+}> {
+  const project = await mkdtemp(join(tmpdir(), "ckb-verify-runner-terminal-rejected-"));
+  directories.push(project);
+  const manifestPath = join(project, "verify.toml");
+  const outputDir = join(project, "evidence");
+  await writeFile(
+    manifestPath,
+    `[meta]\nname = "runner-terminal-rejected"\nspec = "0.1.0-draft.3"\n\n[toolchain]\nckb = "0.209.0"\noffckb = "0.4.13"\n\n[replay]\ndependencies = []\n\n[setup]\naccounts = 2\n\n[[step]]\nname = "delayed-rejection"\nrun = "fake-producer terminal-rejected"\ntimeout = "10s"\nexpect.tx = "rejected"\n`,
+  );
+  return { project, manifestPath, outputDir };
+}
+
 function fakeDevnet(project: string, debuggerOutput = "", privateKey = KEY): DevnetAdapter {
   const root = join(project, ".runtime");
   const accountsPath = join(root, "accounts.json");
@@ -450,6 +466,45 @@ describe("runManifest", () => {
     expect(await Bun.file(join(outputDir, "manifest.toml")).text()).not.toContain(KEY);
     expect(await Bun.file(join(outputDir, "report.json")).exists()).toBe(false);
     expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
+  });
+
+  test("preserves terminal delayed-rejection kind and reason without changing bare rejected semantics", async () => {
+    const { project, manifestPath, outputDir } = await projectWithTerminalRejectedManifest();
+    const runStep: StepCommandRunner = async (_command, options) => {
+      const resultPath = options.env?.CKB_VERIFY_RESULT;
+      if (resultPath === undefined) throw new Error("missing result path");
+      await writeFile(resultPath, JSON.stringify({ protocol: 1, transaction: REJECTED_TRANSACTION }));
+      return commandResult();
+    };
+    const txHash = transactionHash(REJECTED_TRANSACTION);
+    const reason = "PoolRejectedTransactionByOutputsValidator";
+    const rpc = async (_url: string, method: string): Promise<unknown> => {
+      if (method === "test_tx_pool_accept") return { cycles: "0x1", fee: "0x0" };
+      if (method === "send_transaction") return txHash;
+      if (method === "get_transaction") return { tx_status: { status: "rejected", reason } };
+      throw new Error(`unexpected RPC ${method}`);
+    };
+
+    const result = await runManifest({
+      manifestPath,
+      projectRoot: project,
+      outputDir,
+      devnet: fakeDevnet(project),
+      runStep,
+      rpc,
+    });
+
+    expect(result.verdict).toBe("PASS");
+    expect(result.report.evidence.steps[0]).toMatchObject({
+      expectedStatus: "rejected",
+      observedStatus: "rejected",
+      rejection: { kind: "node", reason },
+    });
+    expect(result.report.outcomeClaims.steps[0]).toMatchObject({
+      expectedStatus: "rejected",
+      observedStatus: "rejected",
+      rejection: { kind: "node", reason },
+    });
   });
 
   test("does not misclassify a send_transaction infrastructure error as an expected rejection", async () => {
