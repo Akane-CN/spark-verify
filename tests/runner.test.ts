@@ -78,6 +78,16 @@ function fakeDevnet(project: string, debuggerOutput = "", privateKey = KEY): Dev
     offckbVersion: "0.4.13",
     ckbRequestedVersion: "0.209.0",
     ckbVersion: "0.209.0 (test)",
+    ckbBinary: {
+      version: "0.209.0",
+      platform: "linux",
+      architecture: "x64",
+      asset: "ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+      sourceUrl: "https://github.com/nervosnetwork/ckb/releases/download/v0.209.0/fixture.tar.gz",
+      expectedArchiveSha256: `sha256:${"1".repeat(64)}`,
+      archiveSha256: `sha256:${"1".repeat(64)}`,
+      binarySha256: `sha256:${"2".repeat(64)}`,
+    },
     genesisHash: HASH,
     rpcUrl: "http://127.0.0.1:8114",
     proxyUrl: "http://127.0.0.1:28114",
@@ -163,6 +173,17 @@ describe("runManifest", () => {
     expect(result.report.digests.environment).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(result.report.environment).toMatchObject({
       sourceRevision: { gitCommit: null, dirty: null },
+      binaryProvenance: {
+        ckb: {
+          version: "0.209.0",
+          platform: "linux",
+          architecture: "x64",
+          asset: "ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+          expectedArchiveSha256: `sha256:${"1".repeat(64)}`,
+          archiveSha256: `sha256:${"1".repeat(64)}`,
+          binarySha256: `sha256:${"2".repeat(64)}`,
+        },
+      },
     });
     expect(await Bun.file(join(outputDir, "steps", "01-transfer", "transaction.json")).exists()).toBe(true);
     expect(await Bun.file(join(outputDir, "steps", "01-transfer", "stdout.txt")).text()).toBe("producer complete\n");

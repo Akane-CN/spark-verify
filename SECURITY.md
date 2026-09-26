@@ -50,6 +50,14 @@ The pinned OffCKB `0.4.13` proxy advertises a loopback URL but binds proxy port 
 
 External network denial is recommended in CI but may not be enforceable portably in the MVP. The report must not imply a sandbox when none was applied.
 
+## Toolchain supply-chain controls
+
+`ckb-verify` does not let OffCKB fetch an unverified CKB archive. For the supported CKB `0.209.0` toolchain, it selects a platform-specific official GitHub Release asset whose byte length and SHA-256 digest are pinned in `src/ckb-binary.ts`. It verifies the complete archive before extraction; rejects traversal paths, links, device nodes, and unknown entry types; and records the platform, architecture, expected and observed archive digests, and extracted binary digest. OffCKB starts with `--binary-path`, so the verified binary is the one actually executed.
+
+OffCKB `0.4.13` bundles vulnerable archive-library versions. The committed Bun package patch redirects both active bundled `adm-zip` imports and both active bundled `tar` imports to the externally resolved `adm-zip@0.6.1` and `tar@7.5.22`; package overrides also force OffCKB's declared dependencies to those reviewed versions. `bun run check:supply-chain` verifies the versions actually resolved from the patched OffCKB bundle, checks all four patch markers, and validates the audit process status before evaluating its advisory data.
+
+The audit gate fails on every finding except the exact low-severity `elliptic` advisory [GHSA-848j-6mx2-7j84](https://github.com/advisories/GHSA-848j-6mx2-7j84). `elliptic@6.6.1` is a transitive dependency through `@ckb-ccc/core` → `@joyid/ckb` → `@nervosnetwork/ckb-sdk-utils`, and no fixed release currently exists. This temporary waiver is limited to the current feasibility runner and its disposable devnet keys; it does not permit production-wallet use. A changed severity, advisory identity, URL, package, or any additional finding fails the gate and requires a new review.
+
 ## Hash and replay limitations
 
 The outcome digest is tamper-evident only for the normalized claim definitions, relevant artifact identities, and observations it covers. The environment fingerprint is tamper-evident only for the recorded environment object. Replay status qualifies known drift and the required author declaration in `[replay].dependencies`, but cannot detect every dependency of arbitrary repository code. An empty declaration is an attestation, not proof of determinism.

@@ -12,10 +12,12 @@
     "test": "bun test",
     "showcase:secp-transfer": "bash showcases/secp-transfer/verify.sh",
     "test:devnet": "bun run showcase:secp-transfer",
+    "check:supply-chain": "bun run scripts/check-supply-chain.ts",
     "typecheck": "tsc --noEmit",
-    "check": "bun test && bun run typecheck && git diff --check"
+    "check": "bun test && bun run typecheck && bun run check:supply-chain && git diff --check"
   },
   "devDependencies": {
+    "@types/adm-zip": "0.5.7",
     "@types/bun": "1.2.19",
     "typescript": "5.9.2"
   },
@@ -26,6 +28,15 @@
   "dependencies": {
     "@ckb-ccc/core": "1.14.0",
     "@offckb/cli": "0.4.13",
-    "json-canonicalize": "3.0.0"
+    "adm-zip": "0.6.1",
+    "json-canonicalize": "3.0.0",
+    "tar": "7.5.22"
+  },
+  "overrides": {
+    "adm-zip": "0.6.1",
+    "tar": "7.5.22"
+  },
+  "patchedDependencies": {
+    "@offckb/cli@0.4.13": "patches/@offckb%2Fcli@0.4.13.patch"
   }
 }

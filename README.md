@@ -157,6 +157,7 @@ The report records:
 - script RPC code, script error code, source Cell/index, role, normalized script, script hash, and debugger cycles;
 - exact Cell assertion definitions and observations;
 - requested and observed tool versions;
+- CKB platform/architecture, pinned release asset/source, expected and observed archive SHA-256, and executed binary SHA-256;
 - Git commit and dirty state;
 - manifest hash, platform, genesis hash, and normalized OffCKB system scripts.
 

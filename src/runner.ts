@@ -192,6 +192,7 @@ function environmentEvidence(
       offckb: context.offckbVersion,
       ...(observedDebuggerVersion === undefined ? {} : { ckbDebugger: observedDebuggerVersion }),
     },
+    binaryProvenance: { ckb: context.ckbBinary },
     manifestSha256: sha256Bytes(manifestBytes),
     sourceRevision,
     platform: { os: process.platform, arch: process.arch },
