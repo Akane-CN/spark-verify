@@ -84,7 +84,7 @@ Raw transaction identity, duration, and full RPC observations remain inspectable
 
 ### `outcomeClaims`
 
-The normalized claim/result layer identified by `ckb-verify-outcome/1`. It keeps only the declared expectations and normalized observations used to derive the verdict, including observed cycles and structured script rejection data when present.
+The normalized claim/result layer identified by `ckb-verify-outcome/1`. It keeps only the declared expectations and normalized observations used to derive the verdict, including observed cycles and structured rejection data. A transaction that is accepted and later reaches terminal `rejected` status records `kind: "node"` and the node-provided `reason`; an immediate script rejection records its normalized script group and code when available.
 
 For a Cell claim, the runner independently derives `observationValid` and verifies that `ok` agrees with the expected and observed count. It then derives the top-level verdict from all normalized claims rather than trusting a stored boolean.
 
