@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { main, type CliDependencies } from "../src/cli";
 import type { RunManifestResult } from "../src/runner";
 
+const SHA256 = `sha256:${"1".repeat(64)}` as `sha256:${string}`;
+
 function result(verdict: "PASS" | "FAIL"): RunManifestResult {
   return {
     verdict,
@@ -12,7 +14,41 @@ function result(verdict: "PASS" | "FAIL"): RunManifestResult {
       createdAt: "2026-08-26T00:00:00.000Z",
       evidence: { name: "fixture", spec: "0.1.0-draft.3", steps: [], assertions: [] },
       outcomeClaims: { schema: "ckb-verify-outcome/1", name: "fixture", spec: "0.1.0-draft.3", steps: [], assertions: [] },
-      environment: { schema: "ckb-verify-environment/1" },
+      environment: {
+        schema: "ckb-verify-environment/2",
+        runner: { name: "ckb-verify", version: "0.0.1" },
+        toolchain: {
+          requested: { ckb: "0.209.0", offckb: "0.4.13" },
+          observed: { ckb: "0.209.0", offckb: "0.4.13" },
+        },
+        provenance: {
+          schema: "ckb-verify-provenance/1",
+          replay: { declaredDependencies: [], status: "stable", reasons: [] },
+          source: { gitCommit: "a".repeat(40), dirty: false, dirtyDigest: null },
+          manifest: { sha256: SHA256 },
+          lockfile: { path: "bun.lock", sha256: SHA256 },
+          runtime: {
+            name: "bun",
+            requestedVersion: "1.2.19",
+            observedVersion: "1.2.19",
+            metadata: { path: "package.json", sha256: SHA256 },
+          },
+          binaries: {
+            ckb: {
+              version: "0.209.0",
+              platform: "linux",
+              architecture: "x64",
+              asset: "fixture.tar.gz",
+              sourceUrl: "https://example.invalid/fixture.tar.gz",
+              expectedArchiveSha256: SHA256,
+              archiveSha256: SHA256,
+              binarySha256: SHA256,
+            },
+          },
+        },
+        platform: { os: "linux", arch: "x64" },
+        devnet: { network: "devnet", genesisHash: "0xgenesis", systemScripts: {} },
+      },
       digests: { outcome: `sha256:${"1".repeat(64)}`, environment: `sha256:${"2".repeat(64)}` },
     },
   };

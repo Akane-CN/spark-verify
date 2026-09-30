@@ -5,6 +5,7 @@ import type {
   ManifestMeta,
   ManifestStep,
   ManifestToolchain,
+  ReplayDependency,
   StepExpectation,
   TransactionExpectation,
 } from "./types";
@@ -14,6 +15,13 @@ export { ManifestError } from "./errors";
 const SPEC_VERSION = "0.1.0-draft.3" as const;
 const OFFCKB_VERSION = "0.4.13" as const;
 const EXACT_VERSION = /^\d+\.\d+\.\d+$/;
+const REPLAY_DEPENDENCIES = new Set<ReplayDependency>([
+  "external_time",
+  "randomness",
+  "fee_estimation",
+  "dynamic_since",
+  "external_network",
+]);
 
 type TomlObject = Record<string, unknown>;
 
@@ -91,16 +99,22 @@ function parseToolchain(value: unknown, source: string): ManifestToolchain {
   };
 }
 
-function parseReplay(value: unknown, source: string): { dependencies: [] } {
+function parseReplay(value: unknown, source: string): { dependencies: ReplayDependency[] } {
   const table = asObject(value, "replay", source);
   exactKeys(table, ["dependencies"], "replay", source);
   if (!Array.isArray(table.dependencies)) {
     fail(source, "replay.dependencies must be an array");
   }
-  if (table.dependencies.length !== 0) {
-    fail(source, "replay.dependencies must be empty in the MVP runner");
+  const dependencies = table.dependencies.map((dependency, index) => {
+    if (typeof dependency !== "string" || !REPLAY_DEPENDENCIES.has(dependency as ReplayDependency)) {
+      fail(source, `replay.dependencies[${index}] must be a supported replay dependency`);
+    }
+    return dependency as ReplayDependency;
+  });
+  if (new Set(dependencies).size !== dependencies.length) {
+    fail(source, "replay.dependencies must not contain duplicates");
   }
-  return { dependencies: [] };
+  return { dependencies };
 }
 
 function parseSetup(value: unknown, source: string): { accounts: number } {

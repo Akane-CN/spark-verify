@@ -1,5 +1,7 @@
 import { canonicalSha256 } from "./canonical";
-import type { TransactionExpectation } from "./types";
+import type { ResolvedSystemScripts } from "./offckb";
+import type { ProvenanceEvidence } from "./provenance";
+import type { ManifestToolchain, TransactionExpectation } from "./types";
 
 export interface ClaimEvidence {
   kind: "cell";
@@ -60,8 +62,29 @@ export interface OutcomeClaims {
 }
 
 export interface EnvironmentEvidence {
-  schema: "ckb-verify-environment/1";
-  [key: string]: unknown;
+  schema: "ckb-verify-environment/2";
+  runner: {
+    name: "ckb-verify";
+    version: string;
+  };
+  toolchain: {
+    requested: ManifestToolchain;
+    observed: {
+      ckb: string;
+      offckb: "0.4.13";
+      ckbDebugger?: string;
+    };
+  };
+  provenance: ProvenanceEvidence;
+  platform: {
+    os: NodeJS.Platform;
+    arch: string;
+  };
+  devnet: {
+    network: "devnet";
+    genesisHash: string;
+    systemScripts: ResolvedSystemScripts;
+  };
 }
 
 export interface EvidenceDigests {

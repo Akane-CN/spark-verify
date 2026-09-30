@@ -171,19 +171,56 @@ describe("runManifest", () => {
     expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
     expect(result.report.digests.outcome).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(result.report.digests.environment).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(Object.keys(result.report.environment).sort()).toEqual([
+      "devnet",
+      "platform",
+      "provenance",
+      "runner",
+      "schema",
+      "toolchain",
+    ]);
     expect(result.report.environment).toMatchObject({
-      sourceRevision: { gitCommit: null, dirty: null },
-      binaryProvenance: {
-        ckb: {
-          version: "0.209.0",
-          platform: "linux",
-          architecture: "x64",
-          asset: "ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
-          expectedArchiveSha256: `sha256:${"1".repeat(64)}`,
-          archiveSha256: `sha256:${"1".repeat(64)}`,
-          binarySha256: `sha256:${"2".repeat(64)}`,
+      schema: "ckb-verify-environment/2",
+      runner: { name: "ckb-verify", version: "0.0.1" },
+      toolchain: {
+        requested: { ckb: "0.209.0", offckb: "0.4.13" },
+        observed: { ckb: "0.209.0 (test)", offckb: "0.4.13" },
+      },
+      provenance: {
+        schema: "ckb-verify-provenance/1",
+        replay: {
+          declaredDependencies: [],
+          status: "tainted",
+          reasons: [
+            { scope: "environment", code: "source_revision_unavailable" },
+            { scope: "environment", code: "source_state_unavailable" },
+            { scope: "environment", code: "runtime_pin_missing" },
+            { scope: "environment", code: "lockfile_missing" },
+          ],
+        },
+        source: { gitCommit: null, dirty: null, dirtyDigest: null },
+        manifest: { sha256: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) },
+        lockfile: { path: "bun.lock", sha256: null },
+        runtime: {
+          name: "bun",
+          requestedVersion: null,
+          observedVersion: Bun.version,
+          metadata: { path: "package.json", sha256: null },
+        },
+        binaries: {
+          ckb: {
+            version: "0.209.0",
+            platform: "linux",
+            architecture: "x64",
+            asset: "ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+            expectedArchiveSha256: `sha256:${"1".repeat(64)}`,
+            archiveSha256: `sha256:${"1".repeat(64)}`,
+            binarySha256: `sha256:${"2".repeat(64)}`,
+          },
         },
       },
+      platform: { os: process.platform, arch: process.arch },
+      devnet: { network: "devnet", genesisHash: HASH, systemScripts: {} },
     });
     expect(await Bun.file(join(outputDir, "steps", "01-transfer", "transaction.json")).exists()).toBe(true);
     expect(await Bun.file(join(outputDir, "steps", "01-transfer", "stdout.txt")).text()).toBe("producer complete\n");
@@ -536,7 +573,7 @@ describe("runManifest", () => {
     expect(submitted).toBe(true);
     expect(result.verdict).toBe("PASS");
     expect(result.report.environment).toMatchObject({
-      observedToolchain: { ckbDebugger: "ckb-debugger 1.1.1" },
+      toolchain: { observed: { ckbDebugger: "ckb-debugger 1.1.1" } },
     });
     expect(result.report.evidence.steps[0]).toMatchObject({
       name: "bad-signature",

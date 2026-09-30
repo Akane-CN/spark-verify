@@ -119,9 +119,27 @@ describe("parseManifestText", () => {
     expectManifestError(replace(VALID, "accounts = 2", "accounts = 21"), "setup.accounts must be an integer between 1 and 20");
   });
 
-  test("rejects replay dependencies not implemented by the feasibility slice", () => {
-    const source = replace(VALID, "dependencies = []", 'dependencies = ["external_time"]');
+  test("accepts the RFC replay dependency vocabulary and rejects duplicates or unknown values", () => {
+    const declared = replace(
+      VALID,
+      "dependencies = []",
+      'dependencies = ["external_time", "randomness", "fee_estimation", "dynamic_since", "external_network"]',
+    );
 
-    expectManifestError(source, "replay.dependencies must be empty in the MVP runner");
+    expect(parseManifestText(declared).replay.dependencies).toEqual([
+      "external_time",
+      "randomness",
+      "fee_estimation",
+      "dynamic_since",
+      "external_network",
+    ]);
+    expectManifestError(
+      replace(VALID, "dependencies = []", 'dependencies = ["external_time", "external_time"]'),
+      "replay.dependencies must not contain duplicates",
+    );
+    expectManifestError(
+      replace(VALID, "dependencies = []", 'dependencies = ["wall_clock"]'),
+      "replay.dependencies[0] must be a supported replay dependency",
+    );
   });
 });

@@ -24,13 +24,15 @@ test("published committed report is clean, internally consistent feasibility evi
   expect(report.schema).toBe("ckb-verify-report/1");
   expect(report.verdict).toBe("PASS");
   expect(report.evidence.name).toBe("secp-transfer-committed");
-  expect(report.environment.sourceRevision).toEqual({
+  expect(report.environment.provenance.source).toEqual({
     gitCommit: SOURCE_COMMIT,
     dirty: false,
     dirtyDigest: null,
   });
   const manifest = await Bun.file(SOURCE_MANIFEST).text();
-  expect(report.environment.manifestSha256).toBe(`sha256:${createHash("sha256").update(manifest).digest("hex")}`);
+  expect(report.environment.provenance.manifest.sha256).toBe(
+    `sha256:${createHash("sha256").update(manifest).digest("hex")}`,
+  );
   expect(() => verifyEvidenceDigests(report)).not.toThrow();
 
   const guide = await Bun.file(REPORT_GUIDE).text();

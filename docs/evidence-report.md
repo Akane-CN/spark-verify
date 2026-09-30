@@ -18,7 +18,7 @@ verify.toml + trusted producer
        terminal / CI summary
 ```
 
-> **Current contract:** the unreleased runner emits `ckb-verify-report/1`. A stable JSON Schema has not been published yet. The implementation types and checked fixture below describe the present technical-preview format; schema stabilization and compatibility fixtures remain v0.1 work.
+> **Current contract:** the unreleased runner emits `ckb-verify-report/1` with strict `ckb-verify-environment/2` environment fields. The nested [`ckb-verify-provenance/1` JSON Schema](../schemas/ckb-verify-provenance-v1.schema.json) is published for machine validation. A complete report/manifest schema and compatibility fixtures remain v0.1 work.
 
 ## Checked example
 
@@ -90,17 +90,16 @@ For a Cell claim, the runner independently derives `observationValid` and verifi
 
 ### `environment`
 
-The replay-comparison layer identified by `ckb-verify-environment/1`. The current report records:
+The replay-comparison layer identified by `ckb-verify-environment/2`. It has six fixed top-level fields and no free-form extension keys:
 
-- runner version;
-- requested and observed tool versions;
-- manifest SHA-256;
-- Git commit, dirty state, and dirty-tree digest when applicable;
-- OS and architecture;
-- local-chain genesis hash;
-- normalized OffCKB system-script identities and Cell dependencies.
+- `runner`: the `ckb-verify` name and runner version;
+- `toolchain`: requested and observed CKB, OffCKB, and optional ckb-debugger versions;
+- `provenance`: the schema-backed source, manifest, lockfile, runtime, CKB binary, and replay qualification;
+- `platform`: OS and architecture;
+- `devnet`: network kind, genesis hash, and normalized OffCKB system-script identities and Cell dependencies;
+- `schema`: the environment contract identifier.
 
-The manifest currently must declare `[replay].dependencies = []`, but the feasibility report does not yet emit the broader draft RFC's replay-status object. Explicit replay qualification for non-empty dependencies remains v0.1 work.
+`provenance.replay.status` is `stable` only when the manifest declares no replay dependencies, the source revision is identifiable and clean, the Bun runtime is exactly pinned and matches the observed version, `package.json` and `bun.lock` are hashable, and the verified CKB archive provenance is internally consistent. Otherwise it is `tainted`, with structured environment- or outcome-scoped reasons. A tainted run may still produce a `PASS` verdict for its declared claims; it must not be presented as clean replay evidence.
 
 ### `digests.outcome`
 
@@ -133,11 +132,12 @@ This is intentionally not the authority. The report is the reviewable artifact; 
 
 ## What a reviewer should check
 
-1. Confirm that `sourceRevision.gitCommit` is the commit under review and `dirty` is `false`.
-2. Confirm the requested and observed tool versions, platform, genesis, and system scripts.
-3. Inspect each manifest claim and its corresponding normalized outcome.
-4. Inspect raw rejection or Cell evidence where a result is security-sensitive.
-5. Recompute the digests with the version of `ckb-verify` named by the report once the v0.1 verification command is released.
-6. Treat a passing report as bounded acceptance evidence, never as an audit or proof that omitted properties are correct.
+1. Confirm that `environment.provenance.source.gitCommit` is the commit under review and `dirty` is `false`.
+2. Confirm that `environment.provenance.replay.status` and every structured reason match the claimed replay boundary.
+3. Confirm the requested and observed tools, runtime and lockfile hashes, CKB binary digests, platform, genesis, and system scripts.
+4. Inspect each manifest claim and its corresponding normalized outcome.
+5. Inspect raw rejection or Cell evidence where a result is security-sensitive.
+6. Recompute the digests with the version of `ckb-verify` named by the report once the v0.1 verification command is released.
+7. Treat a passing report as bounded acceptance evidence, never as an audit or proof that omitted properties are correct.
 
 For the input side of the contract, continue with the [line-by-line annotated manifest](annotated-manifest.md).
