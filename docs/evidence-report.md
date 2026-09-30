@@ -24,10 +24,10 @@ verify.toml + trusted producer
 
 [`examples/secp-transfer-committed-report.json`](examples/secp-transfer-committed-report.json) is the complete report from a real fresh-devnet run of the committed secp transfer fixture. It is not hand-written sample output.
 
-- Generated on `2026-09-08` from clean source commit `8be27c1fb8c880cd3acc01726d9895b258bfc7b6`.
-- Report file SHA-256: `95c87133d477bb9bb9f0176d3f7f96bb9db87de849e608a1d8d361a2af0b14a6`.
+- Generated on `2026-09-30` from clean source commit `dc58a379eedd8855556ef973a61f0d0c37ef4af2`.
+- Report file SHA-256: `52f35a62225c8eb8680485527d3353f0e82eb7bd425ede976d393d80d487d89c`.
 - Embedded outcome digest: `sha256:fe66eb2511d31ebf5a095e86bc315eeff0900d453d774627be0139d5821169f8`.
-- Embedded environment fingerprint: `sha256:7313f0dbab1e1d3611c070cef0202c303a518195bf013c67bdad4b016e68e7ab`.
+- Embedded environment fingerprint: `sha256:b0a16af3eaec0f79c6019004347cec3aa7c3000c982897b090eb0bd589a2d9ab`.
 - The runner's development-account secret scan completed before the report was published.
 - A repository test rejects common token/PEM markers and private-key field names, verifies the clean source revision and source-manifest hash, and recomputes both embedded digests.
 

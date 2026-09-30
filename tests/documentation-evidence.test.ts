@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import Ajv2020 from "ajv/dist/2020";
 import { createHash } from "node:crypto";
 import { verifyEvidenceDigests } from "../src/report";
 import type { CkbVerifyReport } from "../src/runner";
@@ -6,8 +7,9 @@ import type { CkbVerifyReport } from "../src/runner";
 const SAMPLE_REPORT = new URL("../docs/examples/secp-transfer-committed-report.json", import.meta.url);
 const REPORT_GUIDE = new URL("../docs/evidence-report.md", import.meta.url);
 const SOURCE_MANIFEST = new URL("../showcases/secp-transfer/verify.committed.toml", import.meta.url);
-const SOURCE_COMMIT = "8be27c1fb8c880cd3acc01726d9895b258bfc7b6";
-const SAMPLE_SHA256 = "95c87133d477bb9bb9f0176d3f7f96bb9db87de849e608a1d8d361a2af0b14a6";
+const PROVENANCE_SCHEMA = new URL("../schemas/ckb-verify-provenance-v1.schema.json", import.meta.url);
+const SOURCE_COMMIT = "dc58a379eedd8855556ef973a61f0d0c37ef4af2";
+const SAMPLE_SHA256 = "52f35a62225c8eb8680485527d3353f0e82eb7bd425ede976d393d80d487d89c";
 
 test("published committed report is clean, internally consistent feasibility evidence", async () => {
   const file = Bun.file(SAMPLE_REPORT);
@@ -24,6 +26,13 @@ test("published committed report is clean, internally consistent feasibility evi
   expect(report.schema).toBe("ckb-verify-report/1");
   expect(report.verdict).toBe("PASS");
   expect(report.evidence.name).toBe("secp-transfer-committed");
+  expect(report.environment.schema).toBe("ckb-verify-environment/2");
+  expect(report.environment.provenance.schema).toBe("ckb-verify-provenance/1");
+  expect(report.environment.provenance.replay).toEqual({
+    declaredDependencies: [],
+    status: "stable",
+    reasons: [],
+  });
   expect(report.environment.provenance.source).toEqual({
     gitCommit: SOURCE_COMMIT,
     dirty: false,
@@ -33,6 +42,16 @@ test("published committed report is clean, internally consistent feasibility evi
   expect(report.environment.provenance.manifest.sha256).toBe(
     `sha256:${createHash("sha256").update(manifest).digest("hex")}`,
   );
+  expect(report.environment.provenance.runtime.requestedVersion).toBe(
+    report.environment.provenance.runtime.observedVersion,
+  );
+  expect(report.environment.provenance.lockfile.sha256).toMatch(/^sha256:[0-9a-f]{64}$/);
+  expect(report.environment.provenance.binaries.ckb.expectedArchiveSha256).toBe(
+    report.environment.provenance.binaries.ckb.archiveSha256,
+  );
+  const provenanceSchema = await Bun.file(PROVENANCE_SCHEMA).json();
+  const validate = new Ajv2020({ allErrors: true, strict: true }).compile(provenanceSchema);
+  expect(validate(report.environment.provenance), JSON.stringify(validate.errors)).toBe(true);
   expect(() => verifyEvidenceDigests(report)).not.toThrow();
 
   const guide = await Bun.file(REPORT_GUIDE).text();
