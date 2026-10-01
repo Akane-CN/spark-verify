@@ -1,4 +1,10 @@
 export type TransactionExpectation = "committed" | "rejected";
+export type ReplayDependency =
+  | "external_time"
+  | "randomness"
+  | "fee_estimation"
+  | "dynamic_since"
+  | "external_network";
 
 export interface ManifestMeta {
   name: string;
@@ -41,7 +47,7 @@ export interface ManifestStep {
 export interface Manifest {
   meta: ManifestMeta;
   toolchain: ManifestToolchain;
-  replay: { dependencies: [] };
+  replay: { dependencies: ReplayDependency[] };
   setup: { accounts: number };
   steps: ManifestStep[];
   assertions: CellAssertion[];

@@ -19,6 +19,7 @@
   "devDependencies": {
     "@types/adm-zip": "0.5.7",
     "@types/bun": "1.2.19",
+    "ajv": "8.20.0",
     "typescript": "5.9.2"
   },
   "engines": {

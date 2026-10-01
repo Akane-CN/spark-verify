@@ -377,8 +377,23 @@ def validate_report_example(v: Validation, file: Path, line: int, obj: dict[str,
         if not isinstance(outcome, dict) or outcome.get("schema") != "ckb-verify-outcome/1":
             v.error(file, line, "current report requires ckb-verify-outcome/1 outcomeClaims")
         environment = obj.get("environment")
-        if not isinstance(environment, dict) or environment.get("schema") != "ckb-verify-environment/1":
-            v.error(file, line, "current report requires ckb-verify-environment/1 environment")
+        environment_fields = {"schema", "runner", "toolchain", "provenance", "platform", "devnet"}
+        if not isinstance(environment, dict) or environment.get("schema") != "ckb-verify-environment/2":
+            v.error(file, line, "current report requires ckb-verify-environment/2 environment")
+        elif set(environment) != environment_fields:
+            v.error(file, line, f"current environment requires fields {sorted(environment_fields)}")
+        else:
+            provenance = environment.get("provenance")
+            if not isinstance(provenance, dict) or provenance.get("schema") != "ckb-verify-provenance/1":
+                v.error(file, line, "current environment requires ckb-verify-provenance/1 provenance")
+            else:
+                replay = provenance.get("replay")
+                if not isinstance(replay, dict) or replay.get("status") not in {"stable", "tainted"}:
+                    v.error(file, line, "current provenance requires replay.status")
+                elif not isinstance(replay.get("declaredDependencies"), list) or not isinstance(
+                    replay.get("reasons"), list
+                ):
+                    v.error(file, line, "current provenance requires replay dependencies and reasons")
 
         digests = obj.get("digests")
         if not isinstance(digests, dict) or set(digests) != {"outcome", "environment"}:

@@ -5,6 +5,7 @@ import { loadManifest } from "./manifest";
 import type { OffckbRunContext, OffckbPaths } from "./offckb";
 import { OffckbDevnet } from "./offckb";
 import { runCommand, runProcess, type CommandResult, type RunCommandOptions } from "./process";
+import { collectProvenance, type SourceRevision } from "./provenance";
 import {
   buildEvidenceDigests,
   buildOutcomeClaims,
@@ -116,12 +117,6 @@ function outputDirectory(root: string, manifest: Manifest): string {
   return join(root, ".ckb-verify", "runs", `${timestamp}-${process.pid}-${slug(manifest.meta.name)}`);
 }
 
-export interface SourceRevision {
-  gitCommit: string | null;
-  dirty: boolean | null;
-  dirtyDigest: string | null;
-}
-
 export async function collectSourceRevision(projectRoot: string): Promise<SourceRevision> {
   try {
     const commit = await runProcess(["git", "rev-parse", "--verify", "HEAD"], {
@@ -175,29 +170,47 @@ export async function collectSourceRevision(projectRoot: string): Promise<Source
   }
 }
 
-function environmentEvidence(
+function sameSourceRevision(left: SourceRevision, right: SourceRevision): boolean {
+  return (
+    left.gitCommit === right.gitCommit &&
+    left.dirty === right.dirty &&
+    left.dirtyDigest === right.dirtyDigest
+  );
+}
+
+async function environmentEvidence(
+  projectRoot: string,
   manifest: Manifest,
   manifestBytes: Uint8Array,
   context: OffckbRunContext,
   sourceRevision: SourceRevision,
   observedDebuggerVersion?: string,
-): EnvironmentEvidence {
-  return {
-    schema: "ckb-verify-environment/1",
-    runnerVersion: VERSION,
-    requestedToolchain: manifest.toolchain,
-    observedToolchain: {
-      bun: Bun.version,
-      ckb: context.ckbVersion,
-      offckb: context.offckbVersion,
-      ...(observedDebuggerVersion === undefined ? {} : { ckbDebugger: observedDebuggerVersion }),
-    },
-    binaryProvenance: { ckb: context.ckbBinary },
-    manifestSha256: sha256Bytes(manifestBytes),
+): Promise<EnvironmentEvidence> {
+  const provenance = await collectProvenance({
+    projectRoot,
+    manifestBytes,
+    replayDependencies: manifest.replay.dependencies,
     sourceRevision,
+    ckbBinary: context.ckbBinary,
+  });
+  return {
+    schema: "ckb-verify-environment/2",
+    runner: { name: "ckb-verify", version: VERSION },
+    toolchain: {
+      requested: manifest.toolchain,
+      observed: {
+        ckb: context.ckbVersion,
+        offckb: context.offckbVersion,
+        ...(observedDebuggerVersion === undefined ? {} : { ckbDebugger: observedDebuggerVersion }),
+      },
+    },
+    provenance,
     platform: { os: process.platform, arch: process.arch },
-    genesisHash: context.genesisHash,
-    systemScripts: context.systemScripts,
+    devnet: {
+      network: context.network,
+      genesisHash: context.genesisHash,
+      systemScripts: context.systemScripts,
+    },
   };
 }
 
@@ -528,11 +541,16 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       assertions,
     };
     throwIfAborted(options.signal);
-    const environment = environmentEvidence(
+    const finalSourceRevision = await collectSourceRevision(projectRoot);
+    if (!sameSourceRevision(sourceRevision, finalSourceRevision)) {
+      throw new Error("source revision changed during verification");
+    }
+    const environment = await environmentEvidence(
+      projectRoot,
       manifest,
       manifestBytes,
       context,
-      sourceRevision,
+      finalSourceRevision,
       observedDebuggerVersion,
     );
     const outcomeClaims = buildOutcomeClaims(evidence);

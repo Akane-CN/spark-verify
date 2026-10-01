@@ -101,14 +101,14 @@ The feasibility implementation supports only:
 - exact spec `0.1.0-draft.3`;
 - exact CKB and OffCKB versions accepted by the current adapter;
 - optional exact ckb-debugger version;
-- `[replay].dependencies = []`;
+- a required replay dependency list containing zero or more unique RFC dependency codes;
 - `1..20` OffCKB development accounts;
 - one signed transaction envelope per step;
 - `expect.tx = "committed"` or `"rejected"`;
 - optional `expect.error.code` for a rejected script;
 - exact live-Cell count assertions targeting `{ step, index }`.
 
-Unknown keys fail closed. Script deployment declarations, balance/UDT assertions, script filters, cycle comparators, non-empty replay dependencies, and multi-transaction steps remain RFC targets and are not silently accepted.
+Unknown keys fail closed. A non-empty replay dependency list is accepted but makes the report explicitly `tainted`; it never silently claims stable replay. Script deployment declarations, balance/UDT assertions, script filters, cycle comparators, and multi-transaction steps remain RFC targets and are not silently accepted.
 
 See [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) for the broader design. Its unimplemented sections are proposals, not current CLI behavior.
 
@@ -156,17 +156,18 @@ The report records:
 - expected and observed transaction status;
 - script RPC code, script error code, source Cell/index, role, normalized script, script hash, and debugger cycles;
 - exact Cell assertion definitions and observations;
-- requested and observed tool versions;
+- requested and observed tool/runtime versions plus `package.json` and `bun.lock` hashes;
 - CKB platform/architecture, pinned release asset/source, expected and observed archive SHA-256, and executed binary SHA-256;
-- Git commit and dirty state;
-- manifest hash, platform, genesis hash, and normalized OffCKB system scripts.
+- Git commit, dirty state, and deterministic dirty-tree digest;
+- manifest hash, platform, genesis hash, and normalized OffCKB system scripts;
+- structurally schema-validated and semantically verified `stable`/`tainted` replay qualification with structured reasons.
 
 It emits two RFC-8785 canonical SHA-256 identities:
 
 - **outcome digest**: declared claims and normalized observations, excluding raw transaction identity and runtime paths;
 - **environment fingerprint**: the recorded manifest, source, toolchain, runtime, platform, genesis, and system-script environment.
 
-The runner recomputes both embedded canonical objects before writing the report, checks that normalized evidence agrees with the embedded outcome claims, independently derives each Cell result from observation validity plus expected and observed counts, and verifies that the top-level verdict is the verdict derived from those claims. It scans the run evidence for the selected OffCKB development private keys with case-insensitive matching; any match is redacted and turns the run into an execution error. `report.json` is published only after that scan and devnet shutdown both succeed, so an execution or cleanup error leaves no valid verdict artifact. The temporary account file is removed when the devnet stops.
+The runner recomputes both embedded canonical objects before writing the report, checks cross-field provenance and replay-qualification semantics, rejects a source revision that changes during verification, checks that normalized evidence agrees with the embedded outcome claims, independently derives each Cell result from observation validity plus expected and observed counts, and verifies that the top-level verdict is the verdict derived from those claims. It scans the run evidence for the selected OffCKB development private keys with case-insensitive matching; any match is redacted and turns the run into an execution error. `report.json` is published only after that scan and devnet shutdown both succeed, so an execution or cleanup error leaves no valid verdict artifact. The temporary account file is removed when the devnet stops.
 
 ## Trust and safety
 
@@ -189,6 +190,7 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — broader draft vocabulary and report design
 - [`docs/annotated-manifest.md`](docs/annotated-manifest.md) — every field in the currently executable manifest subset
 - [`docs/evidence-report.md`](docs/evidence-report.md) — current report contract, digest boundaries, and checked real output
+- [`schemas/ckb-verify-provenance-v1.schema.json`](schemas/ckb-verify-provenance-v1.schema.json) — structural provenance schema; cross-field replay semantics are enforced by the runtime verifier
 - [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material
 - [`docs/design-review.md`](docs/design-review.md) — prior design review and gates
 

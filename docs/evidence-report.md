@@ -18,16 +18,16 @@ verify.toml + trusted producer
        terminal / CI summary
 ```
 
-> **Current contract:** the unreleased runner emits `ckb-verify-report/1`. A stable JSON Schema has not been published yet. The implementation types and checked fixture below describe the present technical-preview format; schema stabilization and compatibility fixtures remain v0.1 work.
+> **Current contract:** the unreleased runner emits `ckb-verify-report/1` with strict `ckb-verify-environment/2` environment fields. The nested [`ckb-verify-provenance/1` JSON Schema](../schemas/ckb-verify-provenance-v1.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. A complete report/manifest schema and compatibility fixtures remain v0.1 work.
 
 ## Checked example
 
 [`examples/secp-transfer-committed-report.json`](examples/secp-transfer-committed-report.json) is the complete report from a real fresh-devnet run of the committed secp transfer fixture. It is not hand-written sample output.
 
-- Generated on `2026-09-08` from clean source commit `8be27c1fb8c880cd3acc01726d9895b258bfc7b6`.
-- Report file SHA-256: `95c87133d477bb9bb9f0176d3f7f96bb9db87de849e608a1d8d361a2af0b14a6`.
+- Generated on `2026-10-01` from clean source commit `2fd12ea291fba2c4c6f266934a29466df47265b0`.
+- Report file SHA-256: `40f2c99e860e945119e2cd8037a1f908beee07a89d35a0ee0b72f95d84fe6c71`.
 - Embedded outcome digest: `sha256:fe66eb2511d31ebf5a095e86bc315eeff0900d453d774627be0139d5821169f8`.
-- Embedded environment fingerprint: `sha256:7313f0dbab1e1d3611c070cef0202c303a518195bf013c67bdad4b016e68e7ab`.
+- Embedded environment fingerprint: `sha256:98737579275d690ddc8552867716ca49dec3a8bda598d479b24d0857cbcf2f38`.
 - The runner's development-account secret scan completed before the report was published.
 - A repository test rejects common token/PEM markers and private-key field names, verifies the clean source revision and source-manifest hash, and recomputes both embedded digests.
 
@@ -90,17 +90,16 @@ For a Cell claim, the runner independently derives `observationValid` and verifi
 
 ### `environment`
 
-The replay-comparison layer identified by `ckb-verify-environment/1`. The current report records:
+The replay-comparison layer identified by `ckb-verify-environment/2`. It has six fixed top-level fields and no free-form extension keys:
 
-- runner version;
-- requested and observed tool versions;
-- manifest SHA-256;
-- Git commit, dirty state, and dirty-tree digest when applicable;
-- OS and architecture;
-- local-chain genesis hash;
-- normalized OffCKB system-script identities and Cell dependencies.
+- `runner`: the `ckb-verify` name and runner version;
+- `toolchain`: requested and observed CKB, OffCKB, and optional ckb-debugger versions;
+- `provenance`: structurally schema-validated and semantically verified source, manifest, lockfile, runtime, CKB binary, and replay qualification;
+- `platform`: OS and architecture;
+- `devnet`: network kind, genesis hash, and normalized OffCKB system-script identities and Cell dependencies;
+- `schema`: the environment contract identifier.
 
-The manifest currently must declare `[replay].dependencies = []`, but the feasibility report does not yet emit the broader draft RFC's replay-status object. Explicit replay qualification for non-empty dependencies remains v0.1 work.
+`provenance.replay.status` is `stable` only when the manifest declares no replay dependencies, the source revision is identifiable, clean, and unchanged throughout verification, the Bun runtime is exactly pinned and matches the observed version, `package.json` and `bun.lock` are hashable, and the verified CKB archive provenance is internally consistent. Otherwise it is `tainted`, with structured environment- or outcome-scoped reasons, or the run fails closed when its source snapshot changes. Standard JSON Schema cannot portably compare arbitrary sibling values, so `verifyEvidenceDigests` invokes the semantic verifier before accepting the report even when its environment digest has been recomputed. A tainted run may still produce a `PASS` verdict for its declared claims; it must not be presented as clean replay evidence.
 
 ### `digests.outcome`
 
@@ -133,11 +132,12 @@ This is intentionally not the authority. The report is the reviewable artifact; 
 
 ## What a reviewer should check
 
-1. Confirm that `sourceRevision.gitCommit` is the commit under review and `dirty` is `false`.
-2. Confirm the requested and observed tool versions, platform, genesis, and system scripts.
-3. Inspect each manifest claim and its corresponding normalized outcome.
-4. Inspect raw rejection or Cell evidence where a result is security-sensitive.
-5. Recompute the digests with the version of `ckb-verify` named by the report once the v0.1 verification command is released.
-6. Treat a passing report as bounded acceptance evidence, never as an audit or proof that omitted properties are correct.
+1. Confirm that `environment.provenance.source.gitCommit` is the commit under review and `dirty` is `false`.
+2. Run the semantic verifier, then confirm that `environment.provenance.replay.status` and every structured reason match the claimed replay boundary.
+3. Confirm the requested and observed tools, runtime and lockfile hashes, CKB binary digests, platform, genesis, and system scripts.
+4. Inspect each manifest claim and its corresponding normalized outcome.
+5. Inspect raw rejection or Cell evidence where a result is security-sensitive.
+6. Recompute the digests with the version of `ckb-verify` named by the report once the v0.1 verification command is released.
+7. Treat a passing report as bounded acceptance evidence, never as an audit or proof that omitted properties are correct.
 
 For the input side of the contract, continue with the [line-by-line annotated manifest](annotated-manifest.md).
