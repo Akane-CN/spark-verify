@@ -5,7 +5,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { sha256Bytes } from "../src/canonical";
-import { collectProvenance } from "../src/provenance";
+import { assertProvenanceConsistency, collectProvenance } from "../src/provenance";
 
 const directories: string[] = [];
 const COMMIT = "a".repeat(40);
@@ -148,7 +148,7 @@ describe("formal provenance", () => {
     expect(validate.errors).toBeNull();
   });
 
-  test("schema rejects internally inconsistent or incomplete provenance", async () => {
+  test("schema rejects structurally inconsistent or incomplete provenance", async () => {
     const fixture = await project();
     const validate = await schemaValidator();
     const provenance = await collectProvenance({
@@ -192,5 +192,26 @@ describe("formal provenance", () => {
     const missingBinaryDigest = structuredClone(provenance) as Record<string, any>;
     delete missingBinaryDigest.binaries.ckb.binarySha256;
     expect(validate(missingBinaryDigest)).toBe(false);
+  });
+
+  test("semantic validation rejects cross-field contradictions accepted by the structural schema", async () => {
+    const fixture = await project();
+    const validate = await schemaValidator();
+    const provenance = await collectProvenance({
+      projectRoot: fixture.root,
+      manifestBytes: new TextEncoder().encode("fixture"),
+      replayDependencies: [],
+      sourceRevision: { gitCommit: COMMIT, dirty: false, dirtyDigest: null },
+      ckbBinary: CKB_BINARY,
+      observedRuntimeVersion: "1.2.19",
+    });
+    const contradictory = structuredClone(provenance);
+    contradictory.runtime.observedVersion = "1.2.20";
+
+    expect(validate(contradictory)).toBe(true);
+    expect(validate.errors).toBeNull();
+    expect(() => assertProvenanceConsistency(contradictory)).toThrow(
+      "provenance replay reasons do not match the recorded inputs",
+    );
   });
 });

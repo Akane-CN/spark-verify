@@ -1,6 +1,6 @@
 import { canonicalSha256 } from "./canonical";
 import type { ResolvedSystemScripts } from "./offckb";
-import type { ProvenanceEvidence } from "./provenance";
+import { assertProvenanceConsistency, type ProvenanceEvidence } from "./provenance";
 import type { ManifestToolchain, TransactionExpectation } from "./types";
 
 export interface ClaimEvidence {
@@ -165,6 +165,12 @@ export function verifyEvidenceDigests(report: {
   environment: EnvironmentEvidence;
   digests: EvidenceDigests;
 }): void {
+  try {
+    assertProvenanceConsistency(report.environment.provenance);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new EvidenceIntegrityError(`provenance integrity mismatch: ${detail}`);
+  }
   const actualOutcome = canonicalSha256(report.outcomeClaims);
   if (actualOutcome !== report.digests.outcome) {
     throw new EvidenceIntegrityError(`outcome digest mismatch: expected ${report.digests.outcome}, recomputed ${actualOutcome}`);

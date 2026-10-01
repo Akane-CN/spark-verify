@@ -170,6 +170,14 @@ export async function collectSourceRevision(projectRoot: string): Promise<Source
   }
 }
 
+function sameSourceRevision(left: SourceRevision, right: SourceRevision): boolean {
+  return (
+    left.gitCommit === right.gitCommit &&
+    left.dirty === right.dirty &&
+    left.dirtyDigest === right.dirtyDigest
+  );
+}
+
 async function environmentEvidence(
   projectRoot: string,
   manifest: Manifest,
@@ -533,12 +541,16 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       assertions,
     };
     throwIfAborted(options.signal);
+    const finalSourceRevision = await collectSourceRevision(projectRoot);
+    if (!sameSourceRevision(sourceRevision, finalSourceRevision)) {
+      throw new Error("source revision changed during verification");
+    }
     const environment = await environmentEvidence(
       projectRoot,
       manifest,
       manifestBytes,
       context,
-      sourceRevision,
+      finalSourceRevision,
       observedDebuggerVersion,
     );
     const outcomeClaims = buildOutcomeClaims(evidence);

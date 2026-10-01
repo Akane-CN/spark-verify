@@ -88,6 +88,92 @@ function validateSourceRevision(source: SourceRevision): void {
   }
 }
 
+function replayReasons(
+  dependencies: readonly ReplayDependency[],
+  source: SourceRevision,
+  runtime: { requestedVersion: string | null; observedVersion: string },
+  lockfileSha256: string | null,
+): ProvenanceReason[] {
+  const reasons: ProvenanceReason[] = dependencies.map((dependency) => ({
+    scope: "outcome",
+    code: dependency,
+    detail: `manifest declares replay dependency ${dependency}`,
+  }));
+
+  if (source.gitCommit === null) {
+    reasons.push({
+      scope: "environment",
+      code: "source_revision_unavailable",
+      detail: "source git revision is unavailable",
+    });
+  }
+  if (source.dirty === null) {
+    reasons.push({
+      scope: "environment",
+      code: "source_state_unavailable",
+      detail: "source dirty state is unavailable",
+    });
+  } else if (source.dirty) {
+    reasons.push({
+      scope: "environment",
+      code: "dirty_source",
+      detail: "source tree differs from the recorded git commit",
+    });
+  }
+  if (runtime.requestedVersion === null) {
+    reasons.push({
+      scope: "environment",
+      code: "runtime_pin_missing",
+      detail: "package.json does not contain an exact bun@x.y.z packageManager pin",
+    });
+  } else if (runtime.requestedVersion !== runtime.observedVersion) {
+    reasons.push({
+      scope: "environment",
+      code: "runtime_version_drift",
+      detail: `requested bun ${runtime.requestedVersion} but observed ${runtime.observedVersion}`,
+    });
+  }
+  if (lockfileSha256 === null) {
+    reasons.push({ scope: "environment", code: "lockfile_missing", detail: "bun.lock is missing" });
+  }
+  return reasons;
+}
+
+function sameReasons(actual: readonly ProvenanceReason[], expected: readonly ProvenanceReason[]): boolean {
+  return (
+    actual.length === expected.length &&
+    actual.every(
+      (reason, index) =>
+        reason.scope === expected[index]?.scope &&
+        reason.code === expected[index]?.code &&
+        reason.detail === expected[index]?.detail,
+    )
+  );
+}
+
+export function assertProvenanceConsistency(provenance: ProvenanceEvidence): void {
+  validateSourceRevision(provenance.source);
+  if (provenance.binaries.ckb.expectedArchiveSha256 !== provenance.binaries.ckb.archiveSha256) {
+    throw new Error("CKB archive provenance mismatch");
+  }
+  if (provenance.runtime.requestedVersion !== null && provenance.runtime.metadata.sha256 === null) {
+    throw new Error("a pinned Bun runtime must include the package.json digest");
+  }
+  const expectedReasons = replayReasons(
+    provenance.replay.declaredDependencies,
+    provenance.source,
+    provenance.runtime,
+    provenance.lockfile.sha256,
+  );
+  if (!sameReasons(provenance.replay.reasons, expectedReasons)) {
+    throw new Error("provenance replay reasons do not match the recorded inputs");
+  }
+  const expectedStatus = expectedReasons.length === 0 ? "stable" : "tainted";
+  if (provenance.replay.status !== expectedStatus) {
+    throw new Error(`provenance replay status must be ${expectedStatus}`);
+  }
+}
+
 export async function collectProvenance(options: CollectProvenanceOptions): Promise<ProvenanceEvidence> {
   validateSourceRevision(options.sourceRevision);
   if (options.ckbBinary.expectedArchiveSha256 !== options.ckbBinary.archiveSha256) {
@@ -100,50 +186,15 @@ export async function collectProvenance(options: CollectProvenanceOptions): Prom
   ]);
   const requestedVersion = runtimePin(packageJsonBytes);
   const observedVersion = options.observedRuntimeVersion ?? Bun.version;
-  const reasons: ProvenanceReason[] = options.replayDependencies.map((dependency) => ({
-    scope: "outcome",
-    code: dependency,
-    detail: `manifest declares replay dependency ${dependency}`,
-  }));
+  const lockfileSha256 = lockfileBytes === null ? null : sha256Bytes(lockfileBytes);
+  const reasons = replayReasons(
+    options.replayDependencies,
+    options.sourceRevision,
+    { requestedVersion, observedVersion },
+    lockfileSha256,
+  );
 
-  if (options.sourceRevision.gitCommit === null) {
-    reasons.push({
-      scope: "environment",
-      code: "source_revision_unavailable",
-      detail: "source git revision is unavailable",
-    });
-  }
-  if (options.sourceRevision.dirty === null) {
-    reasons.push({
-      scope: "environment",
-      code: "source_state_unavailable",
-      detail: "source dirty state is unavailable",
-    });
-  } else if (options.sourceRevision.dirty) {
-    reasons.push({
-      scope: "environment",
-      code: "dirty_source",
-      detail: "source tree differs from the recorded git commit",
-    });
-  }
-  if (requestedVersion === null) {
-    reasons.push({
-      scope: "environment",
-      code: "runtime_pin_missing",
-      detail: "package.json does not contain an exact bun@x.y.z packageManager pin",
-    });
-  } else if (requestedVersion !== observedVersion) {
-    reasons.push({
-      scope: "environment",
-      code: "runtime_version_drift",
-      detail: `requested bun ${requestedVersion} but observed ${observedVersion}`,
-    });
-  }
-  if (lockfileBytes === null) {
-    reasons.push({ scope: "environment", code: "lockfile_missing", detail: "bun.lock is missing" });
-  }
-
-  return {
+  const provenance: ProvenanceEvidence = {
     schema: "ckb-verify-provenance/1",
     replay: {
       declaredDependencies: [...options.replayDependencies],
@@ -152,7 +203,7 @@ export async function collectProvenance(options: CollectProvenanceOptions): Prom
     },
     source: { ...options.sourceRevision },
     manifest: { sha256: sha256Bytes(options.manifestBytes) },
-    lockfile: { path: "bun.lock", sha256: lockfileBytes === null ? null : sha256Bytes(lockfileBytes) },
+    lockfile: { path: "bun.lock", sha256: lockfileSha256 },
     runtime: {
       name: "bun",
       requestedVersion,
@@ -164,4 +215,6 @@ export async function collectProvenance(options: CollectProvenanceOptions): Prom
     },
     binaries: { ckb: { ...options.ckbBinary } },
   };
+  assertProvenanceConsistency(provenance);
+  return provenance;
 }

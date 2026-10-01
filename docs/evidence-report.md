@@ -18,7 +18,7 @@ verify.toml + trusted producer
        terminal / CI summary
 ```
 
-> **Current contract:** the unreleased runner emits `ckb-verify-report/1` with strict `ckb-verify-environment/2` environment fields. The nested [`ckb-verify-provenance/1` JSON Schema](../schemas/ckb-verify-provenance-v1.schema.json) is published for machine validation. A complete report/manifest schema and compatibility fixtures remain v0.1 work.
+> **Current contract:** the unreleased runner emits `ckb-verify-report/1` with strict `ckb-verify-environment/2` environment fields. The nested [`ckb-verify-provenance/1` JSON Schema](../schemas/ckb-verify-provenance-v1.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. A complete report/manifest schema and compatibility fixtures remain v0.1 work.
 
 ## Checked example
 
@@ -94,12 +94,12 @@ The replay-comparison layer identified by `ckb-verify-environment/2`. It has six
 
 - `runner`: the `ckb-verify` name and runner version;
 - `toolchain`: requested and observed CKB, OffCKB, and optional ckb-debugger versions;
-- `provenance`: the schema-backed source, manifest, lockfile, runtime, CKB binary, and replay qualification;
+- `provenance`: structurally schema-validated and semantically verified source, manifest, lockfile, runtime, CKB binary, and replay qualification;
 - `platform`: OS and architecture;
 - `devnet`: network kind, genesis hash, and normalized OffCKB system-script identities and Cell dependencies;
 - `schema`: the environment contract identifier.
 
-`provenance.replay.status` is `stable` only when the manifest declares no replay dependencies, the source revision is identifiable and clean, the Bun runtime is exactly pinned and matches the observed version, `package.json` and `bun.lock` are hashable, and the verified CKB archive provenance is internally consistent. Otherwise it is `tainted`, with structured environment- or outcome-scoped reasons. A tainted run may still produce a `PASS` verdict for its declared claims; it must not be presented as clean replay evidence.
+`provenance.replay.status` is `stable` only when the manifest declares no replay dependencies, the source revision is identifiable, clean, and unchanged throughout verification, the Bun runtime is exactly pinned and matches the observed version, `package.json` and `bun.lock` are hashable, and the verified CKB archive provenance is internally consistent. Otherwise it is `tainted`, with structured environment- or outcome-scoped reasons, or the run fails closed when its source snapshot changes. Standard JSON Schema cannot portably compare arbitrary sibling values, so `verifyEvidenceDigests` invokes the semantic verifier before accepting the report even when its environment digest has been recomputed. A tainted run may still produce a `PASS` verdict for its declared claims; it must not be presented as clean replay evidence.
 
 ### `digests.outcome`
 
@@ -133,7 +133,7 @@ This is intentionally not the authority. The report is the reviewable artifact; 
 ## What a reviewer should check
 
 1. Confirm that `environment.provenance.source.gitCommit` is the commit under review and `dirty` is `false`.
-2. Confirm that `environment.provenance.replay.status` and every structured reason match the claimed replay boundary.
+2. Run the semantic verifier, then confirm that `environment.provenance.replay.status` and every structured reason match the claimed replay boundary.
 3. Confirm the requested and observed tools, runtime and lockfile hashes, CKB binary digests, platform, genesis, and system scripts.
 4. Inspect each manifest claim and its corresponding normalized outcome.
 5. Inspect raw rejection or Cell evidence where a result is security-sensitive.

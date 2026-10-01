@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { runManifest, type DevnetAdapter, type StepCommandRunner } from "../src/runner";
 import type { OffckbRunContext } from "../src/offckb";
-import type { CommandResult } from "../src/process";
+import { runProcess, type CommandResult } from "../src/process";
 import { transactionHash } from "../src/transaction";
 import { RpcError } from "../src/rpc";
 
@@ -40,6 +40,11 @@ const REJECTED_TRANSACTION = {
 
 function commandResult(stdout = "", stderr = ""): CommandResult {
   return { stdout, stderr, exitCode: 0, signal: null, timedOut: false, durationMs: 7 };
+}
+
+async function git(cwd: string, ...args: string[]): Promise<void> {
+  const result = await runProcess(["git", ...args], { cwd, timeoutMs: 10_000 });
+  if (result.exitCode !== 0) throw new Error(result.stderr);
 }
 
 afterEach(async () => {
@@ -294,6 +299,40 @@ describe("runManifest", () => {
       "simulated shutdown failure",
     );
     expect(reportVisibleDuringStop).toBe(false);
+    expect(await Bun.file(join(outputDir, "report.json")).exists()).toBe(false);
+    expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
+  });
+
+  test("does not publish a verdict when tracked source changes during verification", async () => {
+    const { project, manifestPath, outputDir } = await projectWithManifest(1);
+    await writeFile(join(project, "package.json"), `${JSON.stringify({ packageManager: `bun@${Bun.version}` })}\n`);
+    await writeFile(join(project, "bun.lock"), "initial lock\n");
+    await writeFile(join(project, ".gitignore"), "evidence/\n.runtime/\n");
+    await git(project, "init", "-q");
+    await git(project, "config", "user.name", "Test");
+    await git(project, "config", "user.email", "test@example.invalid");
+    await git(project, "add", ".");
+    await git(project, "commit", "-qm", "initial");
+
+    const runStep: StepCommandRunner = async (_command, options) => {
+      const resultPath = options.env?.CKB_VERIFY_RESULT;
+      if (resultPath === undefined) throw new Error("missing result path");
+      await writeFile(resultPath, JSON.stringify({ protocol: 1, transaction: TRANSACTION }));
+      await writeFile(join(project, "bun.lock"), "mutated during verification\n");
+      return commandResult();
+    };
+    const txHash = transactionHash(TRANSACTION);
+    const rpc = async (_url: string, method: string): Promise<unknown> => {
+      if (method === "test_tx_pool_accept") return { cycles: "0x64", fee: "0xa" };
+      if (method === "send_transaction") return txHash;
+      if (method === "get_transaction") return { transaction: TRANSACTION, tx_status: { status: "committed" } };
+      if (method === "get_live_cell") return { status: "live", cell: { output: {}, data: { content: "0x" } } };
+      throw new Error(`unexpected RPC ${method}`);
+    };
+
+    await expect(
+      runManifest({ manifestPath, projectRoot: project, outputDir, devnet: fakeDevnet(project), runStep, rpc }),
+    ).rejects.toThrow("source revision changed during verification");
     expect(await Bun.file(join(outputDir, "report.json")).exists()).toBe(false);
     expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
   });
