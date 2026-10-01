@@ -1,7 +1,7 @@
 {
   "schema": "ckb-verify-report/1",
   "verdict": "PASS",
-  "createdAt": "2026-09-30T18:15:08.340Z",
+  "createdAt": "2026-10-01T12:17:20.150Z",
   "evidence": {
     "name": "secp-transfer-committed",
     "spec": "0.1.0-draft.3",
@@ -12,7 +12,7 @@
         "observedStatus": "committed",
         "cycles": 1612183,
         "transactionHash": "0x7331bf4e510c8b0f11a7b0c4508138e81cf576f014056ad512868a884386cca4",
-        "durationMs": 334,
+        "durationMs": 282,
         "claims": [
           {
             "kind": "cell",
@@ -33,7 +33,7 @@
                 "index": "0x0"
               },
               "response": {
-                "block_hash": "0xcec62bff479526eb7805ff14854b83a22ce56e1388e089def717a0e825dda8c0",
+                "block_hash": "0x7647b3e7c62992dc302141bcb46ba63e7d7e496d65f2ca761d18f0eac7b26207",
                 "cell": {
                   "data": {
                     "content": "0x",
@@ -113,7 +113,7 @@
         "reasons": []
       },
       "source": {
-        "gitCommit": "dc58a379eedd8855556ef973a61f0d0c37ef4af2",
+        "gitCommit": "2fd12ea291fba2c4c6f266934a29466df47265b0",
         "dirty": false,
         "dirtyDigest": null
       },
@@ -405,6 +405,6 @@
   },
   "digests": {
     "outcome": "sha256:fe66eb2511d31ebf5a095e86bc315eeff0900d453d774627be0139d5821169f8",
-    "environment": "sha256:b0a16af3eaec0f79c6019004347cec3aa7c3000c982897b090eb0bd589a2d9ab"
+    "environment": "sha256:98737579275d690ddc8552867716ca49dec3a8bda598d479b24d0857cbcf2f38"
   }
 }

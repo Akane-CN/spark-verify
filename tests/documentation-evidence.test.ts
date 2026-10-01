@@ -8,8 +8,8 @@ const SAMPLE_REPORT = new URL("../docs/examples/secp-transfer-committed-report.j
 const REPORT_GUIDE = new URL("../docs/evidence-report.md", import.meta.url);
 const SOURCE_MANIFEST = new URL("../showcases/secp-transfer/verify.committed.toml", import.meta.url);
 const PROVENANCE_SCHEMA = new URL("../schemas/ckb-verify-provenance-v1.schema.json", import.meta.url);
-const SOURCE_COMMIT = "dc58a379eedd8855556ef973a61f0d0c37ef4af2";
-const SAMPLE_SHA256 = "52f35a62225c8eb8680485527d3353f0e82eb7bd425ede976d393d80d487d89c";
+const SOURCE_COMMIT = "2fd12ea291fba2c4c6f266934a29466df47265b0";
+const SAMPLE_SHA256 = "40f2c99e860e945119e2cd8037a1f908beee07a89d35a0ee0b72f95d84fe6c71";
 
 test("published committed report is clean, internally consistent feasibility evidence", async () => {
   const file = Bun.file(SAMPLE_REPORT);
