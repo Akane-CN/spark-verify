@@ -1,33 +1,18 @@
 diff --git a/build/index.js b/build/index.js
-index b2a8b90..e4768bc 100755
+index b2a8b9046542ddba7b689d6aa6958eaded19a213..67fcb952fe7cc461b110663988362acf395fbe4f 100755
 --- a/build/index.js
 +++ b/build/index.js
-@@ -5706,8 +5706,8 @@ const fs = __importStar(__nccwpck_require__(79896));
- const path = __importStar(__nccwpck_require__(16928));
- const semver_1 = __importDefault(__nccwpck_require__(89939));
- const os_1 = __importDefault(__nccwpck_require__(70857));
+@@ -5709,2 +5709,2 @@ const os_1 = __importDefault(__nccwpck_require__(70857));
 -const adm_zip_1 = __importDefault(__nccwpck_require__(3858));
 -const tar = __importStar(__nccwpck_require__(7222));
 +const adm_zip_1 = __importDefault(require("adm-zip"));
 +const tar = __importStar(require("tar"));
- const request_1 = __nccwpck_require__(65897);
- const setting_1 = __nccwpck_require__(25546);
- const encoding_1 = __nccwpck_require__(6851);
-@@ -8045,7 +8045,7 @@ const path = __importStar(__nccwpck_require__(16928));
- const fs = __importStar(__nccwpck_require__(79896));
- const os = __importStar(__nccwpck_require__(70857));
- const crypto = __importStar(__nccwpck_require__(76982));
+@@ -8048 +8048 @@ const crypto = __importStar(__nccwpck_require__(76982));
 -const tar = __importStar(__nccwpck_require__(7222));
 +const tar = __importStar(require("tar"));
- const request_1 = __nccwpck_require__(65897);
- const setting_1 = __nccwpck_require__(25546);
- const logger_1 = __nccwpck_require__(65370);
-@@ -8584,7 +8584,7 @@ const path = __importStar(__nccwpck_require__(16928));
- const fs = __importStar(__nccwpck_require__(79896));
- const os = __importStar(__nccwpck_require__(70857));
- const crypto = __importStar(__nccwpck_require__(76982));
+@@ -8587 +8587 @@ const crypto = __importStar(__nccwpck_require__(76982));
 -const adm_zip_1 = __importDefault(__nccwpck_require__(3858));
 +const adm_zip_1 = __importDefault(require("adm-zip"));
- const setting_1 = __nccwpck_require__(25546);
- const logger_1 = __nccwpck_require__(65370);
- const fs_1 = __nccwpck_require__(37293);
+@@ -68483 +68483 @@ var httpNative   = __nccwpck_require__(58611),
+-    followRedirects = __nccwpck_require__(230);
++    followRedirects = require("follow-redirects");

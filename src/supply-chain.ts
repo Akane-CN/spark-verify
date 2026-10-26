@@ -6,18 +6,30 @@ interface AuditAdvisory {
   vulnerable_versions?: string;
 }
 
-const ALLOWED_AUDIT_FINDINGS = new Map<string, { severity: "low"; url: string }>([
+// Keep this bounded exception and its renewal/removal policy aligned with SECURITY.md.
+const ALLOWED_AUDIT_FINDINGS = new Map<string, {
+  severity: "low"; url: string; owner: string; reviewedOn: string; expiresAt: string;
+}>([
   [
     "elliptic:1112030",
     {
       severity: "low",
       url: "https://github.com/advisories/GHSA-848j-6mx2-7j84",
+      owner: "Akane-CN",
+      reviewedOn: "2026-10-26",
+      expiresAt: "2026-11-25T00:00:00Z",
     },
   ],
 ]);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function assertPackageVersion(metadata: unknown, expectedName: string, expectedVersion: string): void {
+  if (!isObject(metadata) || metadata.name !== expectedName || metadata.version !== expectedVersion) {
+    throw new Error(`expected ${expectedName}@${expectedVersion} in installed package metadata`);
+  }
 }
 
 function parseAdvisory(packageName: string, value: unknown): AuditAdvisory {
@@ -50,13 +62,16 @@ function auditFindings(report: unknown): Array<{ packageName: string; advisory: 
   return findings;
 }
 
-export function assertAllowedAuditReport(report: unknown): void {
+export function assertAllowedAuditReport(report: unknown, now: Date = new Date()): void {
+  if (!Number.isFinite(now.getTime())) throw new Error("invalid audit review clock");
   const rejected: string[] = [];
   for (const { packageName, advisory } of auditFindings(report)) {
     const allowed = ALLOWED_AUDIT_FINDINGS.get(`${packageName}:${advisory.id}`);
     const severity = advisory.severity.toLowerCase();
     if (allowed === undefined || severity !== allowed.severity || advisory.url !== allowed.url) {
       rejected.push(`${packageName}:${advisory.id} (${severity})`);
+    } else if (now.getTime() >= Date.parse(allowed.expiresAt)) {
+      rejected.push(`${packageName}:${advisory.id} (waiver expired ${allowed.expiresAt}; ${allowed.owner} review required)`);
     }
   }
   if (rejected.length > 0) {
@@ -64,7 +79,7 @@ export function assertAllowedAuditReport(report: unknown): void {
   }
 }
 
-export function assertAuditCommandResult(report: unknown, exitCode: number): void {
+export function assertAuditCommandResult(report: unknown, exitCode: number, now: Date = new Date()): void {
   if (exitCode !== 0 && exitCode !== 1) {
     throw new Error(`bun audit unexpectedly exited with status ${exitCode}`);
   }
@@ -75,7 +90,7 @@ export function assertAuditCommandResult(report: unknown, exitCode: number): voi
   if (exitCode === 0 && findings.length > 0) {
     throw new Error("bun audit returned advisory data with success status");
   }
-  assertAllowedAuditReport(report);
+  assertAllowedAuditReport(report, now);
 }
 
 function count(text: string, needle: string): number {
@@ -89,7 +104,7 @@ function count(text: string, needle: string): number {
   }
 }
 
-export function assertOffckbUsesExternalArchiveLibraries(bundle: string): void {
+export function assertOffckbUsesExternalLibraries(bundle: string): void {
   const vulnerableAdmZipImport = "__nccwpck_require__(3858)";
   const patchedAdmZipImport = 'const adm_zip_1 = __importDefault(require("adm-zip"));';
   const vulnerableTarImport = "__nccwpck_require__(7222)";
@@ -111,5 +126,14 @@ export function assertOffckbUsesExternalArchiveLibraries(bundle: string): void {
   }
   if (patchedTarCount !== 2) {
     throw new Error(`OffCKB bundle must contain exactly 2 patched tar imports; observed ${patchedTarCount}`);
+  }
+
+  const vulnerableRedirectCount = count(bundle, "__nccwpck_require__(230)");
+  const patchedRedirectCount = count(bundle, 'followRedirects = require("follow-redirects");');
+  if (vulnerableRedirectCount !== 0) {
+    throw new Error(`OffCKB bundle retains ${vulnerableRedirectCount} bundled vulnerable follow-redirects import(s)`);
+  }
+  if (patchedRedirectCount !== 1) {
+    throw new Error(`OffCKB bundle must contain exactly 1 patched follow-redirects import; observed ${patchedRedirectCount}`);
   }
 }

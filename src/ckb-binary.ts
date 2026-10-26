@@ -1,6 +1,6 @@
 import AdmZip from "adm-zip";
 import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import * as tar from "tar";
 import { sha256Bytes } from "./canonical";
 
@@ -241,9 +241,14 @@ async function readCachedBinary(
   sourceUrl: string,
   platform: NodeJS.Platform,
   architecture: string,
+  extract: CkbArchiveExtractor,
 ): Promise<InstalledCkbBinary | undefined> {
+  let verificationDir: string | undefined;
   try {
-    const metadataValue: unknown = JSON.parse(await readFile(join(installDir, "ckb-verify-provenance.json"), "utf8"));
+    if (!(await lstat(installDir)).isDirectory()) return undefined;
+    const metadataPath = join(installDir, "ckb-verify-provenance.json");
+    if (!(await lstat(metadataPath)).isFile()) return undefined;
+    const metadataValue: unknown = JSON.parse(await readFile(metadataPath, "utf8"));
     if (!isObject(metadataValue)) return undefined;
     const metadata = metadataValue as Partial<InstalledCkbBinary> & { schema?: unknown };
     if (
@@ -263,6 +268,24 @@ async function readCachedBinary(
     if (!binaryStat.isFile() || binaryStat.isSymbolicLink()) return undefined;
     const binarySha256 = sha256Bytes(await readFile(binaryPath)) as `sha256:${string}`;
     if (binarySha256 !== metadata.binarySha256) return undefined;
+
+    // Adjacent provenance is mutable, not a trust root. Re-derive the binary's
+    // identity from archive bytes checked against the source-controlled pin.
+    const archivePath = join(installDir, asset.assetName);
+    const archiveStat = await lstat(archivePath);
+    if (!archiveStat.isFile() || archiveStat.size !== asset.archiveBytes) return undefined;
+    const bytes = await readFile(archivePath);
+    const archiveSha256 = verifyPinnedCkbArchive(asset, bytes);
+    verificationDir = await mkdtemp(join(dirname(installDir), `.verify-${asset.version}-`));
+    const verifiedArchive = join(verificationDir, asset.assetName);
+    const extractDir = join(verificationDir, "extract");
+    await mkdir(extractDir);
+    // Extract the verified snapshot, never reopen the mutable cached archive.
+    await writeFile(verifiedArchive, bytes);
+    await extract(verifiedArchive, extractDir, asset);
+    const verifiedBinary = join(extractDir, asset.packageName, platform === "win32" ? "ckb.exe" : "ckb");
+    if (!(await lstat(verifiedBinary)).isFile()) return undefined;
+    if (sha256Bytes(await readFile(verifiedBinary)) !== binarySha256) return undefined;
     return {
       path: binaryPath,
       version: asset.version,
@@ -271,11 +294,13 @@ async function readCachedBinary(
       asset: asset.assetName,
       sourceUrl,
       expectedArchiveSha256: asset.archiveSha256,
-      archiveSha256: asset.archiveSha256,
+      archiveSha256,
       binarySha256,
     };
   } catch {
     return undefined;
+  } finally {
+    if (verificationDir !== undefined) await rm(verificationDir, { force: true, recursive: true });
   }
 }
 
@@ -292,7 +317,8 @@ export async function installPinnedCkbBinary(
   const sourceUrl = releaseUrl(asset);
   const installDir = join(options.root, asset.version);
   const binaryPath = join(installDir, platform === "win32" ? "ckb.exe" : "ckb");
-  const cached = await readCachedBinary(installDir, binaryPath, asset, sourceUrl, platform, arch);
+  const extract = options.extract ?? extractArchive;
+  const cached = await readCachedBinary(installDir, binaryPath, asset, sourceUrl, platform, arch, extract);
   if (cached !== undefined) return cached;
 
   await mkdir(options.root, { recursive: true });
@@ -305,7 +331,7 @@ export async function installPinnedCkbBinary(
     const extractDir = join(staging, "extract");
     await mkdir(extractDir, { recursive: true });
     await writeFile(archivePath, bytes);
-    await (options.extract ?? extractArchive)(archivePath, extractDir, asset);
+    await extract(archivePath, extractDir, asset);
 
     const extractedRoot = join(extractDir, asset.packageName);
     const extractedBinary = join(extractedRoot, platform === "win32" ? "ckb.exe" : "ckb");
@@ -331,6 +357,7 @@ export async function installPinnedCkbBinary(
       `${JSON.stringify({ schema: "ckb-verify-ckb-binary/1", ...result, path: undefined }, null, 2)}\n`,
       { mode: 0o600 },
     );
+    await rename(archivePath, join(extractedRoot, asset.assetName));
     await rm(installDir, { force: true, recursive: true });
     await rename(extractedRoot, installDir);
     return result;

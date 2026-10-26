@@ -99,7 +99,15 @@ The replay-comparison layer identified by `ckb-verify-environment/2`. It has six
 - `devnet`: network kind, genesis hash, and normalized OffCKB system-script identities and Cell dependencies;
 - `schema`: the environment contract identifier.
 
-`provenance.replay.status` is `stable` only when the manifest declares no replay dependencies, the source revision is identifiable, clean, and unchanged throughout verification, the Bun runtime is exactly pinned and matches the observed version, `package.json` and `bun.lock` are hashable, and the verified CKB archive provenance is internally consistent. Otherwise it is `tainted`, with structured environment- or outcome-scoped reasons, or the run fails closed when its source snapshot changes. Standard JSON Schema cannot portably compare arbitrary sibling values, so `verifyEvidenceDigests` invokes the semantic verifier before accepting the report even when its environment digest has been recomputed. A tainted run may still produce a `PASS` verdict for its declared claims; it must not be presented as clean replay evidence.
+`provenance.replay.status` is `stable` only when the manifest declares no replay dependencies, the recorded source revision is identifiable and clean, the Bun runtime is exactly pinned and matches the observed version, `package.json` and `bun.lock` are hashable, and the verified CKB archive provenance is internally consistent. Otherwise it is `tainted`, with structured environment- or outcome-scoped reasons. The runner also requires matching source snapshots as described below; a mismatch is an execution error, not a tainted verdict. Standard JSON Schema cannot portably compare arbitrary sibling values, so `verifyEvidenceDigests` invokes the semantic verifier before accepting the report even when its environment digest has been recomputed. A tainted run may still produce a `PASS` verdict for its declared claims; it must not be presented as clean replay evidence.
+
+#### Source snapshot boundary
+
+The runner compares two Git-visible snapshots: one after loading the manifest but before creating runtime/evidence artifacts or starting the devnet, and one after the declared steps/assertions but before constructing the report. A difference in Git commit, dirty state, or dirty-tree digest fails closed without publishing `report.json`.
+
+The dirty-tree digest covers Git status, the tracked binary diff against `HEAD`, and sorted non-ignored untracked entries with their repository-relative paths, content hashes, and Git-relevant modes (`100644`, `100755`, or `120000`). Symlinks contribute their stored link text rather than the contents of their referents; a tracked or non-ignored file inside the repository is still covered independently. The checkout's absolute root path is not added to the digest.
+
+This is an endpoint comparison, not continuous monitoring or hermetic execution. It does not guarantee detection of changes made and restored between snapshots, changes after the final snapshot, ignored files, or external inputs such as environment variables, network responses, and external symlink referents. Matching clean snapshots can therefore still yield `stable` despite such changes. `stable` means stable under the recorded inputs and the author's replay declaration, not proof that every input remained unchanged throughout execution.
 
 ### `digests.outcome`
 
@@ -132,7 +140,7 @@ This is intentionally not the authority. The report is the reviewable artifact; 
 
 ## What a reviewer should check
 
-1. Confirm that `environment.provenance.source.gitCommit` is the commit under review and `dirty` is `false`.
+1. Confirm that `environment.provenance.source.gitCommit` is the commit under review and `dirty` is `false`, interpreting these fields within the [source snapshot boundary](#source-snapshot-boundary).
 2. Run the semantic verifier, then confirm that `environment.provenance.replay.status` and every structured reason match the claimed replay boundary.
 3. Confirm the requested and observed tools, runtime and lockfile hashes, CKB binary digests, platform, genesis, and system scripts.
 4. Inspect each manifest claim and its corresponding normalized outcome.

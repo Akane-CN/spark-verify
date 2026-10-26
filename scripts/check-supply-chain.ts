@@ -2,30 +2,13 @@ import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertAuditCommandResult, assertOffckbUsesExternalArchiveLibraries } from "../src/supply-chain";
-
-interface PackageJson {
-  name?: string;
-  version?: string;
-}
+import { assertAuditCommandResult, assertOffckbUsesExternalLibraries, assertPackageVersion } from "../src/supply-chain";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-async function readPackageJson(path: string): Promise<PackageJson> {
-  const value: unknown = JSON.parse(await readFile(path, "utf8"));
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`invalid package metadata at ${path}`);
-  }
-  return value as PackageJson;
-}
-
-async function assertPackageVersion(path: string, expectedName: string, expectedVersion: string): Promise<void> {
-  const metadata = await readPackageJson(path);
-  if (metadata.name !== expectedName || metadata.version !== expectedVersion) {
-    throw new Error(
-      `expected ${expectedName}@${expectedVersion} at ${path}; observed ${metadata.name ?? "<missing>"}@${metadata.version ?? "<missing>"}`,
-    );
-  }
+async function assertInstalledPackageVersion(path: string, expectedName: string, expectedVersion: string): Promise<void> {
+  const metadata: unknown = JSON.parse(await readFile(path, "utf8"));
+  assertPackageVersion(metadata, expectedName, expectedVersion);
 }
 
 const offckbPackagePath = join(repositoryRoot, "node_modules", "@offckb", "cli", "package.json");
@@ -33,15 +16,21 @@ const offckbRoot = dirname(offckbPackagePath);
 const requireFromOffckb = createRequire(join(offckbRoot, "build", "index.js"));
 const resolvedAdmZipPackagePath = requireFromOffckb.resolve("adm-zip/package.json");
 const resolvedTarPackagePath = requireFromOffckb.resolve("tar/package.json");
+const resolvedRedirectPackagePath = requireFromOffckb.resolve("follow-redirects/package.json");
+const requireFromRepository = createRequire(join(repositoryRoot, "package.json"));
+const requireFromAjv = createRequire(requireFromRepository.resolve("ajv"));
+const resolvedUriPackagePath = requireFromAjv.resolve("fast-uri/package.json");
 
 await Promise.all([
-  assertPackageVersion(offckbPackagePath, "@offckb/cli", "0.4.13"),
-  assertPackageVersion(resolvedAdmZipPackagePath, "adm-zip", "0.6.1"),
-  assertPackageVersion(resolvedTarPackagePath, "tar", "7.5.22"),
+  assertInstalledPackageVersion(offckbPackagePath, "@offckb/cli", "0.4.13"),
+  assertInstalledPackageVersion(resolvedAdmZipPackagePath, "adm-zip", "0.6.1"),
+  assertInstalledPackageVersion(resolvedTarPackagePath, "tar", "7.5.22"),
+  assertInstalledPackageVersion(resolvedRedirectPackagePath, "follow-redirects", "1.16.1"),
+  assertInstalledPackageVersion(resolvedUriPackagePath, "fast-uri", "3.1.9"),
 ]);
 
 const offckbBundle = await readFile(join(offckbRoot, "build", "index.js"), "utf8");
-assertOffckbUsesExternalArchiveLibraries(offckbBundle);
+assertOffckbUsesExternalLibraries(offckbBundle);
 
 const audit = Bun.spawn(["bun", "audit", "--json"], {
   cwd: repositoryRoot,
@@ -66,5 +55,5 @@ try {
 assertAuditCommandResult(auditReport, auditExitCode);
 
 console.log(
-  "supply-chain gate passed: verified OffCKB patch, adm-zip@0.6.1, tar@7.5.22, and audit allowlist",
+  "supply-chain gate passed: verified OffCKB patch, adm-zip@0.6.1, tar@7.5.22, follow-redirects@1.16.1, fast-uri@3.1.9, and audit allowlist",
 );
