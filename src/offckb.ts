@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { installPinnedCkbBinary, type InstalledCkbBinary } from "./ckb-binary";
 import { rpcCall } from "./rpc";
+import { acquireRuntimeOwnership, assertRuntimePortsAvailable, type RuntimeOwnership } from "./runtime-ownership";
 import { runProcess, type CommandResult, type RunCommandOptions } from "./process";
 
 export const OFFCKB_VERSION = "0.4.13";
@@ -236,6 +237,7 @@ interface OffckbDevnetOptions {
   run?: OffckbCommandRunner;
   rpc?: OffckbRpcCaller;
   installCkbBinary?: CkbBinaryInstaller;
+  preflight?: () => Promise<void>;
   timeoutMs?: number;
 }
 
@@ -316,8 +318,16 @@ export class OffckbDevnet {
   private readonly run: OffckbCommandRunner;
   private readonly rpc: OffckbRpcCaller;
   private readonly installCkbBinary: CkbBinaryInstaller;
+  private readonly preflight: () => Promise<void>;
   private readonly timeoutMs: number;
   private started = false;
+  private ownership: RuntimeOwnership | undefined;
+  private prepared = false;
+  private starting: Promise<OffckbRunContext> | undefined;
+  private stopping: Promise<void> | undefined;
+  private stopRequested = false;
+  private signal: AbortSignal | undefined;
+  private readonly commands = new Set<Promise<CommandResult>>();
   private activeEndpoints: string[] = [];
 
   constructor(options: OffckbDevnetOptions) {
@@ -337,6 +347,7 @@ export class OffckbDevnet {
     this.run = options.run ?? runProcess;
     this.rpc = options.rpc ?? rpcCall;
     this.installCkbBinary = options.installCkbBinary ?? ((version, root) => installPinnedCkbBinary({ version, root }));
+    this.preflight = options.preflight ?? assertRuntimePortsAvailable;
     this.timeoutMs = options.timeoutMs ?? 10 * 60_000;
   }
 
@@ -350,13 +361,32 @@ export class OffckbDevnet {
     };
   }
 
-  private async command(args: readonly string[], options: { sensitive?: boolean; timeoutMs?: number } = {}): Promise<CommandResult> {
+  private assertNotStopping(): void {
+    if (this.stopRequested || this.signal?.aborted) throw new OffckbProtocolError("OffCKB setup interrupted");
+  }
+
+  private async runOwnedCommand(args: readonly string[], options: { timeoutMs?: number; cleanup?: boolean } = {}): Promise<CommandResult> {
+    if (this.ownership === undefined) throw new OffckbProtocolError("OffCKB runtime is not owned by this runner");
+    if (!options.cleanup) this.assertNotStopping();
     const argv = [this.paths.offckbBinary, "--json", ...args];
-    const result = await this.run(argv, {
+    const running = Promise.resolve().then(() => this.run(argv, {
       cwd: this.repositoryRoot,
       env: this.environment(),
       timeoutMs: options.timeoutMs ?? this.timeoutMs,
-    });
+    }));
+    this.commands.add(running);
+    let result: CommandResult;
+    try {
+      result = await running;
+    } finally {
+      this.commands.delete(running);
+    }
+    if (!options.cleanup) this.assertNotStopping();
+    return result;
+  }
+
+  private async command(args: readonly string[], options: { sensitive?: boolean; timeoutMs?: number; cleanup?: boolean } = {}): Promise<CommandResult> {
+    const result = await this.runOwnedCommand(args, options);
     if (result.timedOut || result.exitCode !== 0) {
       const operation = `offckb ${args.join(" ")}`;
       if (options.sensitive) {
@@ -387,17 +417,41 @@ export class OffckbDevnet {
     }
   }
 
-  async start(): Promise<OffckbRunContext> {
-    if (this.started) throw new OffckbProtocolError("OffCKB devnet is already started by this runner");
-    await this.verifyVersion();
-    await mkdir(this.paths.root, { recursive: true });
+  async start(signal?: AbortSignal): Promise<OffckbRunContext> {
+    if (this.starting !== undefined || this.stopping !== undefined || this.ownership !== undefined) {
+      throw new OffckbProtocolError("OffCKB devnet is already started by this runner");
+    }
+    this.stopRequested = false;
+    this.signal = signal;
+    const starting = this.startOwned();
+    this.starting = starting;
     try {
+      return await starting;
+    } finally {
+      this.starting = undefined;
+    }
+  }
+
+  private async startOwned(): Promise<OffckbRunContext> {
+    this.ownership = await acquireRuntimeOwnership();
+    try {
+      this.assertNotStopping();
+      await this.preflight();
+      this.assertNotStopping();
+      await this.verifyVersion();
+      this.assertNotStopping();
+      this.prepared = true;
+      await mkdir(this.paths.root, { recursive: true });
+      this.assertNotStopping();
       const installedCkbBinary = await this.installCkbBinary(this.ckbVersion, this.paths.toolchainRoot);
+      this.assertNotStopping();
       const { path: ckbBinaryPath, ...ckbBinary } = installedCkbBinary;
       await this.command(["config", "set", "ckb-version", this.ckbVersion]);
       await this.command(["clean"]);
-      const node = await this.command(["node", "--binary-path", ckbBinaryPath, "--daemon"]);
+      // A failing/timed-out launch may already have detached a daemon.
       this.started = true;
+      this.activeEndpoints = ["http://127.0.0.1:8114", "http://127.0.0.1:28114"];
+      const node = await this.command(["node", "--binary-path", ckbBinaryPath, "--daemon"]);
       parseOffckbResult(node.stdout, "node");
 
       const infoOutput = await this.command(["devnet", "info"]);
@@ -423,8 +477,10 @@ export class OffckbDevnet {
         );
       }
       const systemScripts = normalizeSystemScripts(rawScripts);
+      this.assertNotStopping();
 
       const nodeInfo = requiredObject(await this.rpc(rpcUrl, "local_node_info", []), "local_node_info result");
+      this.assertNotStopping();
       const actualCkbVersion = requiredString(nodeInfo.version, "local_node_info.version");
       if (!actualCkbVersion.startsWith(`${this.ckbVersion} `) && actualCkbVersion !== this.ckbVersion) {
         throw new OffckbProtocolError(
@@ -432,6 +488,7 @@ export class OffckbDevnet {
         );
       }
       const genesis = requiredObject(await this.rpc(rpcUrl, "get_block_by_number", ["0x0"]), "genesis block");
+      this.assertNotStopping();
       const header = requiredObject(genesis.header, "genesis block.header");
       const genesisHash = hash(header.hash, "genesis block.header.hash");
 
@@ -454,10 +511,14 @@ export class OffckbDevnet {
         `${JSON.stringify({ ...context, accountsPath: "[REDACTED]" }, null, 2)}\n`,
         { mode: 0o600 },
       );
+      this.assertNotStopping();
       return context;
     } catch (error) {
+      // Close admission before draining; stop() would await this startup itself.
+      this.stopRequested = true;
+      await Promise.allSettled(this.commands);
       try {
-        await this.stop();
+        await this.cleanupOwned();
       } catch (cleanupError) {
         const startupMessage = error instanceof Error ? error.message : String(error);
         const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
@@ -498,35 +559,49 @@ export class OffckbDevnet {
     if (!/^0x[0-9a-f]{64}$/.test(txHash)) throw new OffckbProtocolError("debug transaction hash is invalid");
     if (!Number.isInteger(source.index) || source.index < 0) throw new OffckbProtocolError("debug cell index is invalid");
     const script = `${source.cell}[${source.index}].${source.role}`;
-    const result = await this.run(
+    const result = await this.runOwnedCommand(
       [
-        this.paths.offckbBinary,
-        "--json",
         "debug",
         "--tx-hash",
         txHash,
         "--single-script",
         script,
       ],
-      {
-        cwd: this.repositoryRoot,
-        env: this.environment(),
-        timeoutMs: 60_000,
-      },
+      { timeoutMs: 60_000 },
     );
     if (result.timedOut) throw new OffckbProtocolError(`offckb debug timed out for ${script}`);
     return result;
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
+    this.stopRequested = true;
+    this.stopping ??= this.finishStop().finally(() => { this.stopping = undefined; });
+    return this.stopping;
+  }
+
+  private async finishStop(): Promise<void> {
+    if (this.starting !== undefined) await this.starting.catch(() => undefined);
+    await Promise.allSettled(this.commands);
+    await this.cleanupOwned();
+  }
+
+  private async cleanupOwned(): Promise<void> {
+    const ownership = this.ownership;
+    if (ownership === undefined) return;
     const endpoints = this.activeEndpoints;
     try {
-      if (this.started) await this.command(["node", "stop"], { timeoutMs: 60_000 });
+      if (this.started) await this.command(["node", "stop"], { timeoutMs: 60_000, cleanup: true });
       await waitForLocalEndpointsClosed(endpoints);
     } finally {
       this.started = false;
       this.activeEndpoints = [];
-      await rm(this.paths.accountsPath, { force: true });
+      try {
+        if (this.prepared) await rm(this.paths.accountsPath, { force: true });
+      } finally {
+        this.prepared = false;
+        await ownership.release();
+        this.ownership = undefined;
+      }
     }
   }
 }

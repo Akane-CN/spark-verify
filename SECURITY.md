@@ -50,6 +50,14 @@ The pinned OffCKB `0.4.13` proxy advertises a loopback URL but binds proxy port 
 
 External network denial is recommended in CI but may not be enforceable portably in the MVP. The report must not imply a sandbox when none was applied.
 
+## Runtime ownership boundary
+
+The Linux x64 / Bun adapter holds the abstract Unix socket `@ckb-verify-offckb-8114-28114` (`@` denotes the leading NUL byte) in the **network namespace**, before any OffCKB runtime mutation. The name is fixed, not derived from the checkout, UID, HOME, or temporary directory. All cooperating users and checkouts in that namespace contend for the same kernel resource. There is no lock file to unlink, PID to reuse, TTL to expire, or stale-owner process to signal. Only the acquiring adapter may invoke shutdown or remove its account file; a losing adapter's `stop()` is a no-op.
+
+This is cooperative exclusion, not authorization. Another user can reserve the abstract name and deny service; trusted code or a privileged user can bypass the protocol. Port preflight checks both `8114` and `28114` using IPv4/IPv6 wildcard bind probes and fails closed on a conflict or an inability to check. The probes cannot reserve the ports through OffCKB's later bind, so a non-cooperating process can still race startup. The runner does not kill a listener to resolve a conflict. After a crash, a surviving daemon is treated as an occupied-port conflict, not automatically adopted or killed. Use a disposable environment and inspect orphaned processes before any manual recovery.
+
+Separate network namespaces have separate ownership locks. Do not share a checkout's `.ckb-verify/` runtime directory between those namespaces; use separate checkouts/runtime files as well as isolated networks. The lock provides no network isolation, read-only RPC guarantee, or sandbox, and does not change OffCKB's wildcard proxy exposure described above. macOS, Windows, other architectures, and non-Bun runtimes are not supported by this ownership adapter.
+
 ## Toolchain supply-chain controls
 
 `ckb-verify` does not let OffCKB fetch an unverified CKB archive. For the supported CKB `0.209.0` toolchain, it selects a platform-specific official GitHub Release asset whose byte length and SHA-256 digest are pinned in `src/ckb-binary.ts`. It verifies the complete archive before extraction; rejects traversal paths, links, device nodes, and unknown entry types; and records the platform, architecture, expected and observed archive digests, and extracted binary digest. OffCKB starts with `--binary-path`, so the verified binary is the one actually executed.
