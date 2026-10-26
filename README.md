@@ -76,6 +76,14 @@ Both ports are checked for IPv4 and IPv6 bind conflicts before setup. Existing l
 
 A crash releases the kernel lock without PID files, expiry-based stealing, or signals to a recorded PID. A surviving daemon still makes the next run fail port preflight: inspect it in your disposable environment rather than deleting a lock or killing an unknown listener. Ownership coordinates cooperating runners, not arbitrary processes, and is neither a network isolation mechanism nor a sandbox. See the [multi-user and namespace boundary](SECURITY.md#runtime-ownership-boundary).
 
+## Debugger artifact boundary
+
+Declared rejected transactions require `ckb-debugger = "1.1.1"`; runs that do not need the debugger may omit it. Selection is checked before devnet startup. The only supported debugger artifact is Linux/x64. Unexpected script rejection without that pin fails with no verdict instead of installing a mutable latest release.
+
+After startup succeeds, the adapter prepares one private execution snapshot from archive and executable bytes checked against source-controlled size/SHA-256 pins. It verifies the snapshot before `--version` and every debug call, requires exactly `ckb-debugger 1.1.1`, and sets `OFFCKB_DEBUGGER_GUARD=1` with run-owned settings to prevent an ambient PATH probe. Concurrent preparation coalesces; debug is refused until preparation completes. Shutdown drains entire preparation/validation/process operations before removing snapshots and releasing ownership. Verified cache bytes remain for later reuse; an existing incomplete or tampered cache fails without repair or fallback.
+
+New reports use environment `/3` and provenance `/2`, including explicit debugger identity or `null`. Historical environment `/2` + provenance `/1` reports require explicit legacy verification and gain no debugger-integrity guarantee. Hash consistency is not execution authenticity or protection against an actively hostile same-UID writer. See the [report contract](docs/evidence-report.md) and [supply-chain boundary](SECURITY.md#debugger-integrity).
+
 ## Implemented manifest subset
 
 ```toml
@@ -108,7 +116,7 @@ The feasibility implementation supports only:
 
 - exact spec `0.1.0-draft.3`;
 - exact CKB and OffCKB versions accepted by the current adapter;
-- optional exact ckb-debugger version;
+- ckb-debugger `1.1.1` when requested, mandatory for every declared rejected transaction (Linux/x64 only);
 - a required replay dependency list containing zero or more unique RFC dependency codes;
 - `1..20` OffCKB development accounts;
 - one signed transaction envelope per step;
@@ -200,7 +208,8 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — broader draft vocabulary and report design
 - [`docs/annotated-manifest.md`](docs/annotated-manifest.md) — every field in the currently executable manifest subset
 - [`docs/evidence-report.md`](docs/evidence-report.md) — current report contract, digest boundaries, and checked real output
-- [`schemas/ckb-verify-provenance-v1.schema.json`](schemas/ckb-verify-provenance-v1.schema.json) — structural provenance schema; cross-field replay semantics are enforced by the runtime verifier
+- [`schemas/ckb-verify-provenance-v2.schema.json`](schemas/ckb-verify-provenance-v2.schema.json) — current provenance schema; cross-field replay and debugger consistency are enforced by the runtime verifier
+- [`schemas/ckb-verify-provenance-v1.schema.json`](schemas/ckb-verify-provenance-v1.schema.json) — unchanged historical provenance schema
 - [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material
 - [`docs/design-review.md`](docs/design-review.md) — prior design review and gates
 

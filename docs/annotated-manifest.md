@@ -101,6 +101,8 @@ expect.tx = "rejected"
 expect.error.code = -11
 ```
 
+Every declared rejected transaction, including a bare `expect.tx = "rejected"`, requires this exact debugger pin. Only Linux/x64 is supported. The runner checks support before startup, eagerly prepares and verifies the artifact after successful startup, and refuses unexpected unpinned script rejection rather than installing lazily.
+
 A matching rejection is a passing declared claim. The report records the RPC error, resolved script group, script hash, error code, and debugger cycles. It does not generalize that result into a contract-correctness claim.
 
 ## Current accepted subset
@@ -109,7 +111,7 @@ The `0.0.1` feasibility implementation accepts only:
 
 - manifest spec `0.1.0-draft.3`;
 - exact CKB and OffCKB versions supported by the adapter;
-- an optional exact ckb-debugger version;
+- ckb-debugger `1.1.1` when requested, mandatory for every declared rejected transaction;
 - an explicit replay dependency list containing zero or more unique supported dependency codes;
 - 1–20 OffCKB development accounts;
 - one signed transaction envelope per step;

@@ -1,4 +1,5 @@
 import { ManifestError } from "./errors";
+import { resolvePinnedDebuggerAsset } from "./debugger-binary";
 import type {
   CellAssertion,
   Manifest,
@@ -90,6 +91,8 @@ function parseToolchain(value: unknown, source: string): ManifestToolchain {
   let ckbDebugger: string | undefined;
   if (table["ckb-debugger"] !== undefined) {
     ckbDebugger = exactVersion(table["ckb-debugger"], "toolchain.ckb-debugger", source);
+    try { resolvePinnedDebuggerAsset(ckbDebugger, "linux", "x64"); }
+    catch (error) { fail(source, "toolchain.ckb-debugger has no supported pinned artifact", error); }
   }
 
   return {
@@ -262,9 +265,13 @@ export function parseManifestText(text: string, source = "verify.toml"): Manifes
     fail(source, "manifest must declare at least one expectation or assertion");
   }
 
+  const toolchain = parseToolchain(root.toolchain, source);
+  if (steps.some(step => step.expect?.tx === "rejected") && toolchain.ckbDebugger === undefined) {
+    fail(source, "rejected transactions require toolchain.ckb-debugger");
+  }
   return {
     meta: parseMeta(root.meta, source),
-    toolchain: parseToolchain(root.toolchain, source),
+    toolchain,
     replay: parseReplay(root.replay, source),
     setup: parseSetup(root.setup, source),
     steps,

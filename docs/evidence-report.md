@@ -18,11 +18,13 @@ verify.toml + trusted producer
        terminal / CI summary
 ```
 
-> **Current contract:** the unreleased runner emits `ckb-verify-report/1` with strict `ckb-verify-environment/2` environment fields. The nested [`ckb-verify-provenance/1` JSON Schema](../schemas/ckb-verify-provenance-v1.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. A complete report/manifest schema and compatibility fixtures remain v0.1 work.
+> **Current contract:** the unreleased runner emits `ckb-verify-report/1` with `ckb-verify-environment/3` environment fields. The nested [`ckb-verify-provenance/2` JSON Schema](../schemas/ckb-verify-provenance-v2.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. A complete report/manifest schema and compatibility fixtures remain v0.1 work.
+
+The outer `ckb-verify-report/1` and `ckb-verify-outcome/1` contracts are unchanged. `verifyEvidenceDigests(report)` accepts only the current environment `/3` + provenance `/2` pair. The explicit option `{ allowLegacy: true }` additionally accepts exactly historical environment `/2` + provenance `/1`, applying the historical consistency checks without inventing debugger identity from current pins. Unknown or mixed pairs are rejected.
 
 ## Checked example
 
-[`examples/secp-transfer-committed-report.json`](examples/secp-transfer-committed-report.json) is the complete report from a real fresh-devnet run of the committed secp transfer fixture. It is not hand-written sample output.
+[`examples/secp-transfer-committed-report.json`](examples/secp-transfer-committed-report.json) is the complete report from a real fresh-devnet run of the committed secp transfer fixture. It is not hand-written sample output. Its historical environment `/2` + provenance `/1` bytes and v1 schema remain unchanged. The documentation test explicitly opts into legacy verification and retains its file-hash and source-manifest checks. This example is not evidence of the new debugger-integrity path.
 
 - Generated on `2026-10-01` from clean source commit `2fd12ea291fba2c4c6f266934a29466df47265b0`.
 - Report file SHA-256: `40f2c99e860e945119e2cd8037a1f908beee07a89d35a0ee0b72f95d84fe6c71`.
@@ -90,16 +92,22 @@ For a Cell claim, the runner independently derives `observationValid` and verifi
 
 ### `environment`
 
-The replay-comparison layer identified by `ckb-verify-environment/2`. It has six fixed top-level fields and no free-form extension keys:
+The current replay-comparison layer is identified by `ckb-verify-environment/3`. It has six fixed top-level fields and no free-form extension keys:
 
 - `runner`: the `ckb-verify` name and runner version;
 - `toolchain`: requested and observed CKB, OffCKB, and optional ckb-debugger versions;
-- `provenance`: structurally schema-validated and semantically verified source, manifest, lockfile, runtime, CKB binary, and replay qualification;
+- `provenance`: source, manifest, lockfile, runtime, CKB and debugger binary identities, and replay qualification; validate its v2 schema and semantic consistency;
 - `platform`: OS and architecture;
 - `devnet`: network kind, genesis hash, and normalized OffCKB system-script identities and Cell dependencies;
 - `schema`: the environment contract identifier.
 
 `provenance.replay.status` is `stable` only when the manifest declares no replay dependencies, the recorded source revision is identifiable and clean, the Bun runtime is exactly pinned and matches the observed version, `package.json` and `bun.lock` are hashable, and the verified CKB archive provenance is internally consistent. Otherwise it is `tainted`, with structured environment- or outcome-scoped reasons. The runner also requires matching source snapshots as described below; a mismatch is an execution error, not a tainted verdict. Standard JSON Schema cannot portably compare arbitrary sibling values, so `verifyEvidenceDigests` invokes the semantic verifier before accepting the report even when its environment digest has been recomputed. A tainted run may still produce a `PASS` verdict for its declared claims; it must not be presented as clean replay evidence.
+
+#### Debugger identity
+
+Current provenance requires `binaries.ckbDebugger`: explicit `null` when unused, otherwise path-free `DebuggerBinaryEvidence`. Requested and observed debugger fields must appear together with that identity. The observed string must be exactly `ckb-debugger 1.1.1`; requested/binary versions must agree. The verifier checks the official source URL, Linux/x64 asset, and expected/observed archive and executable byte lengths and SHA-256 hashes against source-controlled pins. It compares the binary platform to the **recorded report platform**, not the verifier host. Script rejection requires this identity; all declared rejections require a pin in the manifest.
+
+Missing identity, contradictory measurements, and unsupported selections are integrity errors even with recomputed digests or valid replay-taint reasons. They are not replay waivers. Offline verification checks internal consistency, not whether the recorded execution happened or whether an actively hostile same-UID writer changed bytes between measurement and execution.
 
 #### Source snapshot boundary
 

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import Ajv2020 from "ajv/dist/2020";
 import { createHash } from "node:crypto";
-import { verifyEvidenceDigests } from "../src/report";
+import { verifyEvidenceDigests, type LegacyEnvironmentEvidence } from "../src/report";
 import type { CkbVerifyReport } from "../src/runner";
 
 const SAMPLE_REPORT = new URL("../docs/examples/secp-transfer-committed-report.json", import.meta.url);
@@ -22,7 +22,7 @@ test("published committed report is clean, internally consistent feasibility evi
   expect(text).not.toMatch(/"(?:privkey|privateKey|secretAccessKey|accessToken|refreshToken)"/i);
   expect(createHash("sha256").update(text).digest("hex")).toBe(SAMPLE_SHA256);
 
-  const report = JSON.parse(text) as CkbVerifyReport;
+  const report = JSON.parse(text) as Omit<CkbVerifyReport, "environment"> & { environment: LegacyEnvironmentEvidence };
   expect(report.schema).toBe("ckb-verify-report/1");
   expect(report.verdict).toBe("PASS");
   expect(report.evidence.name).toBe("secp-transfer-committed");
@@ -52,7 +52,8 @@ test("published committed report is clean, internally consistent feasibility evi
   const provenanceSchema = await Bun.file(PROVENANCE_SCHEMA).json();
   const validate = new Ajv2020({ allErrors: true, strict: true }).compile(provenanceSchema);
   expect(validate(report.environment.provenance), JSON.stringify(validate.errors)).toBe(true);
-  expect(() => verifyEvidenceDigests(report)).not.toThrow();
+  expect(() => verifyEvidenceDigests(report)).toThrow("legacy");
+  expect(() => verifyEvidenceDigests(report, { allowLegacy: true })).not.toThrow();
 
   const guide = await Bun.file(REPORT_GUIDE).text();
   expect(guide).toContain(SOURCE_COMMIT);

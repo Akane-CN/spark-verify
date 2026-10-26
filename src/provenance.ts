@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { sha256Bytes } from "./canonical";
 import type { InstalledCkbBinary } from "./ckb-binary";
+import { assertDebuggerBinaryEvidence, type DebuggerBinaryEvidence } from "./debugger-binary";
 import type { ReplayDependency } from "./types";
 
 export interface SourceRevision {
@@ -25,7 +26,7 @@ export interface ProvenanceReason {
   detail: string;
 }
 
-export interface ProvenanceEvidence {
+export interface LegacyProvenanceEvidence {
   schema: "ckb-verify-provenance/1";
   replay: {
     declaredDependencies: ReplayDependency[];
@@ -44,12 +45,18 @@ export interface ProvenanceEvidence {
   binaries: { ckb: Omit<InstalledCkbBinary, "path"> };
 }
 
+export interface ProvenanceEvidence extends Omit<LegacyProvenanceEvidence, "schema" | "binaries"> {
+  schema: "ckb-verify-provenance/2";
+  binaries: { ckb: Omit<InstalledCkbBinary, "path">; ckbDebugger: DebuggerBinaryEvidence | null };
+}
+
 export interface CollectProvenanceOptions {
   projectRoot: string;
   manifestBytes: Uint8Array;
   replayDependencies: readonly ReplayDependency[];
   sourceRevision: SourceRevision;
   ckbBinary: Omit<InstalledCkbBinary, "path">;
+  ckbDebuggerBinary?: DebuggerBinaryEvidence | null;
   observedRuntimeVersion?: string;
 }
 
@@ -151,7 +158,41 @@ function sameReasons(actual: readonly ProvenanceReason[], expected: readonly Pro
   );
 }
 
-export function assertProvenanceConsistency(provenance: ProvenanceEvidence): void {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// Narrow only the versioned provenance seam; this is not a full report parser.
+function hasProvenanceShape(value: unknown): value is ProvenanceEvidence | LegacyProvenanceEvidence {
+  if (!isRecord(value) || !isRecord(value.source) || !isRecord(value.manifest) || !isRecord(value.lockfile) ||
+      !isRecord(value.runtime) || !isRecord(value.runtime.metadata) || !isRecord(value.replay) ||
+      !isRecord(value.binaries) || !isRecord(value.binaries.ckb)) return false;
+  const { source, runtime, replay, binaries } = value;
+  const nullableString = (v: unknown) => v === null || typeof v === "string";
+  const dependencies = ["external_time", "randomness", "fee_estimation", "dynamic_since", "external_network"];
+  return nullableString(source.gitCommit) && nullableString(source.dirtyDigest) &&
+    (source.dirty === null || typeof source.dirty === "boolean") &&
+    typeof value.manifest.sha256 === "string" && value.lockfile.path === "bun.lock" && nullableString(value.lockfile.sha256) &&
+    runtime.name === "bun" && nullableString(runtime.requestedVersion) && typeof runtime.observedVersion === "string" &&
+    isRecord(runtime.metadata) && runtime.metadata.path === "package.json" && nullableString(runtime.metadata.sha256) &&
+    (replay.status === "stable" || replay.status === "tainted") && Array.isArray(replay.declaredDependencies) &&
+    replay.declaredDependencies.every(v => typeof v === "string" && dependencies.includes(v)) &&
+    Array.isArray(replay.reasons) && replay.reasons.every(v => isRecord(v) &&
+      (v.scope === "environment" || v.scope === "outcome") && typeof v.code === "string" && typeof v.detail === "string") &&
+    isRecord(binaries.ckb) && ["version", "platform", "architecture", "asset", "sourceUrl", "expectedArchiveSha256", "archiveSha256", "binarySha256"]
+      .every(key => typeof (binaries.ckb as Record<string, unknown>)[key] === "string") &&
+    (value.schema === "ckb-verify-provenance/1" || value.schema === "ckb-verify-provenance/2");
+}
+
+export function assertProvenanceConsistency(
+  provenance: unknown, options: { allowLegacy?: boolean } = {},
+): asserts provenance is ProvenanceEvidence | LegacyProvenanceEvidence {
+  if (!hasProvenanceShape(provenance)) throw new Error("invalid provenance structure or schema");
+  if (provenance.schema === "ckb-verify-provenance/1") {
+    if (!options.allowLegacy) throw new Error("legacy provenance requires explicit allowLegacy");
+  } else if (provenance.binaries.ckbDebugger !== null) {
+    assertDebuggerBinaryEvidence(provenance.binaries.ckbDebugger);
+  }
   validateSourceRevision(provenance.source);
   if (provenance.binaries.ckb.expectedArchiveSha256 !== provenance.binaries.ckb.archiveSha256) {
     throw new Error("CKB archive provenance mismatch");
@@ -195,7 +236,7 @@ export async function collectProvenance(options: CollectProvenanceOptions): Prom
   );
 
   const provenance: ProvenanceEvidence = {
-    schema: "ckb-verify-provenance/1",
+    schema: "ckb-verify-provenance/2",
     replay: {
       declaredDependencies: [...options.replayDependencies],
       status: reasons.length === 0 ? "stable" : "tainted",
@@ -213,7 +254,7 @@ export async function collectProvenance(options: CollectProvenanceOptions): Prom
         sha256: packageJsonBytes === null ? null : sha256Bytes(packageJsonBytes),
       },
     },
-    binaries: { ckb: { ...options.ckbBinary } },
+    binaries: { ckb: { ...options.ckbBinary }, ckbDebugger: options.ckbDebuggerBinary ?? null },
   };
   assertProvenanceConsistency(provenance);
   return provenance;

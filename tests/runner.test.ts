@@ -7,6 +7,7 @@ import type { OffckbRunContext } from "../src/offckb";
 import { runProcess, type CommandResult } from "../src/process";
 import { transactionHash } from "../src/transaction";
 import { RpcError } from "../src/rpc";
+import { debuggerEvidence } from "./debugger-integration-fixture";
 
 const directories: string[] = [];
 const HASH = `0x${"11".repeat(32)}`;
@@ -100,7 +101,7 @@ async function projectWithTerminalRejectedManifest(): Promise<{
   const outputDir = join(project, "evidence");
   await writeFile(
     manifestPath,
-    `[meta]\nname = "runner-terminal-rejected"\nspec = "0.1.0-draft.3"\n\n[toolchain]\nckb = "0.209.0"\noffckb = "0.4.13"\n\n[replay]\ndependencies = []\n\n[setup]\naccounts = 2\n\n[[step]]\nname = "delayed-rejection"\nrun = "fake-producer terminal-rejected"\ntimeout = "10s"\nexpect.tx = "rejected"\n`,
+    `[meta]\nname = "runner-terminal-rejected"\nspec = "0.1.0-draft.3"\n\n[toolchain]\nckb = "0.209.0"\noffckb = "0.4.13"\nckb-debugger = "1.1.1"\n\n[replay]\ndependencies = []\n\n[setup]\naccounts = 2\n\n[[step]]\nname = "delayed-rejection"\nrun = "fake-producer terminal-rejected"\ntimeout = "10s"\nexpect.tx = "rejected"\n`,
   );
   return { project, manifestPath, outputDir };
 }
@@ -144,9 +145,9 @@ function fakeDevnet(project: string, debuggerOutput = "", privateKey = KEY): Dev
       await writeFile(context.systemScriptsPath, JSON.stringify({ devnet: {} }));
       return context;
     },
-    async installDebugger() {},
-    async debuggerVersion() {
-      return "ckb-debugger 1.1.1";
+    async prepareDebugger(version) {
+      expect(version).toBe("1.1.1");
+      return { version: "ckb-debugger 1.1.1", binary: debuggerEvidence() };
     },
     async debugScript() {
       return { ...commandResult(debuggerOutput, "Command failed"), exitCode: debuggerOutput === "" ? 0 : 1 };
@@ -156,6 +157,65 @@ function fakeDevnet(project: string, debuggerOutput = "", privateKey = KEY): Dev
 }
 
 describe("runManifest", () => {
+  test.each(["1.1.2", "latest", "01.1.1"])("unsupported requested debugger %s fails before start", async pin => {
+    const { project, manifestPath, outputDir } = await projectWithRejectedManifest();
+    await writeFile(manifestPath, (await Bun.file(manifestPath).text()).replace('ckb-debugger = "1.1.1"', `ckb-debugger = "${pin}"`));
+    const devnet = fakeDevnet(project); let starts = 0;
+    devnet.start = async () => { starts++; throw new Error("must not start"); };
+    await expect(runManifest({ manifestPath, projectRoot: project, outputDir, devnet })).rejects.toThrow("toolchain.ckb-debugger");
+    expect(starts).toBe(0);
+  });
+  test("unexpected unpinned script rejection refuses before lazy preparation or debugging", async () => {
+    const { project, manifestPath, outputDir } = await projectWithManifest(1);
+    const devnet = fakeDevnet(project); let prepares = 0; let debugs = 0; let stopped = false;
+    devnet.prepareDebugger = async () => { prepares++; throw new Error("unexpected prepare"); };
+    devnet.debugScript = async () => { debugs++; throw new Error("unexpected debug"); };
+    devnet.stop = async () => { stopped = true; };
+    await expect(runManifest({ manifestPath, projectRoot: project, outputDir, devnet,
+      runStep: async (_command, options) => {
+        await writeFile(options.env!.CKB_VERIFY_RESULT!, JSON.stringify({ protocol: 1, transaction: REJECTED_TRANSACTION }));
+        return commandResult();
+      },
+      rpc: async (_url, method) => {
+        if (method === "test_tx_pool_accept") return { cycles: "0x64", fee: "0xa" };
+        if (method === "send_transaction") throw new RpcError(method, -302,
+          "TransactionFailedToVerify: Verification failed Script(TransactionScriptError { source: Inputs[0].Lock, cause: ValidationFailure: see error code -11 on page https://example.invalid/#-11 })", null);
+        throw new Error("unexpected script lookup before pin check");
+      },
+    })).rejects.toThrow("script rejection requires a prepared pinned debugger");
+    expect(prepares).toBe(0); expect(debugs).toBe(0); expect(stopped).toBe(true);
+    expect(await Bun.file(join(outputDir, "report.json")).exists()).toBe(false);
+  });
+  test("selects the execution-platform debugger pin before starting the devnet", async () => {
+    const { project, manifestPath, outputDir } = await projectWithRejectedManifest();
+    const devnet = fakeDevnet(project); let starts = 0;
+    devnet.start = async () => { starts++; throw new Error("unexpected startup"); };
+    const arch = Object.getOwnPropertyDescriptor(process, "arch")!;
+    Object.defineProperty(process, "arch", { ...arch, value: "arm64" });
+    try {
+      await expect(runManifest({ manifestPath, projectRoot: project, outputDir, devnet })).rejects.toThrow("no pinned debugger artifact");
+      expect(starts).toBe(0);
+    } finally { Object.defineProperty(process, "arch", arch); }
+  });
+  test("preparation failure loads keys first, redacts artifacts and errors, cleans and invalidates reports", async () => {
+    const { project, manifestPath, outputDir } = await projectWithRejectedManifest();
+    const devnet = fakeDevnet(project, "", LETTERED_KEY);
+    let stopped = false;
+    devnet.prepareDebugger = async version => {
+      expect(version).toBe("1.1.1");
+      await writeFile(join(outputDir, "native.txt"), MIXED_CASE_KEY);
+      await writeFile(join(outputDir, "report.json"), "stale");
+      await writeFile(join(outputDir, ".report.json.pending"), "stale");
+      throw new Error(`prepare failed ${MIXED_CASE_KEY}`);
+    };
+    devnet.stop = async () => { stopped = true; };
+    const error = await runManifest({ manifestPath, projectRoot: project, outputDir, devnet }).catch(error => error);
+    expect(String(error)).toContain("prepare failed");
+    expect(String(error)).not.toContain(MIXED_CASE_KEY);
+    expect(await Bun.file(join(outputDir, "native.txt")).text()).toBe("[REDACTED]");
+    expect(stopped).toBe(true);
+    for (const path of ["report.json", ".report.json.pending"]) expect(await Bun.file(join(outputDir, path)).exists()).toBe(false);
+  });
   test("forwards interruption to setup before any devnet context exists", async () => {
     const { project, manifestPath, outputDir } = await projectWithManifest(1);
     const controller = new AbortController();
@@ -194,17 +254,20 @@ describe("runManifest", () => {
       throw new Error(`unexpected RPC ${method}`);
     };
 
+    const devnet = fakeDevnet(project);
+    devnet.prepareDebugger = async () => { throw new Error("no-debug run must not prepare a debugger"); };
     const result = await runManifest({
       manifestPath,
       projectRoot: project,
       outputDir,
-      devnet: fakeDevnet(project),
+      devnet,
       runStep,
       rpc,
       signal: controller.signal,
     });
 
     expect(result.verdict).toBe("PASS");
+    expect(result.report.environment.provenance.binaries.ckbDebugger).toBeNull();
     expect(result.report.evidence.steps[0]).toMatchObject({
       name: "transfer",
       expectedStatus: "committed",
@@ -226,14 +289,14 @@ describe("runManifest", () => {
       "toolchain",
     ]);
     expect(result.report.environment).toMatchObject({
-      schema: "ckb-verify-environment/2",
+      schema: "ckb-verify-environment/3",
       runner: { name: "ckb-verify", version: "0.0.1" },
       toolchain: {
         requested: { ckb: "0.209.0", offckb: "0.4.13" },
         observed: { ckb: "0.209.0 (test)", offckb: "0.4.13" },
       },
       provenance: {
-        schema: "ckb-verify-provenance/1",
+        schema: "ckb-verify-provenance/2",
         replay: {
           declaredDependencies: [],
           status: "tainted",
@@ -736,18 +799,25 @@ describe("runManifest", () => {
       throw new Error(`unexpected RPC ${method}`);
     };
 
+    let prepared = 0;
+    const devnet = fakeDevnet(project, "Run result: -11\nAll cycles: 393345(384.1K)\n");
+    const prepare = devnet.prepareDebugger;
+    devnet.prepareDebugger = async version => { prepared++; return prepare(version); };
     const result = await runManifest({
       manifestPath,
       projectRoot: project,
       outputDir,
-      devnet: fakeDevnet(project, "Run result: -11\nAll cycles: 393345(384.1K)\n"),
+      devnet,
       runStep,
       rpc,
     });
 
+    expect(prepared).toBe(1);
     expect(submitted).toBe(true);
     expect(result.verdict).toBe("PASS");
     expect(result.report.environment).toMatchObject({
+      schema: "ckb-verify-environment/3",
+      provenance: { schema: "ckb-verify-provenance/2", binaries: { ckbDebugger: debuggerEvidence() } },
       toolchain: { observed: { ckbDebugger: "ckb-debugger 1.1.1" } },
     });
     expect(result.report.evidence.steps[0]).toMatchObject({

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { sha256Bytes } from "../src/canonical";
 import { assertProvenanceConsistency, collectProvenance } from "../src/provenance";
+import { debuggerEvidence } from "./debugger-integration-fixture";
 
 const directories: string[] = [];
 const COMMIT = "a".repeat(40);
@@ -39,7 +40,7 @@ async function project(packageManager = "bun@1.2.19", withLockfile = true): Prom
 }
 
 async function schemaValidator(): Promise<ValidateFunction> {
-  const schemaUrl = new URL("../schemas/ckb-verify-provenance-v1.schema.json", import.meta.url);
+  const schemaUrl = new URL("../schemas/ckb-verify-provenance-v2.schema.json", import.meta.url);
   const schema = JSON.parse(await Bun.file(schemaUrl).text()) as object;
   return new Ajv2020({ strict: true, allErrors: true }).compile(schema);
 }
@@ -49,6 +50,31 @@ afterEach(async () => {
 });
 
 describe("formal provenance", () => {
+  test("current provenance and schema require null or the exact debugger identity", async () => {
+    const fixture = await project();
+    const provenance = await collectProvenance({ projectRoot: fixture.root, manifestBytes: new Uint8Array(),
+      replayDependencies: [], sourceRevision: { gitCommit: COMMIT, dirty: false, dirtyDigest: null },
+      ckbBinary: CKB_BINARY, ckbDebuggerBinary: debuggerEvidence(), observedRuntimeVersion: "1.2.19" });
+    expect(provenance.binaries.ckbDebugger).toEqual(debuggerEvidence());
+    const validate = await schemaValidator();
+    expect(validate(provenance)).toBe(true);
+    const missing = structuredClone(provenance) as Record<string, any>;
+    delete missing.binaries.ckbDebugger;
+    expect(validate(missing)).toBe(false);
+    expect(() => assertProvenanceConsistency(missing)).toThrow();
+    for (const field of ["version", "requestedVersion", "platform", "architecture", "assetName", "sourceUrl"]) {
+      const bad = structuredClone(provenance) as Record<string, any>;
+      bad.binaries.ckbDebugger[field] = "wrong";
+      expect(validate(bad)).toBe(false);
+      expect(() => assertProvenanceConsistency(bad)).toThrow();
+    }
+    for (const kind of ["archive", "executable"]) for (const which of ["expected", "observed"]) {
+      const bad = structuredClone(provenance) as Record<string, any>;
+      bad.binaries.ckbDebugger[kind][which].sha256 = `sha256:${"0".repeat(64)}`;
+      expect(validate(bad)).toBe(false);
+      expect(() => assertProvenanceConsistency(bad)).toThrow();
+    }
+  });
   test("qualifies a clean, pinned, locked run as stable", async () => {
     const fixture = await project();
     const manifestBytes = new TextEncoder().encode("[replay]\ndependencies = []\n");
@@ -63,7 +89,7 @@ describe("formal provenance", () => {
     });
 
     expect(provenance).toEqual({
-      schema: "ckb-verify-provenance/1",
+      schema: "ckb-verify-provenance/2",
       replay: { declaredDependencies: [], status: "stable", reasons: [] },
       source: { gitCommit: COMMIT, dirty: false, dirtyDigest: null },
       manifest: { sha256: sha256Bytes(manifestBytes) },
@@ -74,7 +100,7 @@ describe("formal provenance", () => {
         observedVersion: "1.2.19",
         metadata: { path: "package.json", sha256: sha256Bytes(fixture.packageJsonBytes) },
       },
-      binaries: { ckb: CKB_BINARY },
+      binaries: { ckb: CKB_BINARY, ckbDebugger: null },
     });
   });
 

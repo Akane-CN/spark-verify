@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { canonicalSha256 } from "../src/canonical";
+import { debuggerEvidence } from "./debugger-integration-fixture";
 import {
   EvidenceIntegrityError,
   buildEvidenceDigests,
@@ -38,14 +40,14 @@ function evidence(): RunEvidence {
 
 const SHA256 = `sha256:${"1".repeat(64)}` as `sha256:${string}`;
 const ENVIRONMENT: EnvironmentEvidence = {
-  schema: "ckb-verify-environment/2",
+  schema: "ckb-verify-environment/3",
   runner: { name: "ckb-verify", version: "0.0.1" },
   toolchain: {
     requested: { ckb: "0.209.0", offckb: "0.4.13" },
     observed: { ckb: "0.209.0", offckb: "0.4.13" },
   },
   provenance: {
-    schema: "ckb-verify-provenance/1",
+    schema: "ckb-verify-provenance/2",
     replay: { declaredDependencies: [], status: "stable", reasons: [] },
     source: { gitCommit: "a".repeat(40), dirty: false, dirtyDigest: null },
     manifest: { sha256: SHA256 },
@@ -57,6 +59,7 @@ const ENVIRONMENT: EnvironmentEvidence = {
       metadata: { path: "package.json", sha256: SHA256 },
     },
     binaries: {
+      ckbDebugger: null,
       ckb: {
         version: "0.209.0",
         platform: "linux",
@@ -74,6 +77,60 @@ const ENVIRONMENT: EnvironmentEvidence = {
 };
 
 describe("evidence report digests", () => {
+  test("debugger identity contradictions cannot be waived by taint or recomputed digests", () => {
+    const environment = structuredClone(ENVIRONMENT);
+    environment.toolchain.requested.ckbDebugger = "1.1.1";
+    environment.toolchain.observed.ckbDebugger = "ckb-debugger 1.1.1";
+    environment.provenance.binaries.ckbDebugger = debuggerEvidence();
+    const e = evidence();
+    const verify = (env: unknown, run = e) => verifyEvidenceDigests({ verdict: "PASS", evidence: run,
+      outcomeClaims: buildOutcomeClaims(run), environment: env,
+      digests: { outcome: canonicalSha256(buildOutcomeClaims(run)), environment: canonicalSha256(env) } });
+    expect(() => verify(environment)).not.toThrow();
+    for (const mutate of [
+      (v: any) => { delete v.toolchain.requested.ckbDebugger; },
+      (v: any) => { delete v.toolchain.observed.ckbDebugger; },
+      (v: any) => { delete v.provenance.binaries.ckbDebugger; },
+      (v: any) => { v.provenance.binaries.ckbDebugger = null; },
+      (v: any) => { v.toolchain.requested.ckbDebugger = "1.1.2"; },
+      (v: any) => { v.toolchain.observed.ckbDebugger = "ckb-debugger 1.1.1 extra"; },
+      (v: any) => { v.platform.os = "darwin"; },
+      (v: any) => { v.platform.arch = "arm64"; },
+      (v: any) => { v.provenance.binaries.ckbDebugger.executable.observed.bytes--; },
+      (v: any) => { v.provenance.binaries.ckbDebugger.archive.expected.sha256 = `sha256:${"0".repeat(64)}`; },
+    ]) {
+      for (const tainted of [false, true]) {
+        const bad = structuredClone(environment);
+        if (tainted) {
+          bad.provenance.replay = { status: "tainted", declaredDependencies: ["external_network"],
+            reasons: [{ scope: "outcome", code: "external_network", detail: "manifest declares replay dependency external_network" }] };
+        }
+        mutate(bad);
+        expect(() => verify(bad)).toThrow(EvidenceIntegrityError);
+      }
+    }
+    const script = evidence(); script.steps[0]!.rejection = { kind: "script", code: -11 };
+    expect(() => verify(ENVIRONMENT, script)).toThrow("debugger");
+    // The verifier host is irrelevant: only the recorded platform selects pins.
+    const descriptor = Object.getOwnPropertyDescriptor(process, "arch")!;
+    Object.defineProperty(process, "arch", { ...descriptor, value: "arm64" });
+    try { expect(() => verify(environment)).not.toThrow(); }
+    finally { Object.defineProperty(process, "arch", descriptor); }
+  });
+  test("dispatches exactly current or explicitly opted-in historical contract pairs", async () => {
+    const historical = await Bun.file(new URL("../docs/examples/secp-transfer-committed-report.json", import.meta.url)).json();
+    expect(() => verifyEvidenceDigests(historical)).toThrow();
+    expect(() => verifyEvidenceDigests(historical, { allowLegacy: true })).not.toThrow();
+    const e = evidence();
+    for (const [env, prov] of [["ckb-verify-environment/3", "ckb-verify-provenance/1"],
+      ["ckb-verify-environment/2", "ckb-verify-provenance/2"], ["ckb-verify-environment/4", "ckb-verify-provenance/2"],
+      ["ckb-verify-environment/3", "ckb-verify-provenance/3"]]) {
+      const environment = { ...ENVIRONMENT, schema: env, provenance: { ...ENVIRONMENT.provenance, schema: prov } };
+      const report = { verdict: "PASS", evidence: e, outcomeClaims: buildOutcomeClaims(e), environment,
+        digests: { outcome: canonicalSha256(buildOutcomeClaims(e)), environment: canonicalSha256(environment) } };
+      for (const allowLegacy of [false, true]) expect(() => verifyEvidenceDigests(report, { allowLegacy })).toThrow();
+    }
+  });
   test("excludes raw transaction identity and runtime locations from outcome claims", () => {
     const first = evidence();
     const second = evidence();
