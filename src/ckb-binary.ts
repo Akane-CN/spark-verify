@@ -195,12 +195,15 @@ async function downloadPinnedArchive(url: string, asset: PinnedCkbAsset): Promis
   }
 }
 
-async function extractArchive(
+export async function extractArchive(
   archivePath: string,
   destination: string,
   asset: PinnedCkbAsset,
 ): Promise<void> {
   if (asset.format === "tar.gz") {
+    // tar does not turn a throwing filter into a rejection; the error escapes
+    // its stream handler. Record the first unsafe entry, skip it, throw after.
+    let unsafe: unknown;
     await tar.x({
       cwd: destination,
       file: archivePath,
@@ -217,10 +220,16 @@ async function extractArchive(
                 : entry.isSymbolicLink()
                   ? "symlink"
                   : "device";
-        assertSafeArchiveEntry(entryPath, kind);
-        return true;
+        try {
+          assertSafeArchiveEntry(entryPath, kind);
+          return unsafe === undefined;
+        } catch (error) {
+          unsafe ??= error;
+          return false;
+        }
       },
     });
+    if (unsafe !== undefined) throw unsafe;
     return;
   }
   const zip = new AdmZip(archivePath);
