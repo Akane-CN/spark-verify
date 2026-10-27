@@ -33,7 +33,7 @@ test("guide distinguishes strict artifact verification from legacy component com
   const guide = await Bun.file(REPORT_GUIDE).text();
   for (const text of ["`verifyReport(report, options)`", "`verifyEvidenceDigests(components, options)`",
     "own top-level `schema`", "`0.1.0-draft.3`", "not a complete deep structural schema",
-    "internal consistency, not execution authenticity", "`claim.evidence`", "`ckb-verify-report/2` is rejected"]) {
+    "internal consistency, not execution authenticity", "`claim.evidence`", "Only `verifyReport` additionally accepts report `/2`", "v1-only component compatibility helper"]) {
     expect(guide).toContain(text);
   }
 });

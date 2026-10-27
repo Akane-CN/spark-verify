@@ -1,4 +1,5 @@
 import { canonicalSha256 } from "./canonical";
+import { bindManifestV2, deriveOutcomeV2, equalSemantic, verdictForOutcomeV2, verifyStoredClaimsV2 } from "./cell-claims";
 import type { ResolvedSystemScripts } from "./offckb";
 import { assertProvenanceConsistency, type ProvenanceEvidence, type LegacyProvenanceEvidence } from "./provenance";
 import type { ManifestToolchain, TransactionExpectation } from "./types";
@@ -169,7 +170,7 @@ function record(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function verifyEnvironmentContract(value: unknown, evidence: RunEvidence, allowLegacy: boolean): void {
+function verifyEnvironmentContract(value: unknown, evidence: { steps: Array<Pick<StepEvidence, "rejection" | "expectedStatus">> }, allowLegacy: boolean): void {
   const environment = record(value, "environment");
   const provenance = record(environment.provenance, "provenance");
   if (!Object.hasOwn(environment, "schema") || !Object.hasOwn(provenance, "schema")) {
@@ -230,9 +231,48 @@ function verifyV1Claims(value: unknown, label: string, rawEvidence: boolean): vo
 export function verifyReport(report: unknown, options: { allowLegacy?: boolean } = {}): void {
   try {
     const artifact = record(report, "report");
-    if (!Object.hasOwn(artifact, "schema") || artifact.schema !== "ckb-verify-report/1") {
-      throw new EvidenceIntegrityError("unsupported report schema: expected explicit ckb-verify-report/1");
+    if (!Object.hasOwn(artifact, "schema")) throw new EvidenceIntegrityError("explicit report schema required");
+    if (artifact.schema === "ckb-verify-report/2") {
+      // Check only fields consumed by this branch; this is not a full envelope schema.
+      const retained = (value: object, keys: string[], path: string): void => {
+        // The report/2 container itself must survive JSON, not just its members.
+        for (let owner: object | null = value; owner !== null; owner = Object.getPrototypeOf(owner)) {
+          const descriptor = Object.getOwnPropertyDescriptor(owner, "toJSON");
+          if (descriptor === undefined) continue;
+          if (!Object.hasOwn(descriptor, "value") || typeof descriptor.value === "function") {
+            throw new EvidenceIntegrityError(`${path}.toJSON: serialization hook not supported`);
+          }
+          break;
+        }
+        for (const key of keys) {
+          const descriptor = Object.getOwnPropertyDescriptor(value, key);
+          if (descriptor === undefined || !descriptor.enumerable || !Object.hasOwn(descriptor, "value")) {
+            throw new EvidenceIntegrityError(`${path}.${key}: required own enumerable data member`);
+          }
+        }
+      };
+      retained(artifact, ["schema", "evidence", "outcomeClaims", "environment", "verdict", "digests"], "report");
+      const evidence = record(artifact.evidence, "evidence"), outcome = record(artifact.outcomeClaims, "outcomeClaims");
+      const environment = record(artifact.environment, "environment"), provenance = record(environment.provenance, "provenance");
+      retained(environment, ["schema"], "environment");
+      retained(provenance, ["schema"], "provenance");
+      if (!Object.hasOwn(outcome, "schema") || outcome.schema !== "ckb-verify-outcome/2" ||
+          !Object.hasOwn(evidence, "spec") || evidence.spec !== "0.1.0-draft.4" ||
+          !Object.hasOwn(outcome, "spec") || outcome.spec !== "0.1.0-draft.4" ||
+          !Object.hasOwn(environment, "schema") || environment.schema !== "ckb-verify-environment/3" ||
+          !Object.hasOwn(provenance, "schema") || provenance.schema !== "ckb-verify-provenance/2") {
+        throw new EvidenceIntegrityError("unsupported report/2 version tuple");
+      }
+      bindManifestV2(evidence, environment);
+      const derived = deriveOutcomeV2(evidence, environment);
+      verifyEnvironmentContract(environment, derived, false);
+      verifyStoredClaimsV2(evidence, derived);
+      equalSemantic(outcome, derived, "outcomeClaims");
+      equalSemantic(artifact.verdict, verdictForOutcomeV2(derived), "verdict");
+      equalSemantic(artifact.digests, { outcome: canonicalSha256(derived), environment: canonicalSha256(environment) }, "digests");
+      return;
     }
+    if (artifact.schema !== "ckb-verify-report/1") throw new EvidenceIntegrityError("unsupported report schema");
     verifyEvidenceDigests(artifact as unknown as Parameters<typeof verifyEvidenceDigests>[0], options);
   } catch (error) {
     if (error instanceof EvidenceIntegrityError) throw error;

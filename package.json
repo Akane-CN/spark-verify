@@ -1,6 +1,6 @@
 {
   "name": "ckb-verify",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Executable acceptance claims for CKB projects",
   "type": "module",
   "private": true,

@@ -18,20 +18,20 @@ verify.toml + trusted producer
        terminal / CI summary
 ```
 
-> **Current contract:** the unreleased runner emits `ckb-verify-report/1` with `ckb-verify-environment/3` environment fields. The nested [`ckb-verify-provenance/2` JSON Schema](../schemas/ckb-verify-provenance-v2.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. A complete report/manifest schema and compatibility fixtures remain v0.1 work.
+> **Current contract:** the unreleased runner emits `ckb-verify-report/1` for draft.3 and `ckb-verify-report/2` for draft.4, both with `ckb-verify-environment/3` environment fields. The nested [`ckb-verify-provenance/2` JSON Schema](../schemas/ckb-verify-provenance-v2.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. A complete report/manifest schema and compatibility fixtures remain v0.1 work.
 
 ## Verifier entrypoints and compatibility
 
-Use `verifyReport(report, options)` from `src/report.ts` when reading a **complete artifact**, including before runner publication and in the secp showcase post-check. Its input is `unknown`. It requires an explicit own top-level `schema` equal to `ckb-verify-report/1`; missing, inherited, `undefined`, `null`, unknown, or other envelope versions raise `EvidenceIntegrityError`. It does not infer a version from the nested objects or fall back to another evaluator.
+Use `verifyReport(report, options)` from `src/report.ts` when reading a **complete artifact**, including before runner publication and in the secp showcase post-check. Its input is `unknown`. It requires an explicit own top-level `schema` equal to `ckb-verify-report/1` or `ckb-verify-report/2`; missing, inherited, `undefined`, `null`, unknown, or other envelope versions raise `EvidenceIntegrityError`. It does not infer a version from the nested objects or fall back to another evaluator.
 
 Both entrypoints support exactly these v1 tuples:
 
 - `ckb-verify-outcome/1`, **both** `evidence.spec` and `outcomeClaims.spec` equal to `0.1.0-draft.3`, environment `ckb-verify-environment/3`, and provenance `ckb-verify-provenance/2`.
 - With explicit `{ allowLegacy: true }` only: the same outcome/specs with historical environment `ckb-verify-environment/2` and provenance `ckb-verify-provenance/1`. Historical consistency checks apply without inventing debugger identity from current pins.
 
-Missing, unknown, and mixed nested versions/specs are rejected, even after a TypeScript cast or recomputation of stored hashes. `ckb-verify-report/2` is rejected with or without legacy opt-in; draft `.4` and outcome `/2` have no supported evaluator here.
+Only `verifyReport` additionally accepts report `/2`, outcome `ckb-verify-outcome/2`, **both** specs `0.1.0-draft.4`, environment `/3`, and provenance `/2`. Missing, unknown, and mixed versions/specs are rejected, even after a TypeScript cast or recomputation of stored hashes. Legacy opt-in never enables a historical environment for report `/2`.
 
-`verifyEvidenceDigests(components, options)` remains a **component compatibility helper** with its existing verdict/evidence/outcome/environment/digest inputs. Only this helper permits omission of the top-level schema. If an own `schema` property is supplied, it must be exactly `ckb-verify-report/1`; a present `undefined`, `null`, or other value is not omission. The same nested version/spec guards and legacy opt-in apply to schema-less components. Do not use this omission allowance when reading a complete report.
+`verifyEvidenceDigests(components, options)` remains a **v1-only component compatibility helper** with its existing verdict/evidence/outcome/environment/digest inputs. Only this helper permits omission of the top-level schema. If an own `schema` property is supplied, it must be exactly `ckb-verify-report/1`; a present `undefined`, `null`, or other value is not omission. The same nested version/spec guards and legacy opt-in apply to schema-less components. Do not use this omission allowance when reading a complete report.
 
 Before v1 normalization and verdict derivation, both entrypoints exclude these semantic markers in their specific slots:
 
@@ -43,7 +43,27 @@ Before v1 normalization and verdict derivation, both entrypoints exclude these s
 
 This is a finite exclusion, not a recursive field blacklist. Arbitrarily nested `claim.evidence` diagnostics may contain historical RPC fields such as `type`, `data`, and `status`. Existing v1 count semantics, including counts greater than one, are unchanged; these guards do not implement new script/data, CellDep, byte-size, or count-0/1 rules.
 
-These APIs provide version and semantic checks, **not a complete deep structural schema** for the report. After the guards, verification recomputes both digests, normalizes retained evidence again, checks claim-count/`ok` agreement, validates provenance/debugger consistency, and derives the verdict. This establishes internal consistency, not execution authenticity: a consistently rewritten report is not a signed attestation that the recorded run happened. The entrypoints are source APIs, not a public verification CLI; their unit tests and historical sample readback do not constitute fresh real-devnet acceptance.
+These APIs provide version and semantic checks, **not a complete deep structural schema** for the report. For v1, after the guards, verification recomputes both digests, normalizes retained evidence again, checks claim-count/`ok` agreement, validates provenance/debugger consistency, and derives the verdict. This establishes internal consistency, not execution authenticity: a consistently rewritten report is not a signed attestation that the recorded run happened. The entrypoints are source APIs, not a public verification CLI; their unit tests and historical sample readback do not constitute fresh real-devnet acceptance.
+
+## Draft.4 core semantic inputs
+
+The private `0.0.2` core adds output type identity plus args byte length, decoded data minimum byte length, and separate transaction CellDep membership. Builtin names are exactly `dao` and `spore`. Properties require count 1; draft.4 count is 0 or 1 and the output index is u32. Args/data sizes are bounded by `MAX_BYTES = 1048576`, a runner resource policy, not consensus. There are no raw pins, custom aliases, exact-content predicates, decoders, or plugins.
+
+Report `/2` retains exact UTF-8 `evidence.manifestText` and every full signed producer `evidence.steps[].transaction`, including witnesses and steps without claims. Cell claims retain either `{kind:"missing-output"}` or `{kind:"query",outPoint:{tx_hash,index},response:...}` in `input`. CellDep claims derive from the retained transaction and referenced environment binding without a duplicate dependency list. Verification does not read sibling files.
+
+The pure `deriveOutcomeV2(evidence, environment)` seam parses and hashes the manifest, binds its name/spec, **complete ordered** steps and expectations/claims, exact requested toolchain (including optional absence), and ordered replay declarations. Existing provenance checks still apply. It recomputes raw transaction hashes and validates the new semantic closure: outputs/data alignment, exact scripts/outputs/dependencies, referenced nonempty bindings, and full supported live/non-live responses. A live response must match the selected retained output/data and a committed target; only omitted/null type equivalence is allowed. Data hashes use CKB's zero sentinel for empty data and pinned CCC hashing otherwise.
+
+An absent output is an invalid observation and fails even count 0, without RPC. In-range dead/unknown is a valid count-0 observation, even for a rejected candidate; it does not imply an output ever existed on-chain. Properties require live data. Sibling claims share one snapshot per phase/step/index; later steps and final assertions resample. Every declared claim remains ordered and conjunctive, including repeats and claims after a mismatch. Malformed evidence aborts rather than becoming a mismatch.
+
+A matching type normalizes to the **claimed** builtin identity plus measured args length; a mismatching type retains its actual raw code hash/hash type, and a missing type is null. Data observations retain measured byte length only when declared. Dependency observations retain one membership boolean for each exported alias member, in export order; all must be present. Duplicate concrete deps or empty bindings are errors; extra distinct transaction deps are allowed. Rejected transactions can satisfy membership, which neither implies commitment nor script execution.
+
+Report `/2` verification independently rederives stored observations, validity, truth, the complete outcome, verdict and both canonical digests. Valid FAIL reports verify. Outcome `/2` retains names/spec, all ordered steps, statuses, expectations, cycles/rejections and normalized claims, but excludes manifest text, transactions, queries, paths, timestamps and durations. Consistent deployment remaps can preserve outcome but change environment; same-length args/data variations intentionally preserve the length-only projection. Witnesses are excluded by the raw transaction hash primitive; no signature authenticity is asserted.
+
+The [claims-v2 schema fragment](../schemas/ckb-verify-claims-v2.schema.json) provides bounded exact `$defs` for these containers and semantic inputs. Consumers select a definition; its root deliberately is not a whole-report validator. Dev-only Ajv parity tests cover shapes; schema validation alone does not prove hashes, alignment, membership or truth. Complete report/manifest schemas and offline public commands remain #18 work.
+
+Retained manifest/transaction/witness bytes may be sensitive. A known exported development key in the pending report causes NO_VERDICT: cleanup still runs and neither pending nor canonical report survives. Hash-bound inputs must not be redacted/rehashed and then published. The existing scanner only knows exported development keys, not arbitrary credentials.
+
+Offline verification establishes **internal consistency**, not authentic RPC observations, deployment provenance, signatures, block inclusion/finality, or proof a type/dep executed. All-consistent rewrites remain possible. The claims-v2 fixtures are explicitly synthetic; fresh DAO, legacy secp lifecycle regression, separate Spore feasibility, hosted artifacts and installed-consumer acceptance are **not demonstrated by this core slice**. Broader documentation and real fixtures remain a later phase.
 
 ## Checked example
 
@@ -79,7 +99,7 @@ digests.environment
 
 ### `schema`
 
-`ckb-verify-report/1` identifies the current report envelope. It is versioned separately from the selected `verify.toml` spec and the nested outcome/environment objects.
+`ckb-verify-report/1` identifies the draft.3 envelope; `ckb-verify-report/2` identifies the draft.4 envelope. It is versioned separately from the selected `verify.toml` spec and the nested outcome/environment objects.
 
 ### `verdict`
 
@@ -109,9 +129,9 @@ Raw transaction identity, duration, and full RPC observations remain inspectable
 
 ### `outcomeClaims`
 
-The normalized claim/result layer identified by `ckb-verify-outcome/1`. It keeps only the declared expectations and normalized observations used to derive the verdict, including observed cycles and structured rejection data. A transaction that is accepted and later reaches terminal `rejected` status records `kind: "node"` and the node-provided `reason`; an immediate script rejection records its normalized script group and code when available.
+The normalized claim/result layer is identified by `ckb-verify-outcome/1` for draft.3 and `ckb-verify-outcome/2` for draft.4. It keeps only the declared expectations and normalized observations used to derive the verdict, including observed cycles and structured rejection data. A transaction that is accepted and later reaches terminal `rejected` status records `kind: "node"` and the node-provided `reason`; an immediate script rejection records its normalized script group and code when available.
 
-For a Cell claim, the runner independently derives `observationValid` and verifies that `ok` agrees with the expected and observed count. It then derives the top-level verdict from all normalized claims rather than trusting a stored boolean.
+For a v1 Cell claim, the runner independently derives `observationValid` and verifies that `ok` agrees with the expected and observed count. The v2 branch uses the raw-input and property/dependency derivation described above. It then derives the top-level verdict from all normalized claims rather than trusting a stored boolean.
 
 ### `environment`
 
