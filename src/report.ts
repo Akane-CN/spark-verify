@@ -165,13 +165,16 @@ export function verdictForOutcomeClaims(outcomeClaims: OutcomeClaims): "PASS" | 
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object`);
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new EvidenceIntegrityError(`${label} must be an object`);
   return value as Record<string, unknown>;
 }
 
 function verifyEnvironmentContract(value: unknown, evidence: RunEvidence, allowLegacy: boolean): void {
   const environment = record(value, "environment");
   const provenance = record(environment.provenance, "provenance");
+  if (!Object.hasOwn(environment, "schema") || !Object.hasOwn(provenance, "schema")) {
+    throw new Error("explicit environment/provenance schemas required");
+  }
   const current = environment.schema === "ckb-verify-environment/3" && provenance.schema === "ckb-verify-provenance/2";
   const historical = environment.schema === "ckb-verify-environment/2" && provenance.schema === "ckb-verify-provenance/1";
   if (!current && !(allowLegacy && historical)) throw new Error("unsupported environment/provenance pair (legacy requires allowLegacy)");
@@ -197,18 +200,84 @@ function verifyEnvironmentContract(value: unknown, evidence: RunEvidence, allowL
   }
 }
 
+function rejectV1Markers(value: Record<string, unknown>, label: string, fields: readonly string[]): void {
+  for (const field of fields) {
+    if (Object.hasOwn(value, field)) {
+      throw new EvidenceIntegrityError(`unsupported v1 semantic marker: ${label}.${field}`);
+    }
+  }
+}
+
+function array(value: unknown, label: string): unknown[] {
+  if (!Array.isArray(value)) throw new EvidenceIntegrityError(`${label} must be an array`);
+  return value;
+}
+
+function verifyV1Claims(value: unknown, label: string, rawEvidence: boolean): void {
+  array(value, label).forEach((value, index) => {
+    const path = `${label}[${index}]`;
+    const claim = record(value, path);
+    if (claim.kind !== "cell") throw new EvidenceIntegrityError(`unsupported v1 semantic marker: ${path}.kind`);
+    rejectV1Markers(claim, path, rawEvidence ? ["input", "observationValid"] : ["input"]);
+    rejectV1Markers(record(claim.expected, `${path}.expected`), `${path}.expected`, ["type", "data", "contains"]);
+    rejectV1Markers(record(claim.observed, `${path}.observed`), `${path}.observed`, ["state", "status", "type", "dataBytes", "present"]);
+    // Do not recurse into claim.evidence: historical RPC diagnostics may use all
+    // these names. Outcome observationValid also already belongs to v1.
+  });
+}
+
+/** Complete-artifact version/semantic verification, not a deep JSON schema. */
+export function verifyReport(report: unknown, options: { allowLegacy?: boolean } = {}): void {
+  try {
+    const artifact = record(report, "report");
+    if (!Object.hasOwn(artifact, "schema") || artifact.schema !== "ckb-verify-report/1") {
+      throw new EvidenceIntegrityError("unsupported report schema: expected explicit ckb-verify-report/1");
+    }
+    verifyEvidenceDigests(artifact as unknown as Parameters<typeof verifyEvidenceDigests>[0], options);
+  } catch (error) {
+    if (error instanceof EvidenceIntegrityError) throw error;
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new EvidenceIntegrityError(`report integrity mismatch: ${detail}`);
+  }
+}
+
 export function verifyEvidenceDigests(report: {
+  schema?: "ckb-verify-report/1";
   verdict: string;
   evidence: RunEvidence;
   outcomeClaims: OutcomeClaims;
   environment: unknown;
   digests: EvidenceDigests;
 }, options: { allowLegacy?: boolean } = {}): void {
+  record(report, "report components");
+  if (Object.hasOwn(report, "schema") && report.schema !== "ckb-verify-report/1") {
+    throw new EvidenceIntegrityError("unsupported report schema: expected ckb-verify-report/1");
+  }
+  const evidence = record(report.evidence, "evidence");
+  const outcome = record(report.outcomeClaims, "outcomeClaims");
+  if (!Object.hasOwn(outcome, "schema") || outcome.schema !== "ckb-verify-outcome/1") {
+    throw new EvidenceIntegrityError("unsupported outcome schema: expected ckb-verify-outcome/1");
+  }
+  if (!Object.hasOwn(evidence, "spec") || evidence.spec !== "0.1.0-draft.3" ||
+      !Object.hasOwn(outcome, "spec") || outcome.spec !== "0.1.0-draft.3") {
+    throw new EvidenceIntegrityError("unsupported v1 spec: evidence and outcomeClaims require 0.1.0-draft.3");
+  }
   try {
     verifyEnvironmentContract(report.environment, report.evidence, options.allowLegacy === true);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new EvidenceIntegrityError(`provenance integrity mismatch: ${detail}`);
+  }
+  rejectV1Markers(evidence, "evidence", ["manifestText"]);
+  for (const [label, material] of [["evidence", evidence], ["outcomeClaims", outcome]] as const) {
+    const rawEvidence = label === "evidence";
+    array(material.steps, `${label}.steps`).forEach((value, index) => {
+      const path = `${label}.steps[${index}]`;
+      const step = record(value, path);
+      if (rawEvidence) rejectV1Markers(step, path, ["transaction"]);
+      verifyV1Claims(step.claims, `${path}.claims`, rawEvidence);
+    });
+    verifyV1Claims(material.assertions, `${label}.assertions`, rawEvidence);
   }
   const actualOutcome = canonicalSha256(report.outcomeClaims);
   if (actualOutcome !== report.digests.outcome) {

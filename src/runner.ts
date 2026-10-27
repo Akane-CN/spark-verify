@@ -11,7 +11,7 @@ import {
   buildEvidenceDigests,
   buildOutcomeClaims,
   verdictForOutcomeClaims,
-  verifyEvidenceDigests,
+  verifyReport,
   type EnvironmentEvidence,
   type RunEvidence,
   type ClaimEvidence,
@@ -577,7 +577,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       environment,
       digests,
     };
-    verifyEvidenceDigests(report);
+    verifyReport(report);
     await writeJson(pendingReportPath, report);
     reportToPublish = { verdict, reportPath, report };
     return reportToPublish;

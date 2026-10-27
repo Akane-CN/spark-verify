@@ -20,7 +20,30 @@ verify.toml + trusted producer
 
 > **Current contract:** the unreleased runner emits `ckb-verify-report/1` with `ckb-verify-environment/3` environment fields. The nested [`ckb-verify-provenance/2` JSON Schema](../schemas/ckb-verify-provenance-v2.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. A complete report/manifest schema and compatibility fixtures remain v0.1 work.
 
-The outer `ckb-verify-report/1` and `ckb-verify-outcome/1` contracts are unchanged. `verifyEvidenceDigests(report)` accepts only the current environment `/3` + provenance `/2` pair. The explicit option `{ allowLegacy: true }` additionally accepts exactly historical environment `/2` + provenance `/1`, applying the historical consistency checks without inventing debugger identity from current pins. Unknown or mixed pairs are rejected.
+## Verifier entrypoints and compatibility
+
+Use `verifyReport(report, options)` from `src/report.ts` when reading a **complete artifact**, including before runner publication and in the secp showcase post-check. Its input is `unknown`. It requires an explicit own top-level `schema` equal to `ckb-verify-report/1`; missing, inherited, `undefined`, `null`, unknown, or other envelope versions raise `EvidenceIntegrityError`. It does not infer a version from the nested objects or fall back to another evaluator.
+
+Both entrypoints support exactly these v1 tuples:
+
+- `ckb-verify-outcome/1`, **both** `evidence.spec` and `outcomeClaims.spec` equal to `0.1.0-draft.3`, environment `ckb-verify-environment/3`, and provenance `ckb-verify-provenance/2`.
+- With explicit `{ allowLegacy: true }` only: the same outcome/specs with historical environment `ckb-verify-environment/2` and provenance `ckb-verify-provenance/1`. Historical consistency checks apply without inventing debugger identity from current pins.
+
+Missing, unknown, and mixed nested versions/specs are rejected, even after a TypeScript cast or recomputation of stored hashes. `ckb-verify-report/2` is rejected with or without legacy opt-in; draft `.4` and outcome `/2` have no supported evaluator here.
+
+`verifyEvidenceDigests(components, options)` remains a **component compatibility helper** with its existing verdict/evidence/outcome/environment/digest inputs. Only this helper permits omission of the top-level schema. If an own `schema` property is supplied, it must be exactly `ckb-verify-report/1`; a present `undefined`, `null`, or other value is not omission. The same nested version/spec guards and legacy opt-in apply to schema-less components. Do not use this omission allowance when reading a complete report.
+
+Before v1 normalization and verdict derivation, both entrypoints exclude these semantic markers in their specific slots:
+
+- `evidence.manifestText` and `evidence.steps[].transaction`;
+- any immediate or final claim in evidence or outcome with `kind` other than `cell`, or with `input`;
+- claim `expected.type`, `expected.data`, or `expected.contains`;
+- claim `observed.state`, `observed.status`, `observed.type`, `observed.dataBytes`, or `observed.present`;
+- evidence-claim-level `observationValid` (the existing **outcome** `observationValid` is preserved).
+
+This is a finite exclusion, not a recursive field blacklist. Arbitrarily nested `claim.evidence` diagnostics may contain historical RPC fields such as `type`, `data`, and `status`. Existing v1 count semantics, including counts greater than one, are unchanged; these guards do not implement new script/data, CellDep, byte-size, or count-0/1 rules.
+
+These APIs provide version and semantic checks, **not a complete deep structural schema** for the report. After the guards, verification recomputes both digests, normalizes retained evidence again, checks claim-count/`ok` agreement, validates provenance/debugger consistency, and derives the verdict. This establishes internal consistency, not execution authenticity: a consistently rewritten report is not a signed attestation that the recorded run happened. The entrypoints are source APIs, not a public verification CLI; their unit tests and historical sample readback do not constitute fresh real-devnet acceptance.
 
 ## Checked example
 
@@ -101,7 +124,7 @@ The current replay-comparison layer is identified by `ckb-verify-environment/3`.
 - `devnet`: network kind, genesis hash, and normalized OffCKB system-script identities and Cell dependencies;
 - `schema`: the environment contract identifier.
 
-`provenance.replay.status` is `stable` only when the manifest declares no replay dependencies, the recorded source revision is identifiable and clean, the Bun runtime is exactly pinned and matches the observed version, `package.json` and `bun.lock` are hashable, and the verified CKB archive provenance is internally consistent. Otherwise it is `tainted`, with structured environment- or outcome-scoped reasons. The runner also requires matching source snapshots as described below; a mismatch is an execution error, not a tainted verdict. Standard JSON Schema cannot portably compare arbitrary sibling values, so `verifyEvidenceDigests` invokes the semantic verifier before accepting the report even when its environment digest has been recomputed. A tainted run may still produce a `PASS` verdict for its declared claims; it must not be presented as clean replay evidence.
+`provenance.replay.status` is `stable` only when the manifest declares no replay dependencies, the recorded source revision is identifiable and clean, the Bun runtime is exactly pinned and matches the observed version, `package.json` and `bun.lock` are hashable, and the verified CKB archive provenance is internally consistent. Otherwise it is `tainted`, with structured environment- or outcome-scoped reasons. The runner also requires matching source snapshots as described below; a mismatch is an execution error, not a tainted verdict. Standard JSON Schema cannot portably compare arbitrary sibling values, so `verifyReport` invokes the semantic verifier before accepting the complete artifact even when its environment digest has been recomputed. A tainted run may still produce a `PASS` verdict for its declared claims; it must not be presented as clean replay evidence.
 
 #### Debugger identity
 

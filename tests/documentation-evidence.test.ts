@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import Ajv2020 from "ajv/dist/2020";
 import { createHash } from "node:crypto";
-import { verifyEvidenceDigests, type LegacyEnvironmentEvidence } from "../src/report";
+import { verifyReport, type LegacyEnvironmentEvidence } from "../src/report";
 import type { CkbVerifyReport } from "../src/runner";
 
 const SAMPLE_REPORT = new URL("../docs/examples/secp-transfer-committed-report.json", import.meta.url);
@@ -10,6 +10,33 @@ const SOURCE_MANIFEST = new URL("../showcases/secp-transfer/verify.committed.tom
 const PROVENANCE_SCHEMA = new URL("../schemas/ckb-verify-provenance-v1.schema.json", import.meta.url);
 const SOURCE_COMMIT = "2fd12ea291fba2c4c6f266934a29466df47265b0";
 const SAMPLE_SHA256 = "40f2c99e860e945119e2cd8037a1f908beee07a89d35a0ee0b72f95d84fe6c71";
+
+test.each([
+  ["../src/runner.ts", "report"],
+  ["../showcases/secp-transfer/verify.sh", "report"],
+  ["./documentation-evidence.test.ts", "report"],
+  ["./report.test.ts", "historical"],
+])("complete-artifact reader %s imports and calls the strict verifier", async (path, argument) => {
+  const source = await Bun.file(new URL(path!, import.meta.url)).text();
+  const imports = source.match(/import\s*\{([^}]+)\}\s*from\s*["'][^"']*\/report(?:\.ts)?["']/)?.[1];
+  expect(imports).toMatch(/\bverifyReport\b/);
+  expect(source).toContain(`verifyReport(${argument}`);
+  if (argument === "historical") {
+    // Other report tests intentionally retain the component API.
+    expect(source).not.toContain(`verifyEvidenceDigests(${argument}`);
+  } else {
+    expect(imports).not.toMatch(/\bverifyEvidenceDigests\b/);
+  }
+});
+
+test("guide distinguishes strict artifact verification from legacy component compatibility", async () => {
+  const guide = await Bun.file(REPORT_GUIDE).text();
+  for (const text of ["`verifyReport(report, options)`", "`verifyEvidenceDigests(components, options)`",
+    "own top-level `schema`", "`0.1.0-draft.3`", "not a complete deep structural schema",
+    "internal consistency, not execution authenticity", "`claim.evidence`", "`ckb-verify-report/2` is rejected"]) {
+    expect(guide).toContain(text);
+  }
+});
 
 test("published committed report is clean, internally consistent feasibility evidence", async () => {
   const file = Bun.file(SAMPLE_REPORT);
@@ -52,8 +79,8 @@ test("published committed report is clean, internally consistent feasibility evi
   const provenanceSchema = await Bun.file(PROVENANCE_SCHEMA).json();
   const validate = new Ajv2020({ allErrors: true, strict: true }).compile(provenanceSchema);
   expect(validate(report.environment.provenance), JSON.stringify(validate.errors)).toBe(true);
-  expect(() => verifyEvidenceDigests(report)).toThrow("legacy");
-  expect(() => verifyEvidenceDigests(report, { allowLegacy: true })).not.toThrow();
+  expect(() => verifyReport(report)).toThrow("legacy");
+  expect(() => verifyReport(report, { allowLegacy: true })).not.toThrow();
 
   const guide = await Bun.file(REPORT_GUIDE).text();
   expect(guide).toContain(SOURCE_COMMIT);
