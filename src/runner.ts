@@ -450,6 +450,12 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
           ...(options.signal === undefined ? {} : { signal: options.signal }),
         });
         observedStatus = terminal.status;
+        if (terminal.status === "rejected") {
+          rejection = {
+            kind: "node",
+            ...(terminal.reason === undefined ? {} : { reason: terminal.reason }),
+          };
+        }
         const transactionRecord = await rpc(context.rpcUrl, "get_transaction", [txHash], options.signal);
         await writeJson(join(stepDirectory, "get-transaction.json"), transactionRecord);
       } catch (error) {

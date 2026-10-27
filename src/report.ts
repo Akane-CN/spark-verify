@@ -12,6 +12,7 @@ export interface ClaimEvidence {
 
 export interface RejectionEvidence {
   kind: "script" | "node";
+  reason?: string;
   rpcCode?: number;
   code?: number;
   role?: "lock" | "type";
