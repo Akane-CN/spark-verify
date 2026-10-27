@@ -81,7 +81,35 @@ test("a losing adapter cannot run commands, install, or delete the owner's accou
   }
 });
 
-test.each(["127.0.0.1", "::1"])("port preflight refuses either foreign listener on %s without disturbing it", async (host) => {
+async function canListen(host: string): Promise<boolean> {
+  const server = createServer();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen({ port: 0, host, ipv6Only: true }, resolve);
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (server.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
+
+const hasIpv6 = await canListen("::1");
+
+test("port preflight passes on hosts without IPv6", async () => {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen({ port: 0, host: "127.0.0.1" }, resolve));
+  const address = server.address();
+  if (address === null || typeof address === "string") throw new Error("missing listener address");
+  const freePort = address.port;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+
+  await expect(ownership.assertRuntimePortsAvailable([freePort])).resolves.toBeUndefined();
+});
+
+test.each(["127.0.0.1", ...(hasIpv6 ? ["::1"] : [])])("port preflight refuses either foreign listener on %s without disturbing it", async (host) => {
   const server = createServer((socket) => socket.end("foreign listener\n"));
   await new Promise<void>((resolve) => server.listen({ port: 0, host, ipv6Only: true }, resolve));
   const address = server.address();
