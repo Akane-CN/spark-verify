@@ -46,14 +46,17 @@ export async function runProcess(argv: readonly string[], options: RunCommandOpt
   });
 
   let timedOut = false;
+  // A background descendant can keep the pipes (and so "close") open after the
+  // shell exits, so termination targets the group until close, not until exit.
+  let closed = false;
   let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
   const terminate = (): void => {
-    if (child.exitCode !== null || child.pid === undefined) return;
+    if (closed || child.pid === undefined) return;
     if (process.platform === "win32") child.kill("SIGTERM");
     else killProcessGroup(child.pid, "SIGTERM");
     if (forceKillTimer !== undefined) return;
     forceKillTimer = setTimeout(() => {
-      if (child.exitCode !== null || child.pid === undefined) return;
+      if (closed || child.pid === undefined) return;
       if (process.platform === "win32") child.kill("SIGKILL");
       else killProcessGroup(child.pid, "SIGKILL");
     }, 200);
@@ -72,7 +75,10 @@ export async function runProcess(argv: readonly string[], options: RunCommandOpt
     const { exitCode, signal } = await new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
       (resolve, reject) => {
         child.once("error", reject);
-        child.once("close", (exitCode, signal) => resolve({ exitCode, signal }));
+        child.once("close", (exitCode, signal) => {
+          closed = true;
+          resolve({ exitCode, signal });
+        });
       },
     );
     return {
