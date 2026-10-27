@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { sha256Bytes } from "../src/canonical";
 import {
   assertSafeArchiveEntry,
+  extractArchive,
   installPinnedCkbBinary,
   resolvePinnedCkbAsset,
   verifyPinnedCkbArchive,
@@ -108,6 +109,23 @@ describe("pinned CKB release assets", () => {
     for (const unsafeKind of ["symlink", "hardlink", "device"] as const) {
       expect(() => assertSafeArchiveEntry("ckb_v0.209.0/ckb", unsafeKind)).toThrow("unsafe archive entry type");
     }
+  });
+
+  test("rejects a link entry during real tar extraction", async () => {
+    const root = await mkdtemp(join(tmpdir(), "ckb-verify-ckb-binary-"));
+    directories.push(root);
+    const source = join(root, "source");
+    await mkdir(join(source, "fixture"), { recursive: true });
+    await writeFile(join(source, "fixture", "ckb"), "binary");
+    await symlink("/etc/passwd", join(source, "fixture", "link"));
+    const archivePath = join(root, "fixture.tar.gz");
+    await tar.c({ cwd: source, file: archivePath, gzip: true }, ["fixture"]);
+    const destination = join(root, "extract");
+    await mkdir(destination);
+    const asset = { format: "tar.gz", packageName: "fixture" } as PinnedCkbAsset;
+
+    await expect(extractArchive(archivePath, destination, asset)).rejects.toThrow("unsafe archive entry type");
+    expect(await readdir(join(destination, "fixture")).catch(() => [])).not.toContain("link");
   });
 
   test("installs only verified bytes and revalidates cached identity without downloading", async () => {
