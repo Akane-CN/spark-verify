@@ -17,6 +17,19 @@ It composes the existing CKB stack instead of replacing it:
 
 A passing report is not an audit, a sandbox, or proof that the manifest declared every important property. It means the runner observed all declared claims passing in the recorded environment.
 
+## Spore mint walkthrough
+
+[Watch the workflow video (3:26, English captions)](docs/media/spore-mint-workflow.mp4)
+
+A real Spore mint on a local CKB test chain, from defining the expected result to
+running the check and inspecting its report. The recording shows a valid mint
+passing its checks, an intentionally incorrect assertion failing, a transaction
+with a bad signature being rejected as expected, and matching verification
+results when rerun in the same environment.
+
+Follow the [setup and reproduction steps for the recorded revision](https://github.com/Akane-CN/spark-verify/blob/a7562917939e603f9e2d0dc3e55cb9e1ecd9a35e/showcases/ckb-ugmp/README.md)
+to run the example locally.
+
 ## Verified showcase
 
 The first repository showcase packages three secp256k1 transfer fixtures behind one reproducible acceptance command:
