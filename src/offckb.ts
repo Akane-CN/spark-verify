@@ -8,6 +8,7 @@ import { preparePinnedDebuggerBinary, assertVerifiedDebuggerExecutable, resolveP
   type PreparedDebuggerBinary, type DebuggerBinaryEvidence } from "./debugger-binary";
 import { rpcCall } from "./rpc";
 import { acquireRuntimeOwnership, assertRuntimePortsAvailable, type RuntimeOwnership } from "./runtime-ownership";
+import { assertInstalledOffckb, resolveOffckbPackage } from "./supply-chain";
 import { runProcess, type CommandResult, type RunCommandOptions } from "./process";
 
 export const OFFCKB_VERSION = "0.4.13";
@@ -249,6 +250,8 @@ interface OffckbDevnetOptions {
   prepareDebuggerBinary?: typeof preparePinnedDebuggerBinary;
   verifyDebuggerBinary?: typeof assertVerifiedDebuggerExecutable;
   preflight?: () => Promise<void>;
+  /** Installation check before any runtime mutation; defaults to the fail-closed patched-bundle check. */
+  verifyInstallation?: () => Promise<unknown>;
   timeoutMs?: number;
 }
 
@@ -332,6 +335,7 @@ export class OffckbDevnet {
   private readonly prepareDebuggerBinary: typeof preparePinnedDebuggerBinary;
   private readonly verifyDebuggerBinary: typeof assertVerifiedDebuggerExecutable;
   private readonly preflight: () => Promise<void>;
+  private readonly verifyInstallation: () => Promise<unknown>;
   private readonly timeoutMs: number;
   private started = false;
   private ownership: RuntimeOwnership | undefined;
@@ -360,7 +364,9 @@ export class OffckbDevnet {
     this.accountCount = options.accountCount;
     this.paths = createOffckbPaths(
       this.repositoryRoot,
-      options.offckbBinary ?? join(this.repositoryRoot, "node_modules", ".bin", "offckb"),
+      // Resolve OffCKB from ckb-verify's own dependency tree, so an installed copy never depends on
+      // the verified project's node_modules/.bin layout.
+      options.offckbBinary ?? join(resolveOffckbPackage(), "build", "index.js"),
     );
     this.run = options.run ?? runProcess;
     this.rpc = options.rpc ?? rpcCall;
@@ -368,6 +374,7 @@ export class OffckbDevnet {
     this.prepareDebuggerBinary = options.prepareDebuggerBinary ?? preparePinnedDebuggerBinary;
     this.verifyDebuggerBinary = options.verifyDebuggerBinary ?? assertVerifiedDebuggerExecutable;
     this.preflight = options.preflight ?? assertRuntimePortsAvailable;
+    this.verifyInstallation = options.verifyInstallation ?? (() => assertInstalledOffckb());
     this.timeoutMs = options.timeoutMs ?? 10 * 60_000;
   }
 
@@ -549,6 +556,13 @@ export class OffckbDevnet {
   private async startOwned(): Promise<OffckbRunContext> {
     this.ownership = await acquireRuntimeOwnership();
     try {
+      this.assertNotStopping();
+      // Installation check first: no preflight, install, config, clean, or launch on an unverified OffCKB.
+      try {
+        await this.verifyInstallation();
+      } catch (error) {
+        throw new OffckbProtocolError(error instanceof Error ? error.message : String(error), error instanceof Error ? { cause: error } : undefined);
+      }
       this.assertNotStopping();
       await this.preflight();
       this.assertNotStopping();

@@ -81,7 +81,7 @@ describe("OffckbDevnet", () => {
     directories.push(repository);
     let calls = 0;
     const devnet = new OffckbDevnet({
-      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2,
+      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},
       run: async () => { calls++; return success("install"); },
     });
     await expect(devnet.prepareDebugger("1.1.1")).rejects.toThrow("runtime is not owned");
@@ -93,7 +93,7 @@ describe("OffckbDevnet", () => {
     directories.push(repository);
     let calls = 0;
     const devnet = new OffckbDevnet({
-      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2,
+      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},
       run: async () => { calls++; return success("debug"); },
     });
     const owner = state === "losing" ? await acquireRuntimeOwnership() : undefined;
@@ -114,7 +114,7 @@ describe("OffckbDevnet", () => {
     const controller = new AbortController();
     const calls: string[] = [];
     const devnet = new OffckbDevnet({
-      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2,
+      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},
       installCkbBinary: async () => { controller.abort(); return fixtureCkbBinary(repository); },
       run: async (argv) => {
         calls.push(argv.slice(1).join(" "));
@@ -137,7 +137,7 @@ describe("OffckbDevnet", () => {
     const pending = new Promise<void>((resolve) => { finish = resolve; });
     const calls: string[] = [];
     const devnet = new OffckbDevnet({
-      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2,
+      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},
       installCkbBinary: async () => { entered(); await pending; return fixtureCkbBinary(repository); },
       run: async (argv) => {
         calls.push(argv.slice(1).join(" "));
@@ -174,7 +174,7 @@ describe("OffckbDevnet", () => {
       const calls: string[] = [];
       let stopping: Promise<void> | undefined;
       const devnet = new OffckbDevnet({
-        repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2,
+        repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},
         preflight: async () => { if (boundary === "preflight") stopping = devnet.stop(); },
         installCkbBinary: async () => { calls.push("install"); return fixtureCkbBinary(repository); },
         run: async (argv) => {
@@ -256,7 +256,7 @@ describe("OffckbDevnet", () => {
     directories.push(repository);
     let stopCalls = 0;
     const devnet = new OffckbDevnet({
-      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2,
+      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},
       installCkbBinary: async () => fixtureCkbBinary(repository),
       run: async (argv) => {
         if (argv[1] === "--version") return { ...success("version"), stdout: "0.4.13\n" };
@@ -281,7 +281,7 @@ describe("OffckbDevnet", () => {
     directories.push(repository);
     const calls: string[][] = [];
     const devnet = new OffckbDevnet({
-      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2,
+      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},
       run: async (argv) => { calls.push([...argv]); return success("unexpected"); },
     });
     await Bun.write(devnet.paths.accountsPath, "owner's accounts");
@@ -388,6 +388,7 @@ describe("OffckbDevnet", () => {
     const native = await inertDebugger(repository);
     const devnet = new OffckbDevnet({
       repositoryRoot: repository,
+      offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},
       ckbVersion: "0.209.0",
       accountCount: 2,
       run,
@@ -501,7 +502,7 @@ describe("OffckbDevnet", () => {
       return { ...success("version"), stdout: "0.4.12\n" };
     };
     const devnet = new OffckbDevnet({
-      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, run,
+      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},  run,
       installCkbBinary: async () => fixtureCkbBinary(repository),
     });
 
@@ -529,7 +530,7 @@ describe("OffckbDevnet", () => {
       return success(argv[2] ?? "unknown");
     };
     const devnet = new OffckbDevnet({
-      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, run,
+      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},  run,
       installCkbBinary: async () => fixtureCkbBinary(repository),
     });
 
@@ -555,7 +556,7 @@ describe("OffckbDevnet", () => {
       return success(argv[2] ?? "unknown");
     };
     const devnet = new OffckbDevnet({
-      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, run,
+      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},  run,
       installCkbBinary: async () => fixtureCkbBinary(repository),
     });
 
@@ -580,7 +581,7 @@ describe("OffckbDevnet", () => {
       return success(argv[2] ?? "unknown");
     };
     const devnet = new OffckbDevnet({
-      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, run,
+      repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, offckbBinary: join(repository, "node_modules/.bin/offckb"), verifyInstallation: async () => {},  run,
       installCkbBinary: async () => fixtureCkbBinary(repository),
     });
 

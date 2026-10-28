@@ -23,7 +23,7 @@ test("debugger admission does zero work until startup has fully succeeded", asyn
   const root = await mkdtemp(join(tmpdir(), "debugger-admission-")); roots.push(root);
   const entered = deferred<void>(); const setup = deferred<void>();
   let work = 0;
-  const devnet = new OffckbDevnet({ repositoryRoot: root, ckbVersion: "0.209.0", accountCount: 1,
+  const devnet = new OffckbDevnet({ repositoryRoot: root, ckbVersion: "0.209.0", accountCount: 1, verifyInstallation: async () => {},
     preflight: async () => { entered.resolve(); await setup.promise; },
     run: async () => { work++; throw new Error("unexpected process"); },
   });
