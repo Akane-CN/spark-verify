@@ -12,6 +12,7 @@
     "test": "bun test",
     "showcase:secp-transfer": "bash showcases/secp-transfer/verify.sh",
     "showcase:cell-properties": "bash showcases/cell-properties/verify.sh",
+    "showcase:ckb-ugmp": "bash showcases/ckb-ugmp/verify.sh",
     "test:devnet": "bun run showcase:secp-transfer",
     "check:supply-chain": "bun run scripts/check-supply-chain.ts",
     "typecheck": "tsc --noEmit",
@@ -30,6 +31,7 @@
   "packageManager": "bun@1.2.19",
   "dependencies": {
     "@ckb-ccc/core": "1.14.0",
+    "@ckb-ccc/spore": "1.5.17",
     "@offckb/cli": "0.4.13",
     "adm-zip": "0.6.1",
     "follow-redirects": "1.16.1",
