@@ -50,6 +50,8 @@ export function lifecycleFixture(root: string) {
     return success(command);
   };
   return { calls, paths, options: { repositoryRoot: root, ckbVersion: "0.209.0", accountCount: 1, run,
+    offckbBinary: paths.offckbBinary, // inert path: every command is mocked
+    verifyInstallation: async () => {}, // the real check is covered by offckb-installation.test.ts
     preflight: async () => {},
     rpc: async (_url: string, method: string) => method === "local_node_info" ? { version: "0.209.0" } : { header: { hash: `0x${"22".repeat(32)}` } },
     installCkbBinary: async () => ({ path: join(root, "never-executed-ckb"), version: "0.209.0", platform: "linux" as const,

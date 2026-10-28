@@ -8,6 +8,17 @@
   "bin": {
     "ckb-verify": "./src/cli.ts"
   },
+  "files": [
+    "src",
+    "schemas",
+    "patches",
+    "docs/install.md",
+    "docs/offline-verification.md",
+    "docs/evidence-report.md",
+    "docs/annotated-manifest.md",
+    "docs/cell-claims-draft.4.md",
+    "SECURITY.md"
+  ],
   "scripts": {
     "test": "bun test",
     "showcase:secp-transfer": "bash showcases/secp-transfer/verify.sh",
@@ -26,7 +37,8 @@
     "typescript": "5.9.2"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "bun": ">=1.2.19"
   },
   "packageManager": "bun@1.2.19",
   "dependencies": {

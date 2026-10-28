@@ -137,3 +137,61 @@ export function assertOffckbUsesExternalLibraries(bundle: string): void {
     throw new Error(`OffCKB bundle must contain exactly 1 patched follow-redirects import; observed ${patchedRedirectCount}`);
   }
 }
+
+import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+
+export const OFFCKB_PACKAGE_VERSION = "0.4.13";
+const OFFCKB_EXTERNAL_LIBRARIES: ReadonlyArray<readonly [name: string, version: string]> = [
+  ["adm-zip", "0.6.1"],
+  ["tar", "7.5.22"],
+  ["follow-redirects", "1.16.1"],
+];
+
+/** Locates the OffCKB CLI from ckb-verify's own dependency tree, never from the project being verified. */
+export function resolveOffckbPackage(fromUrl: string = import.meta.url): string {
+  return dirname(createRequire(fromUrl).resolve("@offckb/cli/package.json"));
+}
+
+export interface InstalledOffckb {
+  packageRoot: string;
+  /** The executable OffCKB entry (`build/index.js`, shebang `node`), the same file the `.bin` shim links to. */
+  binaryPath: string;
+}
+
+export class OffckbInstallationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OffckbInstallationError";
+  }
+}
+
+/**
+ * Fail-closed installation check run before any devnet mutation. A package manager applies
+ * `patchedDependencies` only from the installing project's own package.json, so an installed copy of
+ * ckb-verify may sit next to an unpatched OffCKB bundle that still embeds vulnerable archive code.
+ */
+export async function assertInstalledOffckb(fromUrl: string = import.meta.url): Promise<InstalledOffckb> {
+  const remedy = "The shipped patch must be active in the installing project (see docs/install.md); refusing to start a devnet.";
+  let packageRoot: string;
+  try {
+    packageRoot = resolveOffckbPackage(fromUrl);
+  } catch (error) {
+    throw new OffckbInstallationError(`OffCKB CLI is not installed next to ckb-verify: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const binaryPath = join(packageRoot, "build", "index.js");
+  try {
+    assertPackageVersion(JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")), "@offckb/cli", OFFCKB_PACKAGE_VERSION);
+    assertOffckbUsesExternalLibraries(await readFile(binaryPath, "utf8"));
+    const requireFromOffckb = createRequire(binaryPath);
+    for (const [name, version] of OFFCKB_EXTERNAL_LIBRARIES) {
+      assertPackageVersion(JSON.parse(await readFile(requireFromOffckb.resolve(`${name}/package.json`), "utf8")), name, version);
+    }
+  } catch (error) {
+    throw new OffckbInstallationError(
+      `OffCKB installation is not the verified patched build: ${error instanceof Error ? error.message : String(error)}. ${remedy}`,
+    );
+  }
+  return { packageRoot, binaryPath };
+}

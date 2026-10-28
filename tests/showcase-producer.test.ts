@@ -339,7 +339,12 @@ test("cell-properties named bounded CI command routes six cases and repeat but r
   const job = workflow.split("  cell-properties:")[1]!;
   expect(job).toContain("timeout-minutes: 40");
   expect(job).toContain("run: bun run showcase:cell-properties");
-  expect(job).not.toMatch(/upload-artifact|pull_request_target/);
+  expect(job).not.toMatch(/pull_request_target/);
+  // Evidence upload (#19) is pinned by commit, fails on an empty bundle, and never archives the workspace.
+  expect(job).toContain("uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02");
+  expect(job).toContain("path: evidence/cell-properties");
+  expect(job).toContain("if-no-files-found: error");
+  expect(job).not.toMatch(/path: \.\n|path: \.ckb-verify/);
 });
 
 test("cell-properties never announces acceptance before final independent closeout", () => {
