@@ -42,11 +42,11 @@ verify_report() {
   report=$(extract_report "$output")
   bun -e '
     import { readFile } from "node:fs/promises";
-    import { verifyEvidenceDigests } from "./src/report.ts";
+    import { verifyReport } from "./src/report.ts";
     const path = process.argv[1];
     if (path === undefined) throw new Error("missing report path");
     const report = JSON.parse(await readFile(path, "utf8"));
-    verifyEvidenceDigests(report);
+    verifyReport(report);
   ' "$report"
 }
 

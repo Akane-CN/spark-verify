@@ -2,7 +2,12 @@ import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { isDeepStrictEqual } from "node:util";
+import { installPinnedCkbBinary, type InstalledCkbBinary } from "./ckb-binary";
+import { preparePinnedDebuggerBinary, assertVerifiedDebuggerExecutable, resolvePinnedDebuggerAsset,
+  type PreparedDebuggerBinary, type DebuggerBinaryEvidence } from "./debugger-binary";
 import { rpcCall } from "./rpc";
+import { acquireRuntimeOwnership, assertRuntimePortsAvailable, type RuntimeOwnership } from "./runtime-ownership";
 import { runProcess, type CommandResult, type RunCommandOptions } from "./process";
 
 export const OFFCKB_VERSION = "0.4.13";
@@ -20,6 +25,7 @@ export interface OffckbPaths {
   dataHome: string;
   cacheHome: string;
   stateHome: string;
+  toolchainRoot: string;
   systemScriptsPath: string;
   accountsPath: string;
   contextPath: string;
@@ -97,6 +103,7 @@ export function createOffckbPaths(repositoryRoot: string, offckbBinary: string):
     dataHome,
     cacheHome: join(root, "cache"),
     stateHome: join(root, "state"),
+    toolchainRoot: join(dataHome, "offckb-nodejs", "bins"),
     systemScriptsPath: join(root, "system-scripts.json"),
     accountsPath: join(root, "accounts.json"),
     contextPath: join(root, "context.json"),
@@ -208,12 +215,19 @@ export type OffckbCommandRunner = (
 ) => Promise<CommandResult>;
 
 export type OffckbRpcCaller = (url: string, method: string, params?: unknown[]) => Promise<unknown>;
+export type CkbBinaryInstaller = (version: string, root: string) => Promise<InstalledCkbBinary>;
+
+export interface PreparedDebugger {
+  version: string;
+  binary: DebuggerBinaryEvidence;
+}
 
 export interface OffckbRunContext {
   network: "devnet";
   offckbVersion: typeof OFFCKB_VERSION;
   ckbRequestedVersion: string;
   ckbVersion: string;
+  ckbBinary: Omit<InstalledCkbBinary, "path">;
   genesisHash: string;
   rpcUrl: string;
   proxyUrl: string;
@@ -230,6 +244,11 @@ interface OffckbDevnetOptions {
   offckbBinary?: string;
   run?: OffckbCommandRunner;
   rpc?: OffckbRpcCaller;
+  installCkbBinary?: CkbBinaryInstaller;
+  // Trusted constructor seams for offline fixtures, never manifest inputs.
+  prepareDebuggerBinary?: typeof preparePinnedDebuggerBinary;
+  verifyDebuggerBinary?: typeof assertVerifiedDebuggerExecutable;
+  preflight?: () => Promise<void>;
   timeoutMs?: number;
 }
 
@@ -309,8 +328,24 @@ export class OffckbDevnet {
   readonly accountCount: number;
   private readonly run: OffckbCommandRunner;
   private readonly rpc: OffckbRpcCaller;
+  private readonly installCkbBinary: CkbBinaryInstaller;
+  private readonly prepareDebuggerBinary: typeof preparePinnedDebuggerBinary;
+  private readonly verifyDebuggerBinary: typeof assertVerifiedDebuggerExecutable;
+  private readonly preflight: () => Promise<void>;
   private readonly timeoutMs: number;
   private started = false;
+  private ownership: RuntimeOwnership | undefined;
+  private prepared = false;
+  private ready = false;
+  private starting: Promise<OffckbRunContext> | undefined;
+  private stopping: Promise<void> | undefined;
+  private stopRequested = false;
+  private signal: AbortSignal | undefined;
+  private cancellation = new AbortController();
+  private readonly commands = new Set<Promise<unknown>>();
+  private debuggerPreparation: { version: string; promise: Promise<PreparedDebugger> } | undefined;
+  private debuggerCapability: PreparedDebuggerBinary | undefined;
+  private debuggerSettings: JsonObject | undefined;
   private activeEndpoints: string[] = [];
 
   constructor(options: OffckbDevnetOptions) {
@@ -329,6 +364,10 @@ export class OffckbDevnet {
     );
     this.run = options.run ?? runProcess;
     this.rpc = options.rpc ?? rpcCall;
+    this.installCkbBinary = options.installCkbBinary ?? ((version, root) => installPinnedCkbBinary({ version, root }));
+    this.prepareDebuggerBinary = options.prepareDebuggerBinary ?? preparePinnedDebuggerBinary;
+    this.verifyDebuggerBinary = options.verifyDebuggerBinary ?? assertVerifiedDebuggerExecutable;
+    this.preflight = options.preflight ?? assertRuntimePortsAvailable;
     this.timeoutMs = options.timeoutMs ?? 10 * 60_000;
   }
 
@@ -339,16 +378,110 @@ export class OffckbDevnet {
       XDG_CACHE_HOME: this.paths.cacheHome,
       XDG_STATE_HOME: this.paths.stateHome,
       NO_COLOR: "1",
+      OFFCKB_DEBUGGER_GUARD: "1",
     };
   }
 
-  private async command(args: readonly string[], options: { sensitive?: boolean; timeoutMs?: number } = {}): Promise<CommandResult> {
-    const argv = [this.paths.offckbBinary, "--json", ...args];
-    const result = await this.run(argv, {
-      cwd: this.repositoryRoot,
-      env: this.environment(),
-      timeoutMs: options.timeoutMs ?? this.timeoutMs,
+  private assertNotStopping(): void {
+    if (this.stopRequested || this.signal?.aborted) throw new OffckbProtocolError("OffCKB setup interrupted");
+  }
+
+  private assertDebuggerReady(): void {
+    if (this.ownership === undefined) throw new OffckbProtocolError("OffCKB runtime is not owned by this runner");
+    this.assertNotStopping();
+    if (!this.ready || this.starting !== undefined) throw new OffckbProtocolError("OffCKB devnet is not ready");
+  }
+
+  async prepareDebugger(version: string): Promise<PreparedDebugger> {
+    this.assertDebuggerReady();
+    resolvePinnedDebuggerAsset(version, process.platform, process.arch);
+    if (this.debuggerPreparation !== undefined) {
+      if (this.debuggerPreparation.version !== version) throw new OffckbProtocolError("conflicting debugger version");
+      return this.debuggerPreparation.promise;
+    }
+    const promise = this.runOwnedTask(async () => {
+      const capability = await this.prepareDebuggerBinary({ version,
+        root: join(this.paths.cacheHome, "verified-debugger"),
+        snapshotRoot: join(this.paths.dataHome, "offckb-nodejs", "debugger-runs"),
+        ...(this.signal === undefined ? {} : { signal: this.signal }),
+      });
+      try {
+        this.assertNotStopping();
+        const settingsPath = join(this.paths.configHome, "offckb-nodejs", "settings.json");
+        const settings = requiredObject(JSON.parse(await readFile(settingsPath, "utf8")), "OffCKB settings");
+        // OffCKB catches these validation errors and silently loads defaults.
+        // Refuse here instead of executing against that fallback configuration.
+        for (const key of ["bins", "tools", "devnet", "testnet", "mainnet"]) {
+          if (settings[key] !== undefined) requiredObject(settings[key], `OffCKB settings.${key}`);
+        }
+        if (settings.proxy !== undefined && settings.proxy !== null) requiredObject(settings.proxy, "OffCKB settings.proxy");
+        const tools = settings.tools === undefined ? {} : requiredObject(settings.tools, "OffCKB settings.tools");
+        if (tools.rootFolder !== undefined) requiredString(tools.rootFolder, "OffCKB settings.tools.rootFolder");
+        if (tools.ckbTui !== undefined) {
+          const tui = requiredObject(tools.ckbTui, "OffCKB settings.tools.ckbTui");
+          if (tui.version !== undefined) requiredString(tui.version, "OffCKB settings.tools.ckbTui.version");
+        }
+        settings.tools = { ...tools, rootFolder: capability.directory };
+        this.assertNotStopping();
+        await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
+        this.assertNotStopping();
+        await this.verifyDebuggerBinary(capability, this.signal);
+        await this.assertDebuggerSettings(settings);
+        this.assertNotStopping();
+        const result = await this.run([capability.path, "--version"], {
+          cwd: this.repositoryRoot, env: this.environment(), timeoutMs: 30_000,
+          ...(this.signal === undefined ? {} : { signal: this.signal }),
+        });
+        this.assertNotStopping();
+        if (result.timedOut || result.exitCode !== 0 || result.stdout.trim() !== `ckb-debugger ${version}`) {
+          throw new OffckbProtocolError(`ckb-debugger --version does not match required ckb-debugger ${version}`);
+        }
+        this.debuggerCapability = capability;
+        this.debuggerSettings = settings;
+        return { version: result.stdout.trim(), binary: capability.evidence };
+      } catch (error) {
+        try { await capability.cleanup(); }
+        catch (cleanupError) { throw new AggregateError([error, cleanupError], "debugger preparation and cleanup failed"); }
+        throw error;
+      }
     });
+    this.debuggerPreparation = { version, promise };
+    return promise;
+  }
+
+  private async assertDebuggerSettings(expected: JsonObject | undefined): Promise<void> {
+    const settings = JSON.parse(await readFile(join(this.paths.configHome, "offckb-nodejs", "settings.json"), "utf8"));
+    if (expected === undefined || !isDeepStrictEqual(settings, expected)) throw new OffckbProtocolError("debugger settings changed");
+  }
+
+  private async runOwnedTask<T>(task: () => Promise<T>, cleanup = false): Promise<T> {
+    if (this.ownership === undefined) throw new OffckbProtocolError("OffCKB runtime is not owned by this runner");
+    if (!cleanup) this.assertNotStopping();
+    // Register before deferred work. No task may await start()/stop() or queue
+    // another owned task; closeout drains whole operations, not just processes.
+    const running = Promise.resolve().then(() => {
+      if (!cleanup) this.assertNotStopping();
+      return task();
+    });
+    this.commands.add(running);
+    try {
+      const result = await running;
+      if (!cleanup) this.assertNotStopping();
+      return result;
+    } finally {
+      this.commands.delete(running);
+    }
+  }
+
+  private runOwnedCommand(args: readonly string[], options: { timeoutMs?: number; cleanup?: boolean } = {}): Promise<CommandResult> {
+    return this.runOwnedTask(() => this.run([this.paths.offckbBinary, "--json", ...args], {
+      cwd: this.repositoryRoot, env: this.environment(), timeoutMs: options.timeoutMs ?? this.timeoutMs,
+      ...(!options.cleanup && this.signal !== undefined ? { signal: this.signal } : {}),
+    }), options.cleanup);
+  }
+
+  private async command(args: readonly string[], options: { sensitive?: boolean; timeoutMs?: number; cleanup?: boolean } = {}): Promise<CommandResult> {
+    const result = await this.runOwnedCommand(args, options);
     if (result.timedOut || result.exitCode !== 0) {
       const operation = `offckb ${args.join(" ")}`;
       if (options.sensitive) {
@@ -379,15 +512,60 @@ export class OffckbDevnet {
     }
   }
 
-  async start(): Promise<OffckbRunContext> {
-    if (this.started) throw new OffckbProtocolError("OffCKB devnet is already started by this runner");
-    await this.verifyVersion();
-    await mkdir(this.paths.root, { recursive: true });
+  async start(signal?: AbortSignal): Promise<OffckbRunContext> {
+    if (this.starting !== undefined || this.stopping !== undefined || this.ownership !== undefined) {
+      throw new OffckbProtocolError("OffCKB devnet is already started by this runner");
+    }
+    this.stopRequested = false;
+    this.ready = false;
+    this.cancellation = new AbortController();
+    this.signal = signal === undefined ? this.cancellation.signal : AbortSignal.any([signal, this.cancellation.signal]);
+    const starting = this.startOwned();
+    this.starting = starting;
     try {
+      const context = await starting;
+      try {
+        this.assertNotStopping();
+        this.ready = true;
+        return context;
+      } catch (error) {
+        // Initialization succeeded, but its context was never handed to the caller.
+        // stop() coalesces teardown and awaits only the inner initialization promise,
+        // not this public start() promise whose rejection must wait for cleanup.
+        try { await this.stop(); }
+        catch (cleanupError) {
+          const startupMessage = error instanceof Error ? error.message : String(error);
+          const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+          throw new AggregateError([error, cleanupError],
+            `OffCKB startup failed: ${startupMessage}; cleanup failed: ${cleanupMessage}`);
+        }
+        throw error;
+      }
+    } finally {
+      this.starting = undefined;
+    }
+  }
+
+  private async startOwned(): Promise<OffckbRunContext> {
+    this.ownership = await acquireRuntimeOwnership();
+    try {
+      this.assertNotStopping();
+      await this.preflight();
+      this.assertNotStopping();
+      await this.verifyVersion();
+      this.assertNotStopping();
+      this.prepared = true;
+      await mkdir(this.paths.root, { recursive: true });
+      this.assertNotStopping();
+      const installedCkbBinary = await this.installCkbBinary(this.ckbVersion, this.paths.toolchainRoot);
+      this.assertNotStopping();
+      const { path: ckbBinaryPath, ...ckbBinary } = installedCkbBinary;
       await this.command(["config", "set", "ckb-version", this.ckbVersion]);
       await this.command(["clean"]);
-      const node = await this.command(["node", this.ckbVersion, "--daemon"]);
+      // A failing/timed-out launch may already have detached a daemon.
       this.started = true;
+      this.activeEndpoints = ["http://127.0.0.1:8114", "http://127.0.0.1:28114"];
+      const node = await this.command(["node", "--binary-path", ckbBinaryPath, "--daemon"]);
       parseOffckbResult(node.stdout, "node");
 
       const infoOutput = await this.command(["devnet", "info"]);
@@ -413,8 +591,10 @@ export class OffckbDevnet {
         );
       }
       const systemScripts = normalizeSystemScripts(rawScripts);
+      this.assertNotStopping();
 
       const nodeInfo = requiredObject(await this.rpc(rpcUrl, "local_node_info", []), "local_node_info result");
+      this.assertNotStopping();
       const actualCkbVersion = requiredString(nodeInfo.version, "local_node_info.version");
       if (!actualCkbVersion.startsWith(`${this.ckbVersion} `) && actualCkbVersion !== this.ckbVersion) {
         throw new OffckbProtocolError(
@@ -422,6 +602,7 @@ export class OffckbDevnet {
         );
       }
       const genesis = requiredObject(await this.rpc(rpcUrl, "get_block_by_number", ["0x0"]), "genesis block");
+      this.assertNotStopping();
       const header = requiredObject(genesis.header, "genesis block.header");
       const genesisHash = hash(header.hash, "genesis block.header.hash");
 
@@ -430,6 +611,7 @@ export class OffckbDevnet {
         offckbVersion: OFFCKB_VERSION,
         ckbRequestedVersion: this.ckbVersion,
         ckbVersion: actualCkbVersion,
+        ckbBinary,
         genesisHash,
         rpcUrl,
         proxyUrl,
@@ -443,10 +625,15 @@ export class OffckbDevnet {
         `${JSON.stringify({ ...context, accountsPath: "[REDACTED]" }, null, 2)}\n`,
         { mode: 0o600 },
       );
+      this.assertNotStopping();
       return context;
     } catch (error) {
+      // Close admission before draining; stop() would await this startup itself.
+      this.stopRequested = true;
+      this.cancellation.abort(new OffckbProtocolError("OffCKB setup interrupted"));
+      await Promise.allSettled(this.commands);
       try {
-        await this.stop();
+        await this.cleanupOwned();
       } catch (cleanupError) {
         const startupMessage = error instanceof Error ? error.message : String(error);
         const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
@@ -459,63 +646,66 @@ export class OffckbDevnet {
     }
   }
 
-  async installDebugger(): Promise<void> {
-    const result = await this.command(["install", "ckb-debugger"]);
-    parseOffckbResult(result.stdout, "install");
-  }
-
-  async debuggerVersion(): Promise<string> {
-    const result = await this.run([this.paths.debuggerPath, "--version"], {
-      cwd: this.repositoryRoot,
-      env: this.environment(),
-      timeoutMs: 30_000,
-    });
-    if (result.timedOut || result.exitCode !== 0) {
-      throw new OffckbProtocolError(
-        `ckb-debugger --version ${result.timedOut ? "timed out" : `exited ${String(result.exitCode)}`}`,
-      );
-    }
-    const version = result.stdout.trim().split(/\r?\n/, 1)[0];
-    if (version === undefined || version === "") throw new OffckbProtocolError("ckb-debugger --version returned no version");
-    return version;
-  }
 
   async debugScript(
     txHash: string,
     source: { cell: "input" | "output"; index: number; role: "lock" | "type" },
   ): Promise<CommandResult> {
+    this.assertDebuggerReady();
     if (!/^0x[0-9a-f]{64}$/.test(txHash)) throw new OffckbProtocolError("debug transaction hash is invalid");
     if (!Number.isInteger(source.index) || source.index < 0) throw new OffckbProtocolError("debug cell index is invalid");
     const script = `${source.cell}[${source.index}].${source.role}`;
-    const result = await this.run(
-      [
-        this.paths.offckbBinary,
-        "--json",
-        "debug",
-        "--tx-hash",
-        txHash,
-        "--single-script",
-        script,
-      ],
-      {
-        cwd: this.repositoryRoot,
-        env: this.environment(),
-        timeoutMs: 60_000,
-      },
-    );
-    if (result.timedOut) throw new OffckbProtocolError(`offckb debug timed out for ${script}`);
-    return result;
+    const capability = this.debuggerCapability;
+    if (capability === undefined) throw new OffckbProtocolError("debugger is not prepared");
+    return this.runOwnedTask(async () => {
+      await this.assertDebuggerSettings(this.debuggerSettings);
+      await this.verifyDebuggerBinary(capability, this.signal);
+      await this.assertDebuggerSettings(this.debuggerSettings);
+      this.assertNotStopping();
+      const result = await this.run([this.paths.offckbBinary, "--json", "debug", "--tx-hash", txHash, "--single-script", script], {
+        cwd: this.repositoryRoot, env: this.environment(), timeoutMs: 60_000,
+        ...(this.signal === undefined ? {} : { signal: this.signal }),
+      });
+      this.assertNotStopping();
+      if (result.timedOut) throw new OffckbProtocolError(`offckb debug timed out for ${script}`);
+      return result;
+    });
   }
 
-  async stop(): Promise<void> {
-    const endpoints = this.activeEndpoints;
-    try {
-      if (this.started) await this.command(["node", "stop"], { timeoutMs: 60_000 });
-      await waitForLocalEndpointsClosed(endpoints);
-    } finally {
-      this.started = false;
-      this.activeEndpoints = [];
-      await rm(this.paths.accountsPath, { force: true });
-    }
+  stop(): Promise<void> {
+    this.stopRequested = true;
+    this.ready = false;
+    this.cancellation.abort(new OffckbProtocolError("OffCKB setup interrupted"));
+    this.stopping ??= this.finishStop().finally(() => { this.stopping = undefined; });
+    return this.stopping;
+  }
+
+  private async finishStop(): Promise<void> {
+    if (this.starting !== undefined) await this.starting.catch(() => undefined);
+    await Promise.allSettled(this.commands);
+    await this.cleanupOwned();
+  }
+
+  private async cleanupOwned(): Promise<void> {
+    const ownership = this.ownership;
+    if (ownership === undefined) return;
+    const errors: unknown[] = [];
+    const attempt = async (cleanup: () => Promise<unknown>): Promise<void> => {
+      try { await cleanup(); } catch (error) { errors.push(error); }
+    };
+    if (this.started) await attempt(() => this.command(["node", "stop"], { timeoutMs: 60_000, cleanup: true }));
+    await attempt(() => waitForLocalEndpointsClosed(this.activeEndpoints));
+    this.started = false;
+    this.ready = false;
+    this.activeEndpoints = [];
+    if (this.prepared) await attempt(() => rm(this.paths.accountsPath, { force: true }));
+    if (this.debuggerCapability !== undefined) await attempt(() => this.debuggerCapability!.cleanup());
+    this.prepared = false;
+    this.debuggerCapability = undefined;
+    this.debuggerSettings = undefined;
+    this.debuggerPreparation = undefined;
+    await attempt(async () => { await ownership.release(); this.ownership = undefined; });
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) throw new AggregateError(errors, errors.map(error => error instanceof Error ? error.message : String(error)).join("; "));
   }
 }

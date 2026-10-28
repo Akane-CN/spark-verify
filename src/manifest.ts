@@ -1,10 +1,15 @@
 import { ManifestError } from "./errors";
+import { resolvePinnedDebuggerAsset } from "./debugger-binary";
 import type {
   CellAssertion,
+  ClaimV4,
+  CellAssertionV4,
+  Builtin,
   Manifest,
   ManifestMeta,
   ManifestStep,
   ManifestToolchain,
+  ReplayDependency,
   StepExpectation,
   TransactionExpectation,
 } from "./types";
@@ -12,8 +17,16 @@ import type {
 export { ManifestError } from "./errors";
 
 const SPEC_VERSION = "0.1.0-draft.3" as const;
+export const MAX_BYTES = 1_048_576; // Runner resource policy, not consensus.
 const OFFCKB_VERSION = "0.4.13" as const;
 const EXACT_VERSION = /^\d+\.\d+\.\d+$/;
+const REPLAY_DEPENDENCIES = new Set<ReplayDependency>([
+  "external_time",
+  "randomness",
+  "fee_estimation",
+  "dynamic_since",
+  "external_network",
+]);
 
 type TomlObject = Record<string, unknown>;
 
@@ -57,7 +70,7 @@ function parseMeta(value: unknown, source: string): ManifestMeta {
   exactKeys(table, ["name", "spec", "description"], "meta", source);
   const name = requiredString(table.name, "meta.name", source);
   if (name.length > 100) fail(source, "meta.name must not exceed 100 characters");
-  if (table.spec !== SPEC_VERSION) fail(source, `meta.spec must equal "${SPEC_VERSION}"`);
+  if (table.spec !== SPEC_VERSION && table.spec !== "0.1.0-draft.4") fail(source, 'meta.spec must equal "0.1.0-draft.3" or "0.1.0-draft.4"');
 
   let description: string | undefined;
   if (table.description !== undefined) {
@@ -66,7 +79,7 @@ function parseMeta(value: unknown, source: string): ManifestMeta {
 
   return {
     name,
-    spec: SPEC_VERSION,
+    spec: table.spec,
     ...(description === undefined ? {} : { description }),
   };
 }
@@ -82,6 +95,8 @@ function parseToolchain(value: unknown, source: string): ManifestToolchain {
   let ckbDebugger: string | undefined;
   if (table["ckb-debugger"] !== undefined) {
     ckbDebugger = exactVersion(table["ckb-debugger"], "toolchain.ckb-debugger", source);
+    try { resolvePinnedDebuggerAsset(ckbDebugger, "linux", "x64"); }
+    catch (error) { fail(source, "toolchain.ckb-debugger has no supported pinned artifact", error); }
   }
 
   return {
@@ -91,16 +106,22 @@ function parseToolchain(value: unknown, source: string): ManifestToolchain {
   };
 }
 
-function parseReplay(value: unknown, source: string): { dependencies: [] } {
+function parseReplay(value: unknown, source: string): { dependencies: ReplayDependency[] } {
   const table = asObject(value, "replay", source);
   exactKeys(table, ["dependencies"], "replay", source);
   if (!Array.isArray(table.dependencies)) {
     fail(source, "replay.dependencies must be an array");
   }
-  if (table.dependencies.length !== 0) {
-    fail(source, "replay.dependencies must be empty in the MVP runner");
+  const dependencies = table.dependencies.map((dependency, index) => {
+    if (typeof dependency !== "string" || !REPLAY_DEPENDENCIES.has(dependency as ReplayDependency)) {
+      fail(source, `replay.dependencies[${index}] must be a supported replay dependency`);
+    }
+    return dependency as ReplayDependency;
+  });
+  if (new Set(dependencies).size !== dependencies.length) {
+    fail(source, "replay.dependencies must not contain duplicates");
   }
-  return { dependencies: [] };
+  return { dependencies };
 }
 
 function parseSetup(value: unknown, source: string): { accounts: number } {
@@ -191,7 +212,68 @@ function parseCellAssertions(
   });
 }
 
-function parseSteps(value: unknown, source: string): ManifestStep[] {
+function boundedInteger(value: unknown, min: number, max: number, path: string, source: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < min || value > max) {
+    fail(source, `${path} must be a safe integer between ${min} and ${max}`);
+  }
+  return value;
+}
+
+function builtin(value: unknown, path: string, source: string): Builtin {
+  if (value !== "dao" && value !== "spore") fail(source, `${path} must be dao or spore`);
+  return value;
+}
+
+function parseAssertionsV4(value: unknown, path: string, names: ReadonlySet<string>, source: string): ClaimV4[] {
+  if (value === undefined) return [];
+  const container = asObject(value, path, source);
+  exactKeys(container, ["cell", "cell_deps"], path, source);
+  const cells = container.cell ?? [];
+  if (!Array.isArray(cells)) fail(source, `${path}.cell must be an array of tables`);
+  const claims: ClaimV4[] = cells.map((raw, i): CellAssertionV4 => {
+    const p = `${path}.cell[${i}]`;
+    const item = asObject(raw, p, source);
+    exactKeys(item, ["out_point", "count", "type", "data"], p, source);
+    const out = asObject(item.out_point, `${p}.out_point`, source);
+    exactKeys(out, ["step", "index"], `${p}.out_point`, source);
+    const step = requiredString(out.step, `${p}.out_point.step`, source);
+    if (!names.has(step)) fail(source, `${p}.out_point.step must reference this or an earlier step`);
+    const index = boundedInteger(out.index, 0, 0xffff_ffff, `${p}.out_point.index`, source);
+    const count = boundedInteger(item.count, 0, 1, `${p}.count`, source) as 0 | 1;
+    let type: CellAssertionV4["type"];
+    if (Object.hasOwn(item, "type")) {
+      if (count !== 1) fail(source, `${p}.type requires count = 1`);
+      const t = asObject(item.type, `${p}.type`, source);
+      exactKeys(t, ["builtin", "args_bytes"], `${p}.type`, source);
+      type = { kind: "builtin", name: builtin(t.builtin, `${p}.type.builtin`, source),
+        argsBytes: boundedInteger(t.args_bytes, 0, MAX_BYTES, `${p}.type.args_bytes`, source) };
+    }
+    let data: CellAssertionV4["data"];
+    if (Object.hasOwn(item, "data")) {
+      if (count !== 1) fail(source, `${p}.data requires count = 1`);
+      const d = asObject(item.data, `${p}.data`, source);
+      exactKeys(d, ["min_bytes"], `${p}.data`, source);
+      data = { minBytes: boundedInteger(d.min_bytes, 1, MAX_BYTES, `${p}.data.min_bytes`, source) };
+    }
+    return { kind: "cell", outPoint: { step, index }, count, ...(type === undefined ? {} : { type }), ...(data === undefined ? {} : { data }) };
+  });
+  const deps = container.cell_deps ?? [];
+  if (!Array.isArray(deps)) fail(source, `${path}.cell_deps must be an array of tables`);
+  deps.forEach((raw, i) => {
+    const p = `${path}.cell_deps[${i}]`, d = asObject(raw, p, source);
+    exactKeys(d, ["step", "contains"], p, source);
+    const step = requiredString(d.step, `${p}.step`, source);
+    if (!names.has(step)) fail(source, `${p}.step must reference this or an earlier step`);
+    const contains = asObject(d.contains, `${p}.contains`, source);
+    exactKeys(contains, ["builtin"], `${p}.contains`, source);
+    claims.push({ kind: "cell_deps", step, contains: { kind: "builtin", name: builtin(contains.builtin, `${p}.contains.builtin`, source) } });
+  });
+  return claims;
+}
+
+function parseSteps<A>(value: unknown, source: string,
+  assertions: (value: unknown, path: string, names: ReadonlySet<string>, source: string) => A[],
+): ManifestStep<A>[] {
   if (!Array.isArray(value) || value.length === 0) {
     fail(source, "step must contain at least one array table");
   }
@@ -221,7 +303,7 @@ function parseSteps(value: unknown, source: string): ManifestStep[] {
       run: requiredString(table.run, `${path}.run`, source),
       timeoutMs: parseTimeout(table.timeout, `${path}.timeout`, source),
       ...(expectation === undefined ? {} : { expect: expectation }),
-      assertions: parseCellAssertions(table.assert, `${path}.assert`, allowedStepNames, source),
+      assertions: assertions(table.assert, `${path}.assert`, allowedStepNames, source),
     };
   });
 }
@@ -236,31 +318,41 @@ export function parseManifestText(text: string, source = "verify.toml"): Manifes
 
   const root = asObject(parsed, "manifest", source);
   exactKeys(root, ["meta", "toolchain", "replay", "setup", "step", "assert"], "", source);
-  const steps = parseSteps(root.step, source);
-  const allStepNames = new Set(steps.map((step) => step.name));
-  const assertions = parseCellAssertions(root.assert, "assert", allStepNames, source);
+  const meta = parseMeta(root.meta, source);
+  const common = { toolchain: parseToolchain(root.toolchain, source),
+    replay: parseReplay(root.replay, source), setup: parseSetup(root.setup, source) };
+  const parseBody = <A>(parser: (value: unknown, path: string, names: ReadonlySet<string>, source: string) => A[]) => {
+    const steps = parseSteps(root.step, source, parser);
+    const assertions = parser(root.assert, "assert", new Set(steps.map(step => step.name)), source);
 
-  const claimCount = steps.reduce(
-    (count, step) => count + (step.expect === undefined ? 0 : 1) + step.assertions.length,
-    assertions.length,
-  );
-  if (claimCount === 0) {
-    fail(source, "manifest must declare at least one expectation or assertion");
-  }
+    const claimCount = steps.reduce(
+      (count, step) => count + (step.expect === undefined ? 0 : 1) + step.assertions.length,
+      assertions.length,
+    );
+    if (claimCount === 0) {
+      fail(source, "manifest must declare at least one expectation or assertion");
+    }
 
-  return {
-    meta: parseMeta(root.meta, source),
-    toolchain: parseToolchain(root.toolchain, source),
-    replay: parseReplay(root.replay, source),
-    setup: parseSetup(root.setup, source),
-    steps,
-    assertions,
+    if (steps.some(step => step.expect?.tx === "rejected") && common.toolchain.ckbDebugger === undefined) {
+      fail(source, "rejected transactions require toolchain.ckb-debugger");
+    }
+    return { steps, assertions };
   };
+  return meta.spec === "0.1.0-draft.4"
+    ? { meta: { ...meta, spec: "0.1.0-draft.4" }, ...common, ...parseBody(parseAssertionsV4) }
+    : { meta: { ...meta, spec: "0.1.0-draft.3" }, ...common, ...parseBody(parseCellAssertions) };
 }
 
 export async function loadManifest(path: string): Promise<{ manifest: Manifest; bytes: Uint8Array }> {
   const file = Bun.file(path);
   if (!(await file.exists())) fail(path, "file does not exist");
   const bytes = new Uint8Array(await file.arrayBuffer());
-  return { manifest: parseManifestText(new TextDecoder().decode(bytes), path), bytes };
+  const manifest = parseManifestText(new TextDecoder().decode(bytes), path);
+  if (manifest.meta.spec === "0.1.0-draft.4") {
+    try {
+      const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+      if (!Buffer.from(text, "utf8").equals(bytes)) fail(path, "manifest must roundtrip as UTF-8");
+    } catch (error) { fail(path, "manifest must be valid UTF-8", error); }
+  }
+  return { manifest, bytes };
 }
