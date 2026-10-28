@@ -72,6 +72,9 @@ The new wrapper verifies each complete PASS/FAIL report with `verifyReport`, che
 
 ```text
 ckb-verify run [manifest]
+ckb-verify validate [manifest] [--json]
+ckb-verify digest <report.json> [--json] [--allow-legacy]
+ckb-verify check-digest <report.json> [--outcome sha256:...] [--environment sha256:...] [--json] [--allow-legacy]
 ckb-verify --help
 ckb-verify --version
 ```
@@ -88,6 +91,8 @@ A completed run uses these exit codes:
 - `0`: all declared claims passed;
 - `1`: execution completed but at least one declared claim failed;
 - `2`: manifest, setup, producer, RPC, debugger, or evidence error; no valid verdict.
+
+`validate`, `digest`, and `check-digest` are [offline commands](docs/offline-verification.md): they parse a manifest or re-derive a report's claims, verdict, and digests with the runner's own strict verifier, without starting OffCKB, executing manifest commands, or touching the network. Exit `0` means the input is valid (and, for `check-digest`, every expected digest matched); `1` means invalid evidence or a mismatch; `2` means a usage or I/O error. A valid report may still record `verdict: FAIL`: validity is internal consistency, not claim success. Add `--json` for machine-readable output.
 
 The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) for the transfer fixtures and `bun run showcase:ckb-ugmp` for the Spore fixtures; each harness checks all three verdict paths, repeatability, recorded script identity and deps, report digests, and post-run cleanup explicitly.
 
@@ -209,7 +214,7 @@ It emits two RFC-8785 canonical SHA-256 identities:
 
 The source guard compares Git-visible snapshots before setup and after the declared steps/assertions, before report construction; a mismatch prevents report publication. It covers tracked changes visible to Git and non-ignored untracked paths, contents, and Git-relevant modes. Symlinks are fingerprinted by their stored link text, not their referents. It does not continuously monitor execution: mutate-then-restore changes between snapshots, changes after the final snapshot, ignored files, and external inputs (including external symlink referents) are outside this guard. `stable` qualifies recorded inputs and the author's replay declaration, not hermetic execution. See the [source snapshot boundary](docs/evidence-report.md#source-snapshot-boundary).
 
-The runner recomputes both embedded canonical objects before writing the report, checks cross-field provenance and replay-qualification semantics, checks that normalized evidence agrees with the embedded outcome claims, independently derives legacy Cell results from observation validity and counts, and draft.4 results from retained manifest/transaction/query inputs plus the declared type, length and dependency predicates, and verifies that the top-level verdict is the verdict derived from those claims. It scans the run evidence for the selected OffCKB development private keys with case-insensitive matching; any match is redacted and turns the run into an execution error. `report.json` is published only after that scan and devnet shutdown both succeed, so an execution or cleanup error leaves no valid verdict artifact. The temporary account file is removed when the devnet stops. Complete-artifact verification requires `verifyReport`; the schema-less `verifyEvidenceDigests` compatibility helper is v1-only. Report/outcome `/2` does not mean a full deep report schema or new verification CLI (#18). Known-key scanning does not detect arbitrary credentials. Raw signed inputs may be sensitive: do not redact and rehash them for publication. Offline verification establishes internal consistency, not authenticity; presence/membership/length is not protocol semantics or proof a script executed. Genesis is observed, not independently allowlisted.
+The runner recomputes both embedded canonical objects before writing the report, checks cross-field provenance and replay-qualification semantics, checks that normalized evidence agrees with the embedded outcome claims, independently derives legacy Cell results from observation validity and counts, and draft.4 results from retained manifest/transaction/query inputs plus the declared type, length and dependency predicates, and verifies that the top-level verdict is the verdict derived from those claims. It scans the run evidence for the selected OffCKB development private keys with case-insensitive matching; any match is redacted and turns the run into an execution error. `report.json` is published only after that scan and devnet shutdown both succeed, so an execution or cleanup error leaves no valid verdict artifact. The temporary account file is removed when the devnet stops. Complete-artifact verification requires `verifyReport`; the schema-less `verifyEvidenceDigests` compatibility helper is v1-only. Report/outcome `/2` does not mean a full deep report JSON Schema (still #18); the `digest` and `check-digest` commands expose the same semantic verifier offline. Known-key scanning does not detect arbitrary credentials. Raw signed inputs may be sensitive: do not redact and rehash them for publication. Offline verification establishes internal consistency, not authenticity; presence/membership/length is not protocol semantics or proof a script executed. Genesis is observed, not independently allowlisted.
 
 ## Trust and safety
 
