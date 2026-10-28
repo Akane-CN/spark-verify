@@ -40,8 +40,8 @@ closeout_ok() { # accounts absent, no pending, both ports free
       const s = createServer(); s.once("error", reject); s.listen({ host: "0.0.0.0", port }, () => s.close(resolve)); });' 2>&1 || { echo "port still bound"; return 1; }
 }
 field() { bun -e 'const r = JSON.parse(await Bun.file(process.argv[1]).text()); console.log(String(process.argv[2].split(".").reduce((v, k) => v?.[k], r)));' "$1" "$2"; }
-port_listening() { bun -e 'import { createConnection } from "node:net"; const s = createConnection({ host: "127.0.0.1", port: Number(process.argv[1]) });
-  s.setTimeout(300, () => { s.destroy(); process.exit(1); }); s.once("connect", () => { s.destroy(); process.exit(0); }); s.once("error", () => process.exit(1));' "$1"; }
+port_listening() { bun -e 'import { createConnection } from "node:net"; const s = createConnection({ host: process.argv[2] ?? "127.0.0.1", port: Number(process.argv[1]) });
+  s.setTimeout(300, () => { s.destroy(); process.exit(1); }); s.once("connect", () => { s.destroy(); process.exit(0); }); s.once("error", () => process.exit(1));' "$1" "${2:-127.0.0.1}"; }
 wait_for_port() { local i; for i in $(seq 1 240); do port_listening "$1" && return 0; sleep 0.5; done; return 1; }
 
 write_manifests() { # dir producer-prefix
@@ -202,7 +202,16 @@ if (( STATUS == 0 )) && closeout_ok >/dev/null; then record reuse-after-contenti
 BEFORE=$(report_count)
 # exec replaces the subshell so the signal reaches the runner process itself.
 (cd "$PROJECT" && exec "${CLI[@]}" run "$MANIFESTS/committed.toml") >"$WORK/interrupt.log" 2>&1 &
-I=$!; if wait_for_port 8114; then sleep 1; kill -INT "$I"; else echo "node never listened" >&2; fi
+I=$!
+if wait_for_port 8114; then
+  # While the node is up: the RPC and proxy ports must answer on loopback only, never on the host's
+  # routable address (container/VM path; this is listener scope, not a sandbox).
+  HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+  if [[ -z $HOST_IP ]]; then record loopback-only-listeners "ports unreachable on the routable address" "no routable address on this host" FAIL
+  elif port_listening 8114 "$HOST_IP" || port_listening 28114 "$HOST_IP"; then record loopback-only-listeners "8114/28114 unreachable on $HOST_IP" "reachable on $HOST_IP" FAIL
+  else record loopback-only-listeners "8114/28114 unreachable on $HOST_IP, reachable on 127.0.0.1" "unreachable on $HOST_IP; 127.0.0.1:8114 up" PASS; fi
+  sleep 1; kill -INT "$I"
+else echo "node never listened" >&2; fi
 wait "$I"; I_STATUS=$?
 if (( I_STATUS == 130 )) && [[ $(report_count) == "$BEFORE" ]] && closeout_ok >/dev/null; then
   record sigint-cleanup "exit 130, no report, accounts removed, ports released" "exit 130, clean closeout" PASS
