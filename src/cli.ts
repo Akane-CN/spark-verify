@@ -5,6 +5,7 @@ import {
   DIGEST_PATTERN, OfflineInputError, inspectReportFile, validateManifestFile,
   type ExpectedDigests, type ManifestValidation, type ReportInspection,
 } from "./offline";
+import { verifyBundle, type BundleVerification } from "./evidence-bundle";
 import { VERSION } from "./version";
 
 const HELP = `ckb-verify ${VERSION}
@@ -14,6 +15,7 @@ Usage:
   ckb-verify validate [manifest] [--json]
   ckb-verify digest <report.json> [--json] [--allow-legacy]
   ckb-verify check-digest <report.json> [--outcome sha256:...] [--environment sha256:...] [--json] [--allow-legacy]
+  ckb-verify check-bundle <bundle-dir> [--source-sha <commit>] [--repository owner/repo] [--allow-dirty] [--json]
   ckb-verify --help
   ckb-verify --version
 
@@ -22,6 +24,7 @@ Commands:
   validate [manifest]    Parse a manifest with the strict grammar; runs nothing (default: verify.toml)
   digest <report>        Re-derive a report's outcome and environment digests offline
   check-digest <report>  Verify a report offline and compare it with expected digests
+  check-bundle <dir>     Verify a downloaded evidence bundle: file allowlist, checksums, every report
 
 Offline commands never start OffCKB, execute manifest commands, install tools,
 or use the network. Exit 0 means the input is valid (and every expected digest
@@ -152,12 +155,45 @@ function renderInspection(inspection: ReportInspection): string {
   return `${lines.join("\n")}\n`;
 }
 
+function renderBundle(verification: BundleVerification): string {
+  const lines: string[] = [];
+  lines.push(verification.ok ? "VALID: evidence bundle is complete, checksummed, and every report is internally consistent"
+    : "INVALID: evidence bundle must not be trusted");
+  lines.push(`bundle: ${verification.path}`);
+  if (verification.bundle !== null) {
+    lines.push(`source: ${verification.bundle.sourceSha ?? "unknown"}${verification.bundle.repository === null ? "" : ` (${verification.bundle.repository})`}`);
+    lines.push(`runner: ${verification.bundle.runner.name} ${verification.bundle.runner.version}`);
+    if (verification.bundle.workflow?.runId) lines.push(`workflow run: ${verification.bundle.workflow.runId} attempt ${verification.bundle.workflow.runAttempt ?? "?"}`);
+  }
+  for (const report of verification.reports) {
+    lines.push(`report: ${report.path} ${report.ok ? "ok" : "INVALID"} verdict ${report.verdict} (${report.name})`);
+    for (const problem of report.problems) lines.push(`  problem: ${problem}`);
+  }
+  for (const problem of verification.problems) lines.push(`problem: ${problem}`);
+  lines.push("note: validity is internal consistency, not claim success or authenticity; read each verdict separately");
+  return `${lines.join("\n")}\n`;
+}
+
 async function offlineCommand(args: readonly string[], dependencies: CliDependencies): Promise<number> {
   const command = args[0];
-  let output: ManifestValidation | ReportInspection;
+  let output: ManifestValidation | ReportInspection | BundleVerification;
   let json = false;
   try {
-    if (command === "validate") {
+    if (command === "check-bundle") {
+      const parsed = parseArgs(args.slice(1), ["json", "allow-dirty"], ["source-sha", "repository"]);
+      if (parsed.positional.length !== 1) throw new UsageError("check-bundle requires exactly one bundle directory");
+      json = parsed.flags.has("json");
+      const sourceSha = parsed.flags.get("source-sha");
+      if (sourceSha !== undefined && (typeof sourceSha !== "string" || !/^[0-9a-f]{40}$/.test(sourceSha))) {
+        throw new UsageError("--source-sha must be a 40-character lowercase hex commit");
+      }
+      const repository = parsed.flags.get("repository");
+      output = await verifyBundle(parsed.positional[0]!, {
+        ...(typeof sourceSha === "string" ? { expectSourceSha: sourceSha } : {}),
+        ...(typeof repository === "string" ? { expectRepository: repository } : {}),
+        allowDirty: parsed.flags.has("allow-dirty"),
+      });
+    } else if (command === "validate") {
       const parsed = parseArgs(args.slice(1), ["json"], []);
       if (parsed.positional.length > 1) throw new UsageError("validate accepts at most one manifest path");
       json = parsed.flags.has("json");
@@ -191,7 +227,10 @@ async function offlineCommand(args: readonly string[], dependencies: CliDependen
     dependencies.stderr(`ERROR: ${error instanceof Error ? error.message : String(error)}\n`);
     return 2;
   }
-  dependencies.stdout(json ? `${JSON.stringify(output, null, 2)}\n` : output.command === "validate" ? renderValidation(output) : renderInspection(output));
+  dependencies.stdout(json ? `${JSON.stringify(output, null, 2)}\n`
+    : output.command === "validate" ? renderValidation(output)
+    : output.command === "check-bundle" ? renderBundle(output)
+    : renderInspection(output));
   return output.ok ? 0 : 1;
 }
 
@@ -209,7 +248,7 @@ export async function main(
     return 0;
   }
 
-  if (args[0] === "validate" || args[0] === "digest" || args[0] === "check-digest") {
+  if (args[0] === "validate" || args[0] === "digest" || args[0] === "check-digest" || args[0] === "check-bundle") {
     return offlineCommand(args, dependencies);
   }
 

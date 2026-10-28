@@ -66,7 +66,7 @@ The first devnet run may download the pinned CKB binary and debugger.
 
 The private `0.0.2` runner also accepts [draft.4 type/args-length/data-length and CellDep claims](docs/cell-claims-draft.4.md). The repository-owned [generic DAO-deposit fixture](showcases/cell-properties/README.md) adds six declared cases plus a fresh positive repeat through `bun run showcase:cell-properties`. It is not NervDAO adoption. Its initial Phase B implementation is offline-tested; native acceptance is **NOT_RUN**, and no new real report is bundled. The existing secp historical evidence does not establish DAO acceptance.
 
-The new wrapper verifies each complete PASS/FAIL report with `verifyReport`, checks the intended failing predicates, and independently checks account/pending-report absence and ports even if report readback fails. Repeats require equal outcomes; repeated raw provenance requires equal environments. Differing real genesis/deployment bindings remain visible, not scrubbed to force equality. CI execution is separate from artifact publication (#19).
+The new wrapper verifies each complete PASS/FAIL report with `verifyReport`, checks the intended failing predicates, and independently checks account/pending-report absence and ports even if report readback fails. Repeats require equal outcomes; repeated raw provenance requires equal environments. Differing real genesis/deployment bindings remain visible, not scrubbed to force equality. Each showcase job then packages its canonical reports into a sanitized, checksummed [evidence bundle](docs/offline-verification.md#evidence-bundles) that a later job downloads through the API and re-verifies offline (#19).
 
 ## CLI
 

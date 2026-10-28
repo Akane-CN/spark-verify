@@ -7,6 +7,7 @@
 | `validate [manifest]` | `verify.toml` (default) | strict TOML grammar, unknown keys, selectors, timeouts, spec/toolchain rules | the manifest parses; nothing was executed |
 | `digest <report.json>` | a complete saved report | structure, version tuple, provenance/replay invariants, re-derived claims, verdict, both canonical digests | the report is internally consistent |
 | `check-digest <report.json> --outcome … [--environment …]` | a report plus expected digests | everything `digest` checks, then compares the **re-derived** digests with the supplied values | consistent **and** every supplied digest matched |
+| `check-bundle <dir>` | a downloaded evidence bundle | file allowlist, `SHA256SUMS`, every listed report's checksum and digests, source binding | every report is consistent and matches its bundle entry |
 
 ## What "valid" means and does not mean
 
@@ -23,6 +24,8 @@ Validity is also not authenticity. A consistent rewrite is possible for anyone w
 | `0` | manifest parsed under the strict grammar | report internally consistent; for `check-digest`, every supplied digest also matched |
 | `1` | manifest rejected (grammar, unknown key, invalid selector, bad encoding, missing file) | report invalid, unsupported version tuple, malformed JSON, or a supplied digest did not match |
 | `2` | usage error (unknown option, extra positional) | usage error, malformed `--outcome`/`--environment`, report path missing or not a regular file |
+
+`check-bundle` follows the `digest` column: `0` only when the bundle is complete and every report verifies; `1` for any altered, missing, unlisted, or inconsistent file, or a source/repository that differs from `--source-sha`/`--repository`.
 
 Exit `2` is "the tool could not evaluate the input"; exit `1` is "the tool evaluated the input and rejected it". Scripts should not collapse the two.
 
@@ -129,3 +132,27 @@ bun run src/cli.ts digest docs/examples/secp-transfer-committed-report.json --al
 ```
 
 The same commands are available as `ckb-verify validate|digest|check-digest` once the package is installed. They read only the named file; sibling evidence files are not consulted and are not needed.
+
+## Evidence bundles
+
+Every showcase job in [`verify.yml`](../.github/workflows/verify.yml) ends by running `scripts/package-evidence.ts`, which turns the job's finished runs into one bundle:
+
+```text
+evidence/<job>/
+  bundle.json      schema ckb-verify-evidence-bundle/1: repository, source SHA, workflow run, runner version, one entry per report
+  SHA256SUMS       sha256 of every file below plus bundle.json
+  reports/<run-directory>/report.json
+```
+
+Packaging is all-or-nothing and applies both a file allowlist and a field allowlist:
+
+- only `report.json` files are copied; step output, `transaction.json`, account files, pending reports, and runtime roots are never read into the bundle;
+- a leftover `accounts.json`, a `.report.json.pending`, a symlink, hard link, or other non-regular entry anywhere under the run directory refuses the bundle;
+- every report must have exactly the seven top-level report fields, pass the strict verifier, record a clean source revision equal to the job's commit, and pass a secret scan for generic credential markers (tokens, PEM blocks, URL credentials, private-key field names, CI secret variable names) and the exact OffCKB development keys;
+- the bundle records which commit, workflow run and attempt, and runner version produced it.
+
+The bundle is uploaded with a commit-pinned `actions/upload-artifact`, named `evidence-<job>-<commit>`, with a 30-day retention. A separate `verify-evidence` job reads the run's artifact list back through the GitHub API (so an upload step that merely printed success is not enough), downloads every bundle into its own directory with a commit-pinned `actions/download-artifact`, and runs `ckb-verify check-bundle <dir> --source-sha <commit> --repository <owner/repo>` on each. Fork pull requests run the same read-only steps; nothing uses `pull_request_target` or repository secrets.
+
+To inspect a bundle yourself, download it from the run's **Artifacts** list (or `gh run download <run-id> -n evidence-<job>-<commit>`), unpack it into an empty directory, and run `check-bundle` there. Checksums and digests detect alteration; they are not an authenticity signature, and a valid bundle may contain valid `FAIL` reports: read each `verdict` separately.
+
+CI artifacts expire; evidence for a release must be attached to that release as a durable asset (see the release checklist) rather than referenced from workflow storage.
