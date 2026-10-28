@@ -42,11 +42,11 @@ verify_report() {
   report=$(extract_report "$output")
   bun -e '
     import { readFile } from "node:fs/promises";
-    import { verifyEvidenceDigests } from "./src/report.ts";
+    import { verifyReport } from "./src/report.ts";
     const path = process.argv[1];
     if (path === undefined) throw new Error("missing report path");
     const report = JSON.parse(await readFile(path, "utf8"));
-    verifyEvidenceDigests(report);
+    verifyReport(report);
   ' "$report"
 }
 
@@ -67,7 +67,7 @@ verify_dynamic_spore() {
     const transaction = JSON.parse(
       await readFile(join(dirname(reportPath), "steps", `01-${stepName}`, "transaction.json"), "utf8"),
     );
-    const spore = report.environment.systemScripts.spore;
+    const spore = report.environment.devnet.systemScripts.spore;
     const output = transaction.outputs[0];
 
     assert.equal(output.type.code_hash, spore.codeHash);
