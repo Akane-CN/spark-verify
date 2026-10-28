@@ -64,4 +64,20 @@ describe("runCommand", () => {
     expect(result.signal).toBe("SIGTERM");
     expect(existsSync(marker)).toBe(false);
   });
+
+  test("times out a background descendant that outlives the shell", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ckb-verify-process-background-"));
+    directories.push(directory);
+    const marker = join(directory, "leaked");
+
+    const result = await runCommand(`(sleep 2; printf leaked > ${JSON.stringify(marker)}) & echo started`, {
+      cwd: directory,
+      timeoutMs: 100,
+    });
+    await Bun.sleep(300);
+
+    expect(result.timedOut).toBe(true);
+    expect(result.durationMs).toBeLessThan(1_500);
+    expect(existsSync(marker)).toBe(false);
+  });
 });
