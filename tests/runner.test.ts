@@ -8,6 +8,10 @@ import { runProcess, type CommandResult } from "../src/process";
 import { transactionHash } from "../src/transaction";
 import { RpcError } from "../src/rpc";
 import { debuggerEvidence } from "./debugger-integration-fixture";
+import { verifyReport } from "../src/report";
+import { canonicalSha256 } from "../src/canonical";
+import { bindings, syntheticTransaction, liveResponse, manifest4 } from "./fixtures/claims-v2/synthetic";
+import type { CkbJsonRpcTransaction } from "../src/rpc";
 
 const directories: string[] = [];
 const HASH = `0x${"11".repeat(32)}`;
@@ -156,6 +160,377 @@ function fakeDevnet(project: string, debuggerOutput = "", privateKey = KEY): Dev
   };
 }
 
+async function syntheticRun(text: string, tx: CkbJsonRpcTransaction, response: () => unknown = () => liveResponse(tx),
+  onStop?: (outputDir: string) => Promise<void>, signal?: AbortSignal) {
+  const fixture = await projectWithManifest(1);
+  await writeFile(fixture.manifestPath, text);
+  const devnet = fakeDevnet(fixture.project);
+  const start = devnet.start.bind(devnet);
+  devnet.start = async () => ({ ...await start(), systemScripts: structuredClone(bindings) });
+  let stopped = false;
+  devnet.stop = async () => { stopped = true; await onStop?.(fixture.outputDir); };
+  let queries = 0;
+  const result = await runManifest({ manifestPath: fixture.manifestPath, projectRoot: fixture.project,
+    outputDir: fixture.outputDir, devnet, ...(signal === undefined ? {} : { signal }),
+    runStep: async (_command, options) => {
+      await writeFile(options.env!.CKB_VERIFY_RESULT!, JSON.stringify({ protocol: 1, transaction: tx }));
+      return commandResult();
+    },
+    rpc: async (_url, method, params, rpcSignal) => {
+      if (signal !== undefined) expect(rpcSignal).toBeDefined();
+      if (method === "test_tx_pool_accept") return { cycles: "0x64", fee: "0xa" };
+      if (method === "send_transaction") return transactionHash(tx);
+      if (method === "get_transaction") return { tx_status: { status: "committed" } };
+      if (method === "get_live_cell") {
+        queries++;
+        expect(params?.[0]).toMatchObject({ tx_hash: transactionHash(tx) });
+        expect(params?.[1]).toBe(true);
+        if (signal !== undefined) expect(rpcSignal).toBe(signal);
+        return response();
+      }
+      throw new Error(`unexpected RPC ${method}`);
+    },
+  }).catch(async error => {
+    expect(stopped).toBe(true);
+    for (const name of ["report.json", ".report.json.pending"]) expect(await Bun.file(join(fixture.outputDir, name)).exists()).toBe(false);
+    throw error;
+  });
+  expect(stopped).toBe(true);
+  const reportText = await Bun.file(result.reportPath).text();
+  const stored = JSON.parse(reportText);
+  verifyReport(stored);
+  // Compare actual serialized bytes: JSON represents either numeric zero as 0.
+  expect(reportText).toBe(`${JSON.stringify(result.report, null, 2)}\n`);
+  return { ...result, queries };
+}
+
+// This fake-adapter seam tests publication, not an OffCKB/devnet lifecycle.
+async function bindingPublication(edit: (scripts: any) => void, expected: "PASS" | "FAIL" | "NO_VERDICT", missingDep = false) {
+  const fixture = await projectWithManifest(1);
+  const text = manifest4('type = { builtin = "dao", args_bytes = 0 }') +
+    '\n[[step.assert.cell_deps]]\nstep = "produce"\ncontains = { builtin = "dao" }\n';
+  await writeFile(fixture.manifestPath, text);
+  const scripts = JSON.parse(JSON.stringify(bindings)); edit(scripts);
+  const tx = syntheticTransaction();
+  tx.cell_deps = bindings.dao!.cellDeps.slice(missingDep ? 1 : 0).map(d => ({
+    out_point: { tx_hash: d.outPoint.txHash, index: `0x${d.outPoint.index.toString(16)}` },
+    dep_type: d.depType === "depGroup" ? "dep_group" : "code",
+  }));
+  const devnet = fakeDevnet(fixture.project), start = devnet.start.bind(devnet);
+  const accounts = join(fixture.project, ".runtime", "accounts.json");
+  devnet.start = async () => ({ ...await start(), systemScripts: scripts });
+  let stops = 0;
+  devnet.stop = async () => { stops++; await rm(accounts, { force: true }); };
+  let result: Awaited<ReturnType<typeof runManifest>> | undefined, failure: unknown;
+  try {
+    result = await runManifest({ ...fixture, projectRoot: fixture.project, devnet,
+      runStep: async (_command, options) => {
+        await writeFile(options.env!.CKB_VERIFY_RESULT!, JSON.stringify({ protocol: 1, transaction: tx }));
+        return commandResult();
+      },
+      rpc: async (_url, method) => {
+        if (method === "test_tx_pool_accept") return { cycles: "0x64", fee: "0xa" };
+        if (method === "send_transaction") return transactionHash(tx);
+        if (method === "get_transaction") return { tx_status: { status: "committed" } };
+        if (method === "get_live_cell") return liveResponse(tx);
+        throw new Error(`unexpected RPC ${method}`);
+      },
+    });
+  } catch (error) { failure = error; }
+  expect(stops).toBe(1);
+  expect(await Bun.file(accounts).exists()).toBe(false);
+  expect(await Bun.file(join(fixture.outputDir, ".report.json.pending")).exists()).toBe(false);
+  const canonical = Bun.file(join(fixture.outputDir, "report.json"));
+  if (expected === "NO_VERDICT") {
+    // Do NOT treat a later disk-verifier failure as runManifest refusing publication.
+    expect({ verdict: result?.verdict ?? "NO_VERDICT", published: await canonical.exists() }).toEqual({ verdict: "NO_VERDICT", published: false });
+    expect(failure).toBeInstanceOf(Error);
+  } else {
+    expect(failure).toBeUndefined();
+    expect(result!.verdict).toBe(expected);
+    const stored = await canonical.json();
+    expect(() => verifyReport(stored)).not.toThrow();
+    expect(stored.verdict).toBe(expected);
+    expect(stored.outcomeClaims.steps[0].claims[1].observed.present).toEqual(missingDep ? [false, true] : [true, true]);
+  }
+}
+
+describe("draft.4 vertical tracer", () => {
+  test.each(["malformed JSON", "rehashed contradiction"])(
+    "FIX3 pending-file publication refuses actual %s bytes before canonical rename", async form => {
+      const fixture = await projectWithManifest(1);
+      await writeFile(fixture.manifestPath, manifest4());
+      const tx = syntheticTransaction();
+      const devnet = fakeDevnet(fixture.project), start = devnet.start.bind(devnet);
+      const accounts = join(fixture.project, ".runtime", "accounts.json");
+      const pending = join(fixture.outputDir, ".report.json.pending"), canonical = join(fixture.outputDir, "report.json");
+      devnet.start = async () => ({ ...await start(), systemScripts: structuredClone(bindings) });
+      let stops = 0, changedBytes = false;
+      devnet.stop = async () => {
+        stops++;
+        await rm(accounts, { force: true });
+        expect(await Bun.file(canonical).exists()).toBe(false);
+        const stored = await Bun.file(pending).json();
+        verifyReport(stored); // The report was valid before the actual file was changed.
+        if (form === "malformed JSON") await writeFile(pending, "{invalid JSON\n");
+        else {
+          stored.evidence.steps[0].claims[0].observed.count = 0;
+          stored.digests = { outcome: canonicalSha256(stored.outcomeClaims), environment: canonicalSha256(stored.environment) };
+          await writeFile(pending, `${JSON.stringify(stored, null, 2)}\n`);
+          // Failure must also invalidate a canonical path, not just the pending file.
+          await writeFile(canonical, "stale verdict\n");
+        }
+        changedBytes = true;
+      };
+      let result: Awaited<ReturnType<typeof runManifest>> | undefined, failure: unknown;
+      try {
+        result = await runManifest({ ...fixture, projectRoot: fixture.project, devnet,
+          runStep: async (_command, options) => {
+            await writeFile(options.env!.CKB_VERIFY_RESULT!, JSON.stringify({ protocol: 1, transaction: tx }));
+            return commandResult();
+          },
+          rpc: async (_url, method) => {
+            if (method === "test_tx_pool_accept") return { cycles: "0x64", fee: "0xa" };
+            if (method === "send_transaction") return transactionHash(tx);
+            if (method === "get_transaction") return { tx_status: { status: "committed" } };
+            if (method === "get_live_cell") return liveResponse(tx);
+            throw new Error(`unexpected RPC ${method}`);
+          },
+        });
+      } catch (error) { failure = error; }
+      expect(changedBytes).toBe(true);
+      // Assert refusal by runManifest itself, never a verifier failure after publication.
+      expect({ verdict: result?.verdict ?? "NO_VERDICT", published: await Bun.file(canonical).exists() })
+        .toEqual({ verdict: "NO_VERDICT", published: false });
+      expect(failure).toBeInstanceOf(AggregateError);
+      expect((failure as AggregateError).errors[0]).toBeInstanceOf(Error);
+      if (form === "rehashed contradiction") expect(String(failure)).toContain("stored derivation");
+      expect(await Bun.file(pending).exists()).toBe(false);
+      expect(await Bun.file(accounts).exists()).toBe(false);
+      expect(stops).toBe(1);
+    },
+  );
+  test("FIX3 signed-zero index publishes a report that verifies from actual file bytes", async () => {
+    const text = manifest4().replace("index = 0", "index = -0");
+    const { report, queries } = await syntheticRun(text, syntheticTransaction());
+    verifyReport(report);
+    expect(report.verdict).toBe("PASS");
+    expect(queries).toBe(1);
+    const claim = report.evidence.steps[0]!.claims[0]!;
+    if (claim.kind !== "cell") throw new Error("expected cell claim");
+    expect(Object.is(claim.target.index, -0)).toBe(true);
+  });
+  test.each(["0", "+0", "0.0", "-0", "-0.0", "-0e0"])(
+    "FIX3 numeric spelling %s preserves PASS and valid FAIL file readback", async literal => {
+      for (const target of ["index", "args", "count", "final-index"]) {
+        let text = manifest4();
+        if (target === "index" || target === "final-index") text = text.replace("index = 0", `index = ${literal}`);
+        if (target === "final-index") text = text.replace("step.assert.cell", "assert.cell");
+        if (target === "args") text = text.replace("args_bytes = 0", `args_bytes = ${literal}`);
+        if (target === "count") text = manifest4("").replace("count = 1", `count = ${literal}`);
+        const tx = syntheticTransaction();
+        for (const live of [true, false]) {
+          const result = await syntheticRun(text, tx, () => live ? liveResponse(tx) : { status: "dead", cell: null });
+          expect(result.verdict).toBe((target === "count" ? !live : live) ? "PASS" : "FAIL");
+          expect(result.queries).toBe(1);
+          verifyReport(result.report);
+        }
+      }
+    },
+  );
+  test("FIX3 shutdown primary error survives invalid pending bytes and removes both reports", async () => {
+    const primary = new Error("FIX3 shutdown primary");
+    let observed: unknown;
+    try {
+      await syntheticRun(manifest4(), syntheticTransaction(), undefined, async output => {
+        await writeFile(join(output, ".report.json.pending"), "{invalid JSON\n");
+        await writeFile(join(output, "report.json"), "stale verdict\n");
+        throw primary;
+      });
+    } catch (error) { observed = error; }
+    expect(observed).toBeInstanceOf(AggregateError);
+    expect((observed as AggregateError).errors).toEqual([primary]);
+  });
+  test.each(["non-null toJSON", "forEach method", "forEach getter"])(
+    "FIX2 canonical dispatch refuses publication for inherited %s", async form => {
+      let reads = 0, calls = 0;
+      await bindingPublication(s => {
+        if (form === "non-null toJSON") Object.setPrototypeOf(s.dao, { toJSON: 42 });
+        else {
+          const forEach = () => { calls++; };
+          Object.setPrototypeOf(s.dao.cellDeps, Object.create(Array.prototype, {
+            forEach: form.endsWith("getter") ? { get() { reads++; return forEach; } } : { value: forEach },
+          }));
+        }
+      }, "NO_VERDICT");
+      expect({ reads, calls }).toEqual({ reads: 0, calls: 0 });
+    });
+  test.each(["method", "getter"])("FIX2 methods refuse null binding slot hidden by inherited map %s", async form => {
+    let reads = 0, calls = 0;
+    await bindingPublication(s => {
+      const valid = JSON.parse(JSON.stringify(s.dao.cellDeps));
+      s.dao.cellDeps = [null];
+      const map = () => { calls++; return valid; };
+      Object.setPrototypeOf(s.dao.cellDeps, Object.create(Array.prototype, {
+        map: form === "getter" ? { get() { reads++; return map; } } : { value: map },
+      }));
+    }, "NO_VERDICT");
+    expect({ reads, calls }).toEqual({ reads: 0, calls: 0 });
+  });
+  test("FIX2 methods preserve valid binding slots without invoking inherited map", async () => {
+    let calls = 0;
+    const edit = (s: any) => Object.setPrototypeOf(s.dao.cellDeps, Object.create(Array.prototype, {
+      map: { value() { calls++; return []; } },
+      [Symbol.iterator]: { value() { calls++; throw new Error("untrusted iterator executed"); } },
+    }));
+    await bindingPublication(edit, "PASS");
+    await bindingPublication(edit, "FAIL", true);
+    expect(calls).toBe(0);
+  });
+  test.each(["binding hook", "array hook", "binding getter", "array getter"])(
+    "FIX2 hooks refuse publication for inherited toJSON %s and clean", async form => {
+      let calls = 0, reads = 0;
+      await bindingPublication(s => {
+        const value = form.startsWith("array") ? s.dao.cellDeps : s.dao;
+        const hook = () => { calls++; return Array.isArray(value) ? [] : {}; };
+        Object.setPrototypeOf(value, Object.create(Object.getPrototypeOf(value), {
+          toJSON: form.endsWith("getter") ? { get() { reads++; return hook; } } : { value: hook },
+        }));
+      }, "NO_VERDICT");
+      expect({ reads, calls }).toEqual({ reads: 0, calls: 0 });
+    });
+  test.each(["all-hole", "leading", "middle", "trailing", "inherited", "explicit-null", "missing-alias", "inherited-alias"])(
+    "SPEC02 publication refuses invalid binding %s and cleans", async form => {
+      await bindingPublication(s => {
+        const [a, z] = s.dao.cellDeps;
+        if (form === "all-hole") s.dao.cellDeps = Array(1);
+        if (form === "leading") s.dao.cellDeps = [, a, z];
+        if (form === "middle") s.dao.cellDeps = [a, , z];
+        if (form === "trailing") s.dao.cellDeps = [a, z, ,];
+        if (form === "explicit-null") s.dao.cellDeps = [null];
+        if (form === "inherited") {
+          delete s.dao.cellDeps[0];
+          Object.setPrototypeOf(s.dao.cellDeps, Object.create(Array.prototype, { 0: { value: a } }));
+        }
+        if (form === "missing-alias" || form === "inherited-alias") {
+          const dao = s.dao; delete s.dao;
+          if (form === "inherited-alias") Object.setPrototypeOf(s, { dao });
+        }
+      }, "NO_VERDICT");
+    });
+  test("SPEC02 non-enumerable own binding slots still publish verifiable PASS and FAIL", async () => {
+    const edit = (s: any) => Object.defineProperty(s.dao.cellDeps, "0", { enumerable: false });
+    await bindingPublication(edit, "PASS");
+    await bindingPublication(edit, "FAIL", true);
+  });
+  test.each([
+    ["alias", (s: any) => Object.defineProperty(s, "dao", { enumerable: false })],
+    ["binding codeHash", (s: any) => Object.defineProperty(s.dao, "codeHash", { enumerable: false })],
+    ["dependency index", (s: any) => Object.defineProperty(s.dao.cellDeps[0].outPoint, "index", { enumerable: false })],
+    ["hidden extra undefined", (s: any) => Object.defineProperty(s.dao, "extra", { value: undefined })],
+  ] as const)("SPEC01 publication refuses non-retained %s", async (_name, edit) => {
+    await bindingPublication(edit, "NO_VERDICT");
+  });
+  test("SPEC01 publication controls retain dense PASS and valid FAIL", async () => {
+    await bindingPublication(() => {}, "PASS");
+    await bindingPublication(() => {}, "FAIL", true);
+  });
+  test("V05 invalid UTF-8 manifest fails before setup", async () => {
+    const f = await projectWithManifest(1);
+    await writeFile(f.manifestPath, Buffer.concat([Buffer.from(manifest4() + '# '), Buffer.from([0xff]), Buffer.from('\n')]));
+    const devnet = fakeDevnet(f.project); let started = false;
+    devnet.start = async () => { started = true; throw new Error("unexpected setup"); };
+    await expect(runManifest({ manifestPath: f.manifestPath, projectRoot: f.project, outputDir: f.outputDir, devnet })).rejects.toThrow("UTF-8");
+    expect(started).toBe(false);
+  });
+  test("Q01 retained raw manifest key invalidates pending report, never redact-and-publish", async () => {
+    let pendingSeen = false;
+    await expect(syntheticRun(manifest4() + `# synthetic known dev key ${KEY}\n`, syntheticTransaction(), undefined,
+      async output => { pendingSeen = await Bun.file(join(output, '.report.json.pending')).exists(); })).rejects.toThrow(".report.json.pending");
+    expect(pendingSeen).toBe(true);
+  });
+  test("Q01 retained witness key still cleans and invalidates publication", async () => {
+    const tx = syntheticTransaction(); tx.witnesses = [KEY];
+    await expect(syntheticRun(manifest4(), tx)).rejects.toThrow(".report.json.pending");
+  });
+  test("M02 siblings share one phase snapshot, later step and final reset it", async () => {
+    const text = manifest4() + '\n[[step.assert.cell]]\nout_point = { step = "produce", index = 0 }\ncount = 1\n' +
+      '\n[[step]]\nname = "later"\nrun = "inert-fake-adapter"\n[[step.assert.cell]]\nout_point = { step = "produce", index = 0 }\ncount = 0\n' +
+      '\n[[assert.cell]]\nout_point = { step = "produce", index = 0 }\ncount = 0\n';
+    const tx = syntheticTransaction(); let calls = 0;
+    const { report, queries } = await syntheticRun(text, tx, () => ++calls === 1 ? liveResponse(tx) : { status: "dead", cell: null });
+    expect(report.verdict).toBe("PASS"); expect(queries).toBe(3);
+    expect(report.outcomeClaims.steps[0]!.claims).toHaveLength(2);
+    expect(report.outcomeClaims.steps[1]!.claims[0]!.observed).toEqual({ state: "non-live", status: "dead", count: 0 });
+  });
+  test("M01 all conjunction evidence survives a mismatch, repeated dependencies remain separate", async () => {
+    const text = manifest4('type = { builtin = "spore", args_bytes = 0 }\ndata = { min_bytes = 1 }') +
+      '\n[[step.assert.cell]]\nout_point = { step = "produce", index = 0 }\ncount = 0\n' +
+      '\n[[step.assert.cell_deps]]\nstep = "produce"\ncontains = { builtin = "dao" }\n' +
+      '\n[[step.assert.cell_deps]]\nstep = "produce"\ncontains = { builtin = "spore" }\n';
+    const { report, queries } = await syntheticRun(text, syntheticTransaction());
+    expect(report.verdict).toBe("FAIL"); expect(queries).toBe(1);
+    expect(report.outcomeClaims.steps[0]!.claims.map(c => c.ok)).toEqual([false, false, false, false]);
+  });
+  test("M01 malformed later evidence aborts even after an earlier mismatch", async () => {
+    const text = manifest4('type = { builtin = "spore", args_bytes = 0 }') + '\n[[assert.cell]]\nout_point = { step = "produce", index = 0 }\ncount = 0\n';
+    const tx = syntheticTransaction(); let calls = 0;
+    await expect(syntheticRun(text, tx, () => ++calls === 1 ? liveResponse(tx) : { status: "nonsense", cell: null })).rejects.toThrow("status");
+    expect(calls).toBe(2);
+  });
+  test("S06 absent output fails count zero without querying", async () => {
+    const { report, queries } = await syntheticRun(manifest4('').replace('index = 0', 'index = 7').replace('count = 1', 'count = 0'), syntheticTransaction());
+    expect(queries).toBe(0); expect(report.verdict).toBe("FAIL");
+    expect(report.outcomeClaims.steps[0]!.claims[0]).toMatchObject({ observed: { state: "missing-output", count: 0 }, observationValid: false, ok: false });
+  });
+  test("M02 raw get_live_cell receives the run cancellation signal", async () => {
+    const controller = new AbortController();
+    const { queries } = await syntheticRun(manifest4(), syntheticTransaction(), undefined, undefined, controller.signal);
+    expect(queries).toBe(1);
+  });
+  test("L02 current draft.3 full report preserves count greater than one", async () => {
+    const { report } = await syntheticRun(manifest4('').replace('draft.4', 'draft.3').replace('count = 1', 'count = 2'), syntheticTransaction());
+    expect(report.schema).toBe("ckb-verify-report/1"); expect(report.verdict).toBe("FAIL");
+  });
+  test.each([[2, "PASS", [true, true]], [1, "FAIL", [true, false]], [0, "FAIL", [false, false]]] as const)(
+    "S08 dependency tracer: %s members", async (members, verdict, vector) => {
+      const tx = syntheticTransaction();
+      tx.cell_deps = bindings.dao!.cellDeps.slice(0, members).map(d => ({ out_point: { tx_hash: d.outPoint.txHash, index: `0x${d.outPoint.index.toString(16)}` }, dep_type: d.depType === "depGroup" ? "dep_group" : "code" }));
+      const text = manifest4('type = { builtin = "dao", args_bytes = 0 }') + '\n[[step.assert.cell_deps]]\nstep = "produce"\ncontains = { builtin = "dao" }\n';
+      const { report } = await syntheticRun(text, tx);
+      expect(report.verdict).toBe(verdict);
+      expect(report.outcomeClaims.steps[0]!.claims[1]).toEqual({ kind: "cell_deps", target: { step: "produce" },
+        expected: { contains: { kind: "builtin", name: "dao" } }, observed: { present: [...vector] }, observationValid: true, ok: verdict === "PASS" });
+    });
+  test.each([["0x", 1, "FAIL"], ["0xab", 1, "PASS"], ["0xabcd", 2, "PASS"], ["0xabcd", 3, "FAIL"]] as const)(
+    "S02 data tracer: %s >= %s", async (data, min, verdict) => {
+      const tx = syntheticTransaction(); tx.outputs_data = [data];
+      const { report } = await syntheticRun(manifest4(`data = { min_bytes = ${min} }`), tx);
+      expect(report.verdict).toBe(verdict);
+      expect(report.outcomeClaims.steps[0]!.claims[0]).toMatchObject({ observed: { state: "live", count: 1, dataBytes: (data.length - 2) / 2 } });
+      expect(report.outcomeClaims.steps[0]!.claims[0]!.observed).not.toHaveProperty("type");
+    });
+  test.each([
+    ["matching type", true, "dao", "PASS"],
+    ["wrong type", true, "spore", "FAIL"],
+    ["ordinary Cell", false, "dao", "FAIL"],
+  ] as const)("S01 typed-output tracer: %s", async (_name, typed, alias, verdict) => {
+    const tx = syntheticTransaction(typed);
+    const text = manifest4(`type = { builtin = "${alias}", args_bytes = 0 }`);
+    const { report, queries } = await syntheticRun(text, tx);
+    expect(report.schema).toBe("ckb-verify-report/2");
+    expect(report.verdict).toBe(verdict);
+    expect(report.evidence).toMatchObject({ manifestText: text, steps: [{ transaction: tx }] });
+    expect(report.outcomeClaims.schema).toBe("ckb-verify-outcome/2");
+    expect(report.outcomeClaims.steps[0]!.claims[0]).toMatchObject({
+      observed: { state: "live", count: 1, type: typed ? { argsBytes: 0, identity: alias === "dao"
+        ? { kind: "builtin", name: "dao" } : { kind: "raw", codeHash: bindings.dao!.codeHash, hashType: "type" } } : null },
+      observationValid: true, ok: verdict === "PASS",
+    });
+    expect(queries).toBe(1);
+  });
+});
+
 describe("runManifest", () => {
   test.each(["1.1.2", "latest", "01.1.1"])("unsupported requested debugger %s fails before start", async pin => {
     const { project, manifestPath, outputDir } = await projectWithRejectedManifest();
@@ -290,7 +665,7 @@ describe("runManifest", () => {
     ]);
     expect(result.report.environment).toMatchObject({
       schema: "ckb-verify-environment/3",
-      runner: { name: "ckb-verify", version: "0.0.1" },
+      runner: { name: "ckb-verify", version: "0.0.2" },
       toolchain: {
         requested: { ckb: "0.209.0", offckb: "0.4.13" },
         observed: { ckb: "0.209.0 (test)", offckb: "0.4.13" },

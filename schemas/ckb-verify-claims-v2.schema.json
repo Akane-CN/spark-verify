@@ -1,0 +1,972 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json",
+  "title": "draft.4 / outcome2 semantic claims fragment",
+  "$comment": "This is a bounded semantic fragment, not a complete report or manifest schema. Select a $defs reference. Shape validation alone does not verify hashes, target existence, snapshot agreement, binding membership, truth, manifest cross-links or provenance. MAX_BYTES is runner resource policy, not consensus.",
+  "not": {},
+  "$defs": {
+    "builtin": {
+      "enum": [
+        "dao",
+        "spore"
+      ]
+    },
+    "hashType": {
+      "enum": [
+        "data",
+        "type",
+        "data1",
+        "data2"
+      ]
+    },
+    "hash32": {
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{64}$"
+    },
+    "bytes": {
+      "type": "string",
+      "pattern": "^0x(?:[0-9a-f]{2})*$",
+      "maxLength": 2097154
+    },
+    "u32": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "byteCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1048576
+    },
+    "positiveByteCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1048576
+    },
+    "count": {
+      "type": "integer",
+      "enum": [
+        0,
+        1
+      ]
+    },
+    "name": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "u32Hex": {
+      "type": "string",
+      "pattern": "^0x(?:0|[1-9a-f][0-9a-f]{0,7})$"
+    },
+    "u64Hex": {
+      "type": "string",
+      "pattern": "^0x(?:0|[1-9a-f][0-9a-f]{0,15})$"
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "$ref": "#/$defs/name"
+        },
+        "index": {
+          "$ref": "#/$defs/u32"
+        }
+      },
+      "required": [
+        "step",
+        "index"
+      ],
+      "additionalProperties": false
+    },
+    "stepTarget": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "$ref": "#/$defs/name"
+        }
+      },
+      "required": [
+        "step"
+      ],
+      "additionalProperties": false
+    },
+    "manifestType": {
+      "type": "object",
+      "properties": {
+        "builtin": {
+          "$ref": "#/$defs/builtin"
+        },
+        "args_bytes": {
+          "$ref": "#/$defs/byteCount"
+        }
+      },
+      "required": [
+        "builtin",
+        "args_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "manifestData": {
+      "type": "object",
+      "properties": {
+        "min_bytes": {
+          "$ref": "#/$defs/positiveByteCount"
+        }
+      },
+      "required": [
+        "min_bytes"
+      ],
+      "additionalProperties": false
+    },
+    "manifestContains": {
+      "type": "object",
+      "properties": {
+        "builtin": {
+          "$ref": "#/$defs/builtin"
+        }
+      },
+      "required": [
+        "builtin"
+      ],
+      "additionalProperties": false
+    },
+    "manifestCell": {
+      "type": "object",
+      "properties": {
+        "out_point": {
+          "$ref": "#/$defs/target"
+        },
+        "count": {
+          "$ref": "#/$defs/count"
+        },
+        "type": {
+          "$ref": "#/$defs/manifestType"
+        },
+        "data": {
+          "$ref": "#/$defs/manifestData"
+        }
+      },
+      "required": [
+        "out_point",
+        "count"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "count": {
+                "const": 0
+              }
+            },
+            "required": [
+              "count"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "type"
+                  ],
+                  "properties": { "type": {} }
+                },
+                {
+                  "required": [
+                    "data"
+                  ],
+                  "properties": { "data": {} }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "manifestCellDeps": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "$ref": "#/$defs/name"
+        },
+        "contains": {
+          "$ref": "#/$defs/manifestContains"
+        }
+      },
+      "required": [
+        "step",
+        "contains"
+      ],
+      "additionalProperties": false
+    },
+    "manifestAssertions": {
+      "type": "object",
+      "properties": {
+        "cell": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/manifestCell"
+          }
+        },
+        "cell_deps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/manifestCellDeps"
+          }
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "builtinRef": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "builtin"
+        },
+        "name": {
+          "$ref": "#/$defs/builtin"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "typeCheck": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "builtin"
+        },
+        "name": {
+          "$ref": "#/$defs/builtin"
+        },
+        "argsBytes": {
+          "$ref": "#/$defs/byteCount"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "argsBytes"
+      ],
+      "additionalProperties": false
+    },
+    "dataCheck": {
+      "type": "object",
+      "properties": {
+        "minBytes": {
+          "$ref": "#/$defs/positiveByteCount"
+        }
+      },
+      "required": [
+        "minBytes"
+      ],
+      "additionalProperties": false
+    },
+    "cellClaim": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "cell"
+        },
+        "outPoint": {
+          "$ref": "#/$defs/target"
+        },
+        "count": {
+          "$ref": "#/$defs/count"
+        },
+        "type": {
+          "$ref": "#/$defs/typeCheck"
+        },
+        "data": {
+          "$ref": "#/$defs/dataCheck"
+        }
+      },
+      "required": [
+        "kind",
+        "outPoint",
+        "count"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "count": {
+                "const": 0
+              }
+            },
+            "required": [
+              "count"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "type"
+                  ],
+                  "properties": { "type": {} }
+                },
+                {
+                  "required": [
+                    "data"
+                  ],
+                  "properties": { "data": {} }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cellDepsClaim": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "cell_deps"
+        },
+        "step": {
+          "$ref": "#/$defs/name"
+        },
+        "contains": {
+          "$ref": "#/$defs/builtinRef"
+        }
+      },
+      "required": [
+        "kind",
+        "step",
+        "contains"
+      ],
+      "additionalProperties": false
+    },
+    "claim": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/cellClaim"
+        },
+        {
+          "$ref": "#/$defs/cellDepsClaim"
+        }
+      ]
+    },
+    "script": {
+      "type": "object",
+      "properties": {
+        "code_hash": {
+          "$ref": "#/$defs/hash32"
+        },
+        "hash_type": {
+          "$ref": "#/$defs/hashType"
+        },
+        "args": {
+          "$ref": "#/$defs/bytes"
+        }
+      },
+      "required": [
+        "code_hash",
+        "hash_type",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    "output": {
+      "type": "object",
+      "properties": {
+        "capacity": {
+          "$ref": "#/$defs/u64Hex"
+        },
+        "lock": {
+          "$ref": "#/$defs/script"
+        },
+        "type": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/script"
+            }
+          ]
+        }
+      },
+      "required": [
+        "capacity",
+        "lock"
+      ],
+      "additionalProperties": false
+    },
+    "rpcOutPoint": {
+      "type": "object",
+      "properties": {
+        "tx_hash": {
+          "$ref": "#/$defs/hash32"
+        },
+        "index": {
+          "$ref": "#/$defs/u32Hex"
+        }
+      },
+      "required": [
+        "tx_hash",
+        "index"
+      ],
+      "additionalProperties": false
+    },
+    "dep": {
+      "type": "object",
+      "properties": {
+        "out_point": {
+          "$ref": "#/$defs/rpcOutPoint"
+        },
+        "dep_type": {
+          "enum": [
+            "code",
+            "dep_group"
+          ]
+        }
+      },
+      "required": [
+        "out_point",
+        "dep_type"
+      ],
+      "additionalProperties": false
+    },
+    "bindingDep": {
+      "type": "object",
+      "properties": {
+        "outPoint": {
+          "type": "object",
+          "properties": {
+            "txHash": {
+              "$ref": "#/$defs/hash32"
+            },
+            "index": {
+              "$ref": "#/$defs/u32"
+            }
+          },
+          "required": [
+            "txHash",
+            "index"
+          ],
+          "additionalProperties": false
+        },
+        "depType": {
+          "enum": [
+            "code",
+            "depGroup"
+          ]
+        }
+      },
+      "required": [
+        "outPoint",
+        "depType"
+      ],
+      "additionalProperties": false
+    },
+    "binding": {
+      "type": "object",
+      "properties": {
+        "codeHash": {
+          "$ref": "#/$defs/hash32"
+        },
+        "hashType": {
+          "$ref": "#/$defs/hashType"
+        },
+        "cellDeps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bindingDep"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "codeHash",
+        "hashType",
+        "cellDeps"
+      ],
+      "additionalProperties": false
+    },
+    "transaction": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^0x[0-9a-f]+$"
+        },
+        "cell_deps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dep"
+          },
+          "uniqueItems": true
+        },
+        "header_deps": {
+          "type": "array",
+          "items": {}
+        },
+        "inputs": {
+          "type": "array",
+          "items": {}
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/output"
+          }
+        },
+        "outputs_data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bytes"
+          }
+        },
+        "witnesses": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "required": [
+        "version",
+        "cell_deps",
+        "header_deps",
+        "inputs",
+        "outputs",
+        "outputs_data",
+        "witnesses"
+      ],
+      "additionalProperties": false,
+      "$comment": "Semantic closure only: outputs/data alignment and CKB raw hashing need runtime verification; unrelated transaction members are not deeply validated here."
+    },
+    "liveResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "live"
+        },
+        "cell": {
+          "type": "object",
+          "properties": {
+            "output": {
+              "$ref": "#/$defs/output"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "content": {
+                  "$ref": "#/$defs/bytes"
+                },
+                "hash": {
+                  "$ref": "#/$defs/hash32"
+                }
+              },
+              "required": [
+                "content",
+                "hash"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "output",
+            "data"
+          ],
+          "additionalProperties": false
+        },
+        "block_hash": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/hash32"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "cell"
+      ],
+      "additionalProperties": false
+    },
+    "nonLiveResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "dead",
+            "unknown"
+          ]
+        },
+        "cell": {
+          "type": "null"
+        },
+        "block_hash": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "status",
+        "cell"
+      ],
+      "additionalProperties": false
+    },
+    "liveCellResponse": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/liveResponse"
+        },
+        {
+          "$ref": "#/$defs/nonLiveResponse"
+        }
+      ]
+    },
+    "cellInput": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "missing-output"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "query"
+            },
+            "outPoint": {
+              "$ref": "#/$defs/rpcOutPoint"
+            },
+            "response": {
+              "$ref": "#/$defs/liveCellResponse"
+            }
+          },
+          "required": [
+            "kind",
+            "outPoint",
+            "response"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "typeObservation": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/builtinRef"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "raw"
+                },
+                "codeHash": {
+                  "$ref": "#/$defs/hash32"
+                },
+                "hashType": {
+                  "$ref": "#/$defs/hashType"
+                }
+              },
+              "required": [
+                "kind",
+                "codeHash",
+                "hashType"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "argsBytes": {
+          "$ref": "#/$defs/byteCount"
+        }
+      },
+      "required": [
+        "identity",
+        "argsBytes"
+      ],
+      "additionalProperties": false
+    },
+    "cellObservation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "const": "missing-output"
+            },
+            "count": {
+              "const": 0
+            }
+          },
+          "required": [
+            "state",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "const": "non-live"
+            },
+            "status": {
+              "enum": [
+                "dead",
+                "unknown"
+              ]
+            },
+            "count": {
+              "const": 0
+            }
+          },
+          "required": [
+            "state",
+            "status",
+            "count"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "state": {
+              "const": "live"
+            },
+            "count": {
+              "const": 1
+            },
+            "type": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/typeObservation"
+                }
+              ]
+            },
+            "dataBytes": {
+              "$ref": "#/$defs/byteCount"
+            }
+          },
+          "required": [
+            "state",
+            "count"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "cellExpected": {
+      "type": "object",
+      "properties": {
+        "count": {
+          "$ref": "#/$defs/count"
+        },
+        "type": {
+          "$ref": "#/$defs/typeCheck"
+        },
+        "data": {
+          "$ref": "#/$defs/dataCheck"
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "count": {
+                "const": 0
+              }
+            },
+            "required": [
+              "count"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "type"
+                  ],
+                  "properties": { "type": {} }
+                },
+                {
+                  "required": [
+                    "data"
+                  ],
+                  "properties": { "data": {} }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "cellOutcome": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "cell"
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        },
+        "expected": {
+          "$ref": "#/$defs/cellExpected"
+        },
+        "observed": {
+          "$ref": "#/$defs/cellObservation"
+        },
+        "observationValid": {
+          "type": "boolean"
+        },
+        "ok": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "target",
+        "expected",
+        "observed",
+        "observationValid",
+        "ok"
+      ],
+      "additionalProperties": false
+    },
+    "cellDepsOutcome": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "cell_deps"
+        },
+        "target": {
+          "$ref": "#/$defs/stepTarget"
+        },
+        "expected": {
+          "type": "object",
+          "properties": {
+            "contains": {
+              "$ref": "#/$defs/builtinRef"
+            }
+          },
+          "required": [
+            "contains"
+          ],
+          "additionalProperties": false
+        },
+        "observed": {
+          "type": "object",
+          "properties": {
+            "present": {
+              "type": "array",
+              "items": {
+                "type": "boolean"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "present"
+          ],
+          "additionalProperties": false
+        },
+        "observationValid": {
+          "const": true
+        },
+        "ok": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "target",
+        "expected",
+        "observed",
+        "observationValid",
+        "ok"
+      ],
+      "additionalProperties": false
+    },
+    "claimOutcome": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/cellOutcome"
+        },
+        {
+          "$ref": "#/$defs/cellDepsOutcome"
+        }
+      ]
+    },
+    "cellEvidence": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "cell"
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        },
+        "expected": {
+          "$ref": "#/$defs/cellExpected"
+        },
+        "observed": {
+          "$ref": "#/$defs/cellObservation"
+        },
+        "observationValid": {
+          "type": "boolean"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "input": {
+          "$ref": "#/$defs/cellInput"
+        }
+      },
+      "required": [
+        "kind",
+        "target",
+        "expected",
+        "observed",
+        "observationValid",
+        "ok",
+        "input"
+      ],
+      "additionalProperties": false
+    },
+    "claimEvidence": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/cellEvidence"
+        },
+        {
+          "$ref": "#/$defs/cellDepsOutcome"
+        }
+      ]
+    }
+  }
+}

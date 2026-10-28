@@ -1,6 +1,6 @@
 {
   "name": "ckb-verify",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Executable acceptance claims for CKB projects",
   "type": "module",
   "private": true,
@@ -11,6 +11,7 @@
   "scripts": {
     "test": "bun test",
     "showcase:secp-transfer": "bash showcases/secp-transfer/verify.sh",
+    "showcase:cell-properties": "bash showcases/cell-properties/verify.sh",
     "test:devnet": "bun run showcase:secp-transfer",
     "check:supply-chain": "bun run scripts/check-supply-chain.ts",
     "typecheck": "tsc --noEmit",

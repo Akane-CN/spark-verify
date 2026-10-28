@@ -7,6 +7,7 @@ import importlib.util
 import json
 import copy
 import tempfile
+import tomllib
 import unittest
 from unittest.mock import patch as mock_patch
 from pathlib import Path
@@ -41,6 +42,79 @@ class ValidatorTests(unittest.TestCase):
 
     def assert_error(self, errors: list[str], text: str) -> None:
         self.assertTrue(any(text in error for error in errors), errors)
+
+    def test_draft4_table_grammar_is_version_scoped_and_bounded(self) -> None:
+        positive = tomllib.loads((VALIDATOR.ROOT / "showcases/cell-properties/verify.committed.toml").read_text())
+        self.assertEqual(self.validate_manifest(positive), [])
+        for case in (VALIDATOR.ROOT / "showcases/cell-properties").glob("verify.*.toml"):
+            self.assertEqual(self.validate_manifest(tomllib.loads(case.read_text())), [], case.name)
+        for change in [
+            lambda m: m["step"][0]["assert"]["cell"][0].update(count=0),
+            lambda m: m["step"][0]["assert"]["cell"][0].update(count=True),
+            lambda m: m["step"][0]["assert"]["cell"][0]["type"].update(builtin="other"),
+            lambda m: m["step"][0]["assert"]["cell"][0]["type"].update(args_bytes=1048577),
+            lambda m: m["step"][0]["assert"]["cell"][0]["type"].update(args_bytes=-1),
+            lambda m: m["step"][0]["assert"]["cell"][0]["data"].update(min_bytes=0),
+            lambda m: m["step"][0]["assert"]["cell"][0]["data"].update(min_bytes=1048577),
+            lambda m: m["step"][0]["assert"]["cell"][0]["data"].update(eq="0x00"),
+            lambda m: m["step"][0]["assert"]["cell"][0]["out_point"].update(index=4294967296),
+            lambda m: m["step"][0]["assert"]["cell_deps"][0].update(contains=["dao"]),
+            lambda m: m["step"][0]["assert"]["cell_deps"][0].update(step="future"),
+            lambda m: m["step"][0]["assert"]["cell_deps"][0]["contains"].update(builtin="other"),
+            lambda m: m["step"][0]["assert"].update(balance=[]),
+        ]:
+            bad = copy.deepcopy(positive); change(bad)
+            self.assertTrue(self.validate_manifest(bad), bad)
+        legacy = copy.deepcopy(positive); legacy["meta"]["spec"] = "0.1.0-draft.3"
+        self.assertTrue(self.validate_manifest(legacy))
+
+    def test_report2_documentation_requires_its_exact_version_tuple(self) -> None:
+        # Shape-only synthetic documentation controls, never execution evidence.
+        digest = "sha256:" + "0" * 64
+        report = {"schema": "ckb-verify-report/2", "verdict": "FAIL", "createdAt": "synthetic",
+                  "evidence": {"spec": "0.1.0-draft.4", "manifestText": "synthetic", "steps": []},
+                  "outcomeClaims": {"schema": "ckb-verify-outcome/2", "spec": "0.1.0-draft.4"},
+                  "environment": {"schema": "ckb-verify-environment/3", "runner": {},
+                      "toolchain": {"requested": {}, "observed": {}}, "platform": {}, "devnet": {},
+                      "provenance": {"schema": "ckb-verify-provenance/2", "binaries": {"ckbDebugger": None},
+                          "replay": {"status": "stable", "declaredDependencies": [], "reasons": []}}},
+                  "digests": {"outcome": digest, "environment": digest}}
+        self.assertEqual(self.validate_report(report), [])
+        for change in [
+            lambda r: r["outcomeClaims"].update(schema="ckb-verify-outcome/1"),
+            lambda r: r["evidence"].update(spec="0.1.0-draft.3"),
+            lambda r: r["outcomeClaims"].update(spec="0.1.0-draft.3"),
+            lambda r: r["evidence"].pop("manifestText"),
+            lambda r: r.update(schema="ckb-verify-report/3"),
+            lambda r: r.update(verdict="NO_VERDICT"),
+        ]:
+            bad = copy.deepcopy(report); change(bad)
+            self.assertTrue(self.validate_report(bad), bad)
+        historical = copy.deepcopy(report)
+        historical["environment"]["schema"] = "ckb-verify-environment/2"
+        historical["environment"]["provenance"]["schema"] = "ckb-verify-provenance/1"
+        result = VALIDATOR.Validation()
+        VALIDATOR.validate_report_example(result, VALIDATOR_PATH, 1, historical, allow_legacy=True)
+        self.assertTrue(result.errors)
+
+    def test_current_documentation_links_draft4_without_upgrading_historical_evidence(self) -> None:
+        page = VALIDATOR.ROOT / "docs/cell-claims-draft.4.md"
+        self.assertTrue(page.is_file())
+        text = page.read_text()
+        positive = (VALIDATOR.ROOT / "showcases/cell-properties/verify.committed.toml").read_text()
+        self.assertIn("```toml\n" + positive + "```", text)
+        for token in ["1048576", "4294967295", "count = 1", "args_bytes", "min_bytes", "contains",
+                      "verifyReport", "verifyEvidenceDigests", "internal consistency", "not NervDAO adoption",
+                      "All declared claims passed in the recorded environment."]:
+            self.assertIn(token, text)
+        for relative in ["README.md", "CONTRIBUTING.md", "SECURITY.md", "docs/annotated-manifest.md",
+                         "docs/evidence-report.md", "showcases/README.md", "showcases/cell-properties/README.md"]:
+            document = (VALIDATOR.ROOT / relative).read_text()
+            self.assertIn("cell-claims-draft.4.md", document, relative)
+        showcase = (VALIDATOR.ROOT / "showcases/cell-properties/README.md").read_text()
+        for name in ["committed", "wrong-type", "wrong-data", "missing-dep", "ordinary-cell", "wrong-args"]:
+            self.assertIn("verify." + name + ".toml", showcase)
+        self.assertIn("NOT_RUN", showcase)
 
     def test_count_rejects_string(self) -> None:
         errors = self.validate_cell({"lock": "x", "count": "1"})

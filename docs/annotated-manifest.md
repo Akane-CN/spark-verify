@@ -1,6 +1,6 @@
 # Annotated `verify.toml`
 
-This guide explains every line of the manifest accepted by the current unreleased `ckb-verify` feasibility runner. It follows the executable [secp transfer committed fixture](../showcases/secp-transfer/verify.committed.toml), not the broader unimplemented vocabulary in the [draft RFC](verify-toml-rfc-v0.2.md).
+This guide explains the legacy draft.3 manifest accepted by the current unreleased `ckb-verify` feasibility runner. The additional implemented predicates and exact positive fixture are documented in [Cell-property claims: draft.4](cell-claims-draft.4.md). It follows the executable [secp transfer committed fixture](../showcases/secp-transfer/verify.committed.toml), not the broader unimplemented vocabulary in the [draft RFC](verify-toml-rfc-v0.2.md).
 
 > **Trust boundary:** `step.run` executes repository code with the current user's permissions. Run only trusted repositories in a disposable environment without production wallets or unrelated credentials. A passing result is acceptance evidence for the declared claims, not an audit.
 
@@ -13,7 +13,7 @@ TOML comments beginning with `#` are explanatory and may remain in a real manife
 [meta]
 # Short name used in terminal output and the evidence-directory suffix.
 name = "secp-transfer-committed"
-# Exact manifest contract selected by this file. Other values fail closed.
+# Exact legacy contract selected by this file; draft.4 is a separate explicit choice.
 spec = "0.1.0-draft.3"
 # Optional human context; it does not add an executable claim.
 description = "A signed secp256k1 transfer commits and creates a live output Cell."
@@ -27,7 +27,7 @@ offckb = "0.4.13"
 
 # Replay-affecting inputs the author knows the flow depends on.
 [replay]
-# The current runner accepts only an explicit empty list. It does not infer determinism.
+# Empty means no declared replay dependencies; non-empty supported lists taint replay.
 dependencies = []
 
 # Fresh-devnet resources exposed to the trusted transaction producer.
@@ -107,9 +107,9 @@ A matching rejection is a passing declared claim. The report records the RPC err
 
 ## Current accepted subset
 
-The `0.0.1` feasibility implementation accepts only:
+The private `0.0.2` feasibility implementation accepts:
 
-- manifest spec `0.1.0-draft.3`;
+- legacy manifest spec `0.1.0-draft.3` and new `0.1.0-draft.4`;
 - exact CKB and OffCKB versions supported by the adapter;
 - ckb-debugger `1.1.1` when requested, mandatory for every declared rejected transaction;
 - an explicit replay dependency list containing zero or more unique supported dependency codes;
@@ -117,9 +117,16 @@ The `0.0.1` feasibility implementation accepts only:
 - one signed transaction envelope per step;
 - committed or rejected transaction expectations;
 - an optional expected numeric script error code;
-- exact live-Cell count claims by prior step output.
+- exact live-Cell count claims by prior step output;
+- draft.4 type identity/args length, minimum data length and separate CellDep membership, with the [strict table grammar and bounds](cell-claims-draft.4.md).
 
-Unknown keys fail closed. A listed replay dependency makes the report explicitly `tainted` with an outcome-scoped reason. Cycle limits, script-filtered Cell queries, Cell data/capacity comparators, balance/UDT claims, and multi-transaction steps remain proposed v0.1 work. The draft RFC documents intent; it is not silently treated as current behavior.
+Unknown keys fail closed. A listed replay dependency makes the report explicitly `tainted` with an outcome-scoped reason. Cycle limits, script-filtered Cell queries, general Cell data/capacity comparators beyond draft.4 `min_bytes`, balance/UDT claims, and multi-transaction steps remain proposed v0.1 work. The draft RFC documents intent; it is not silently treated as current behavior.
+
+## Draft.4 assertion failures
+
+The [DAO/plain matrix](../showcases/cell-properties/README.md) keeps every `expect.tx` committed. Wrong-type, wrong-args, wrong-data, missing-dep and ordinary-cell are claim mismatches, not deliberately invalid transactions. They expect `FAIL` / exit 1 and do not need a debugger pin. Their native acceptance remains pending. Presence, membership and byte length do not imply protocol semantics or script execution.
+
+`PASS` means exactly: **All declared claims passed in the recorded environment.**
 
 ## Run and inspect
 
