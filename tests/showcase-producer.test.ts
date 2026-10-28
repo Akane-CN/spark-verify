@@ -225,6 +225,13 @@ async function wrapperCode(marker: string) {
   expect(typeof code).toBe("string");
   return code!;
 }
+async function canListen(host: string): Promise<boolean> {
+  const server = createServer();
+  try {
+    await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen({ port: 0, host, ipv6Only: true }, resolve); });
+    return true;
+  } catch { return false; } finally { if (server.listening) await new Promise<void>(resolve => server.close(() => resolve())); }
+}
 async function runWrapperCode(code: string, args: string[], cwd = root) {
   const child = Bun.spawn({ cmd: [process.execPath, "-", ...args], cwd, stdin: "pipe", stdout: "pipe", stderr: "pipe" });
   child.stdin.write(code); child.stdin.end();
@@ -269,7 +276,7 @@ test("cell-properties closeout detects account, pending evidence and occupied IP
       await rm(path);
     }
     expect((await runWrapperCode(ports, [])).exitCode).toBe(0);
-    for (const host of ["127.0.0.1", "::1"]) {
+    for (const host of ["127.0.0.1", ...(await canListen("::1") ? ["::1"] : [])]) {
       const listener = createServer();
       try {
         await new Promise<void>((resolve, reject) => { listener.once("error", reject); listener.listen({ host, port: 28114, ipv6Only: true }, resolve); });

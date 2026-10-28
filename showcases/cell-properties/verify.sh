@@ -113,15 +113,20 @@ verify_ports() {
   bun - <<'PORTS_CHECK'
 import { createServer } from "node:net";
 const problems = [];
+const probe = (host, port) => new Promise(resolve => {
+  const server = createServer();
+  server.once("error", error => resolve(error.code ?? "unavailable"));
+  server.listen({ host, port, ipv6Only: true }, () => server.close(error => resolve(error ? "close failed" : null)));
+});
+// Bun reports an unavailable address family without an errno code, so a failed
+// "::" probe counts as a listener only when IPv6 can bind at all (same rule as
+// the runner preflight in src/runtime-ownership.ts).
+let ipv6;
 for (const port of [8114, 28114]) for (const host of ["0.0.0.0", "::"]) {
-  await new Promise(resolve => {
-    const server = createServer();
-    server.once("error", error => { problems.push(`${host}:${port} ${error.code}`); resolve(); });
-    server.listen({ host, port, ipv6Only: true }, () => server.close(error => {
-      if (error) problems.push(`${host}:${port} close failed`);
-      resolve();
-    }));
-  });
+  const problem = await probe(host, port);
+  if (problem === null) continue;
+  if (host === "::" && problem !== "EADDRINUSE" && !(ipv6 ??= (await probe("::", 0)) === null)) continue;
+  problems.push(`${host}:${port} ${problem}`);
 }
 if (problems.length) throw new Error(`ports not independently free: ${problems.join(", ")}`);
 PORTS_CHECK
