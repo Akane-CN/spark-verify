@@ -226,7 +226,7 @@ The runner recomputes both embedded canonical objects before writing the report,
 
 The producer receives a loopback node URL for queries, but the current feasibility implementation does not provide a network namespace or cryptographically enforce read-only access. Runner-owned submission is an architectural protocol for trusted code, not a containment boundary.
 
-OffCKB `0.4.13` advertises the proxy through a loopback URL but its proxy process binds port `28114` on the wildcard interface. The adapter cannot narrow that inherited bind behavior. Run behind a host firewall or inside a disposable VM/container whose devnet ports are not reachable from untrusted networks.
+OffCKB `0.4.13` advertises the proxy through a loopback URL but, unpatched, binds port `28114` on the wildcard interface. The shipped OffCKB patch narrows the proxy listen to `127.0.0.1`, the supply-chain gate and runtime installation check require it, and the acceptance matrix checks that neither `8114` nor `28114` answers on the host's routable address. That is listener scope, not isolation: still run behind a host firewall or inside a disposable VM/container.
 
 See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 

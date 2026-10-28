@@ -136,6 +136,18 @@ export function assertOffckbUsesExternalLibraries(bundle: string): void {
   if (patchedRedirectCount !== 1) {
     throw new Error(`OffCKB bundle must contain exactly 1 patched follow-redirects import; observed ${patchedRedirectCount}`);
   }
+
+  // The RPC proxy must bind loopback only; the unpatched bundle listens on every interface.
+  const wildcardProxyListen = 'return server.listen(port, () => {';
+  const loopbackProxyListen = 'return server.listen(port, "127.0.0.1", () => {';
+  const wildcardProxyCount = count(bundle, wildcardProxyListen);
+  const loopbackProxyCount = count(bundle, loopbackProxyListen);
+  if (wildcardProxyCount !== 0) {
+    throw new Error(`OffCKB bundle retains ${wildcardProxyCount} wildcard RPC proxy listen call(s)`);
+  }
+  if (loopbackProxyCount !== 1) {
+    throw new Error(`OffCKB bundle must contain exactly 1 loopback-bound RPC proxy listen; observed ${loopbackProxyCount}`);
+  }
 }
 
 import { createRequire } from "node:module";

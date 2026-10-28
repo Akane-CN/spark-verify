@@ -25,6 +25,9 @@ the private `version` field of `package.json`, not published packages. Dates are
 
 ### Changed
 
+- The shipped OffCKB patch now binds the RPC proxy (`28114`) to `127.0.0.1` instead of every
+  interface; the supply-chain gate and the runtime installation check require the loopback-bound
+  listen and reject the wildcard one (#15).
 - The devnet adapter resolves the OffCKB CLI from `ckb-verify`'s own dependency tree instead of the
   verified project's `node_modules/.bin`.
 - The cell-properties showcase wrapper tolerates hosts where IPv6 cannot bind, matching the runner's
