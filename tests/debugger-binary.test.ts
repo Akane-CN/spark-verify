@@ -44,7 +44,7 @@ test.each(["short", "oversized", "hash"])("checks archive %s before parsing or w
     transport: async () => new Response(bytes),
   });
   await expect(harness.prepare(f.options)).rejects.toThrow(damage === "hash" ? "archive checksum mismatch" : "archive size mismatch");
-  expect(await readdir(f.root)).toEqual(["fixture.tar.gz", "source"]);
+  expect((await readdir(f.root)).sort()).toEqual(["fixture.tar.gz", "source"]);
 });
 
 test.each(["size", "checksum"])("enforces the independent executable %s pin", async damage => {
@@ -53,7 +53,7 @@ test.each(["size", "checksum"])("enforces the independent executable %s pin", as
     : identity(Buffer.alloc(f.binary.length));
   const harness = debuggerBinary.debuggerBinaryTestOnly({ archive: identity(f.archive), executable }, { transport: f.transport });
   await expect(harness.prepare(f.options)).rejects.toThrow(`executable ${damage} mismatch`);
-  expect(await readdir(f.root)).toEqual(["fixture.tar.gz", "source"]);
+  expect((await readdir(f.root)).sort()).toEqual(["fixture.tar.gz", "source"]);
 });
 
 test("stops reading immediately when streamed bytes exceed the pin", async () => {
@@ -126,7 +126,7 @@ test.each(["headers", "body"])("times out an uncooperative %s transport without 
   expect(abortedBeforeSettlement).toBe(true);
   expect(message).toContain("download timed out");
   expect(cancelObserved).toBe(true);
-  expect(await readdir(f.root)).toEqual(["fixture.tar.gz", "source"]);
+  expect((await readdir(f.root)).sort()).toEqual(["fixture.tar.gz", "source"]);
 });
 
 test("rejects nonfinite or out-of-policy timeouts before I/O", async () => {
@@ -157,7 +157,7 @@ async function unsafeTar(f: Awaited<ReturnType<typeof fixture>>, archive: Buffer
     transport: async () => new Response(Uint8Array.from(archive)),
   });
   await expect(harness.prepare(f.options)).rejects.toThrow(message);
-  expect(await readdir(f.root)).toEqual(["fixture.tar.gz", "source"]);
+  expect((await readdir(f.root)).sort()).toEqual(["fixture.tar.gz", "source"]);
 }
 
 test.each(["ckb-debugger", "LICENSE", "unexpected", "../escape", "/absolute", "pkg/../../escape", "./LICENSE", "C:\\escape", "folder\\escape"])(
@@ -230,7 +230,7 @@ test.each(["before", "headers", "body"])("honors caller cancellation %s download
   if (phase === "before") expect(calls).toBe(0);
   else expect(signal?.aborted).toBe(true);
   if (phase === "body") expect(canceled).toBe(true);
-  expect(await readdir(f.root)).toEqual(["fixture.tar.gz", "source"]);
+  expect((await readdir(f.root)).sort()).toEqual(["fixture.tar.gz", "source"]);
 });
 
 test.each(["missing metadata", "malformed metadata", "changed metadata", "missing license", "changed license", "extra entry", "missing archive", "short archive", "changed archive", "binary and metadata", "all identities"])(
@@ -645,7 +645,7 @@ test("production preparation cannot substitute fixture pins through input option
     expect(calls).toBe(0);
     await expect(debuggerBinary.preparePinnedDebuggerBinary(options)).rejects.toThrow("archive size mismatch");
     expect(calls).toBe(1);
-    expect(await readdir(f.root)).toEqual(["fixture.tar.gz", "source"]);
+    expect((await readdir(f.root)).sort()).toEqual(["fixture.tar.gz", "source"]);
     expect(Object.isFrozen(debuggerBinary.resolvePinnedDebuggerAsset("1.1.1", "linux", "x64").archive)).toBe(true);
   } finally { transport.mockRestore(); }
 });
@@ -744,5 +744,5 @@ test("preparation rejects unsupported identity before transport or filesystem wo
     await expect(f.harness.prepare({ ...f.options, ...selection })).rejects.toThrow("no pinned debugger artifact");
   }
   expect(f.downloads()).toBe(0);
-  expect(await readdir(f.root)).toEqual(["fixture.tar.gz", "source"]);
+  expect((await readdir(f.root)).sort()).toEqual(["fixture.tar.gz", "source"]);
 });
