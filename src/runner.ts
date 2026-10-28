@@ -41,7 +41,7 @@ export type RunnerRpcCaller = (url: string, method: string, params?: unknown[], 
 
 export interface DevnetAdapter {
   paths: Pick<OffckbPaths, "transactionsPath" | "fullTransactionsPath">;
-  start(): Promise<OffckbRunContext>;
+  start(signal?: AbortSignal): Promise<OffckbRunContext>;
   installDebugger(): Promise<void>;
   debuggerVersion(): Promise<string>;
   debugScript(
@@ -387,7 +387,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   let reportToPublish: RunManifestResult | undefined;
   try {
     throwIfAborted(options.signal);
-    context = await devnet.start();
+    context = await devnet.start(options.signal);
     throwIfAborted(options.signal);
     if (manifest.toolchain.ckbDebugger !== undefined) {
       await devnet.installDebugger();
@@ -587,6 +587,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     }
     try {
       if (context !== undefined) await devnet.stop();
+      throwIfAborted(options.signal);
     } catch (error) {
       cleanupErrors.push(error);
     }

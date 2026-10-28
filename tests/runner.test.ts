@@ -156,6 +156,17 @@ function fakeDevnet(project: string, debuggerOutput = "", privateKey = KEY): Dev
 }
 
 describe("runManifest", () => {
+  test("forwards interruption to setup before any devnet context exists", async () => {
+    const { project, manifestPath, outputDir } = await projectWithManifest(1);
+    const controller = new AbortController();
+    const devnet = fakeDevnet(project);
+    let observed: AbortSignal | undefined;
+    devnet.start = async (signal?: AbortSignal) => { observed = signal; throw new Error("setup failed"); };
+    await expect(runManifest({ manifestPath, projectRoot: project, outputDir, devnet, signal: controller.signal })).rejects.toThrow("setup failed");
+    expect(observed).toBe(controller.signal);
+    expect(await Bun.file(join(outputDir, "report.json")).exists()).toBe(false);
+  });
+
   test("submits a producer result, waits for commit, evaluates a live Cell, and writes a self-verifying report", async () => {
     const { project, manifestPath, outputDir } = await projectWithManifest(1);
     const runStep: StepCommandRunner = async (_command, options) => {
@@ -302,12 +313,14 @@ describe("runManifest", () => {
     expect(await Bun.file(result.reportPath).exists()).toBe(true);
   });
 
-  test("does not publish a verdict when devnet shutdown fails", async () => {
+  test.each(["failure", "interruption"])("does not publish a verdict after shutdown %s", async (failure) => {
     const { project, manifestPath, outputDir } = await projectWithManifest(1);
     const devnet = fakeDevnet(project);
     let reportVisibleDuringStop: boolean | undefined;
+    const controller = new AbortController();
     devnet.stop = async () => {
       reportVisibleDuringStop = await Bun.file(join(outputDir, "report.json")).exists();
+      if (failure === "interruption") { controller.abort("SIGTERM"); return; }
       throw new Error("simulated shutdown failure");
     };
     const runStep: StepCommandRunner = async (_command, options) => {
@@ -325,8 +338,8 @@ describe("runManifest", () => {
       throw new Error(`unexpected RPC ${method}`);
     };
 
-    await expect(runManifest({ manifestPath, projectRoot: project, outputDir, devnet, runStep, rpc })).rejects.toThrow(
-      "simulated shutdown failure",
+    await expect(runManifest({ manifestPath, projectRoot: project, outputDir, devnet, runStep, rpc, signal: controller.signal })).rejects.toThrow(
+      failure === "interruption" ? "run interrupted" : "simulated shutdown failure",
     );
     expect(reportVisibleDuringStop).toBe(false);
     expect(await Bun.file(join(outputDir, "report.json")).exists()).toBe(false);

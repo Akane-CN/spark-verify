@@ -24,8 +24,9 @@ export interface CliDependencies {
 export function subscribeProcessSignals(handler: (signal: "SIGINT" | "SIGTERM") => void): () => void {
   const onSigint = () => handler("SIGINT");
   const onSigterm = () => handler("SIGTERM");
-  process.once("SIGINT", onSigint);
-  process.once("SIGTERM", onSigterm);
+  // Keep handlers installed through cleanup: a repeated signal must not bypass it.
+  process.on("SIGINT", onSigint);
+  process.on("SIGTERM", onSigterm);
   return () => {
     process.removeListener("SIGINT", onSigint);
     process.removeListener("SIGTERM", onSigterm);

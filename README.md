@@ -81,6 +81,14 @@ A completed run uses these exit codes:
 
 The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) when validating all three paths because the harness checks that exit code and post-run cleanup explicitly.
 
+## Runtime ownership (Linux x64 / Bun)
+
+The devnet adapter supports Linux x64 with Bun (tested with `1.2.19`). Before tool installation, configuration, cleaning, or node startup, it acquires one kernel-backed abstract Unix socket for the fixed RPC/proxy namespace `8114/28114`. Runs in the same checkout, sibling checkouts, or under different users in the same network namespace serialize by failing fast: the loser exits with a `runtime busy` error and must retry after the owner finishes. It cannot stop the owner or delete its account file.
+
+Both ports are checked for IPv4 and IPv6 bind conflicts before setup. Existing listeners are never stopped to make room. Normal shutdown, setup failure, producer timeout, and SIGINT/SIGTERM drain in-flight setup/commands, remove the owned account file, and release ownership after cleanup. Cancellation may wait for the current bounded setup operation; repeated signals do not skip cleanup. Interrupted cleanup does not publish `report.json`; SIGINT and SIGTERM return `130` and `143` respectively.
+
+A crash releases the kernel lock without PID files, expiry-based stealing, or signals to a recorded PID. A surviving daemon still makes the next run fail port preflight: inspect it in your disposable environment rather than deleting a lock or killing an unknown listener. Ownership coordinates cooperating runners, not arbitrary processes, and is neither a network isolation mechanism nor a sandbox. See the [multi-user and namespace boundary](SECURITY.md#runtime-ownership-boundary).
+
 ## Implemented manifest subset
 
 ```toml
