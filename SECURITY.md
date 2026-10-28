@@ -19,7 +19,7 @@ A `verify.toml` file can contain `run` commands. Running `ckb-verify` therefore 
 - Treat `CKB_VERIFY_ACCOUNTS` keys as public devnet test keys. Never fund them with real assets.
 - Do not run a contributor's modified manifest or scripts in a privileged `pull_request_target` workflow.
 - Pin Action revisions and package/tool versions; do not execute an unpinned `latest` dependency in acceptance CI.
-- Review produced artifacts before publishing them. Reports and logs must redact environment values, URL credentials, remote userinfo, and private material not explicitly part of the public devnet context.
+- Review produced artifacts before publishing them. Exclude unrelated credentials before execution/canonicalization. Do not redact and rehash retained signed evidence to make it publishable; withhold unsafe artifacts and rerun safely.
 
 ## GitHub Actions guidance
 
@@ -89,6 +89,16 @@ These checks assume trusted code and caller-controlled directories; private copi
 The outcome digest is tamper-evident only for the normalized claim definitions, relevant artifact identities, and observations it covers. The environment fingerprint is tamper-evident only for the recorded environment object. Replay status qualifies known drift and the required author declaration in `[replay].dependencies`, but cannot detect every dependency of arbitrary repository code. An empty declaration is an attestation, not proof of determinism.
 
 None of these fields is a signature, an audit, a proof of completeness, evidence that the environments were actually secure, or evidence that unrecorded side effects did not occur. A malicious author can omit important assertions or lie about undeclared dependencies.
+
+## Draft.4 retained evidence
+
+[Draft.4 Cell claims](docs/cell-claims-draft.4.md) use report/outcome `/2` with unchanged environment `/3`, provenance `/2`, and producer envelope protocol 1. The generic DAO/plain fixture is not NervDAO adoption. It adds no dependency or deployment framework and does not weaken the trusted-code boundary. The initial offline implementation does not establish real DAO acceptance.
+
+Type presence, args/data length and CellDep membership do not establish protocol semantics or prove VM execution. A committed fixture is bounded acceptance, not a generic script-execution attestation. `verifyReport` checks complete-artifact version/semantic consistency, including valid FAIL reports, not authenticity or a full deep schema; `verifyEvidenceDigests` is a v1-only component compatibility helper. A consistently rewritten report can still verify.
+
+Report `/2` retains full signed transactions, witnesses and manifest text. Raw signed evidence may be sensitive. The scanner knows selected exported development keys, not arbitrary credentials. Known-key detection or cleanup failure withholds the pending/canonical report; never redact-and-rehash a report for publication. Keep immutable historical samples unchanged. The added CI job has no upload; public artifact policy/download verification remains #19.
+
+Independent closeout checks must run after secondary report-audit failure: account/pending-report absence and IPv4/IPv6 port availability are separate checks. Do not terminate foreign listeners. The new repeat comparison preserves differing real genesis/deployment bindings; matching hashes do not independently authenticate or allowlist genesis.
 
 ## Reporting a vulnerability
 

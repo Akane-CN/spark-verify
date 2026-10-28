@@ -45,6 +45,12 @@ The current pinned fixture environment is:
 
 The first devnet run may download the pinned CKB binary and debugger.
 
+## Draft.4 Cell-property fixture
+
+The private `0.0.2` runner also accepts [draft.4 type/args-length/data-length and CellDep claims](docs/cell-claims-draft.4.md). The repository-owned [generic DAO-deposit fixture](showcases/cell-properties/README.md) adds six declared cases plus a fresh positive repeat through `bun run showcase:cell-properties`. It is not NervDAO adoption. Its initial Phase B implementation is offline-tested; native acceptance is **NOT_RUN**, and no new real report is bundled. The existing secp historical evidence does not establish DAO acceptance.
+
+The new wrapper verifies each complete PASS/FAIL report with `verifyReport`, checks the intended failing predicates, and independently checks account/pending-report absence and ports even if report readback fails. Repeats require equal outcomes; repeated raw provenance requires equal environments. Differing real genesis/deployment bindings remain visible, not scrubbed to force equality. CI execution is separate from artifact publication (#19).
+
 ## CLI
 
 ```text
@@ -114,7 +120,7 @@ count = 1
 
 The feasibility implementation supports only:
 
-- exact spec `0.1.0-draft.3`;
+- exact legacy spec `0.1.0-draft.3` or new `0.1.0-draft.4`;
 - exact CKB and OffCKB versions accepted by the current adapter;
 - ckb-debugger `1.1.1` when requested, mandatory for every declared rejected transaction (Linux/x64 only);
 - a required replay dependency list containing zero or more unique RFC dependency codes;
@@ -122,7 +128,8 @@ The feasibility implementation supports only:
 - one signed transaction envelope per step;
 - `expect.tx = "committed"` or `"rejected"`;
 - optional `expect.error.code` for a rejected script;
-- exact live-Cell count assertions targeting `{ step, index }`.
+- exact live-Cell count assertions targeting `{ step, index }`;
+- draft.4 only: count 0/1, type builtin `dao`/`spore` plus `args_bytes`, data `min_bytes`, and separate `cell_deps.contains` **table** membership. Properties require count 1. See [bounds and semantics](docs/cell-claims-draft.4.md).
 
 Unknown keys fail closed. A non-empty replay dependency list is accepted but makes the report explicitly `tainted`; it never silently claims stable replay. Script deployment declarations, balance/UDT assertions, script filters, cycle comparators, and multi-transaction steps remain RFC targets and are not silently accepted.
 
@@ -185,7 +192,7 @@ It emits two RFC-8785 canonical SHA-256 identities:
 
 The source guard compares Git-visible snapshots before setup and after the declared steps/assertions, before report construction; a mismatch prevents report publication. It covers tracked changes visible to Git and non-ignored untracked paths, contents, and Git-relevant modes. Symlinks are fingerprinted by their stored link text, not their referents. It does not continuously monitor execution: mutate-then-restore changes between snapshots, changes after the final snapshot, ignored files, and external inputs (including external symlink referents) are outside this guard. `stable` qualifies recorded inputs and the author's replay declaration, not hermetic execution. See the [source snapshot boundary](docs/evidence-report.md#source-snapshot-boundary).
 
-The runner recomputes both embedded canonical objects before writing the report, checks cross-field provenance and replay-qualification semantics, checks that normalized evidence agrees with the embedded outcome claims, independently derives each Cell result from observation validity plus expected and observed counts, and verifies that the top-level verdict is the verdict derived from those claims. It scans the run evidence for the selected OffCKB development private keys with case-insensitive matching; any match is redacted and turns the run into an execution error. `report.json` is published only after that scan and devnet shutdown both succeed, so an execution or cleanup error leaves no valid verdict artifact. The temporary account file is removed when the devnet stops.
+The runner recomputes both embedded canonical objects before writing the report, checks cross-field provenance and replay-qualification semantics, checks that normalized evidence agrees with the embedded outcome claims, independently derives legacy Cell results from observation validity and counts, and draft.4 results from retained manifest/transaction/query inputs plus the declared type, length and dependency predicates, and verifies that the top-level verdict is the verdict derived from those claims. It scans the run evidence for the selected OffCKB development private keys with case-insensitive matching; any match is redacted and turns the run into an execution error. `report.json` is published only after that scan and devnet shutdown both succeed, so an execution or cleanup error leaves no valid verdict artifact. The temporary account file is removed when the devnet stops. Complete-artifact verification requires `verifyReport`; the schema-less `verifyEvidenceDigests` compatibility helper is v1-only. Report/outcome `/2` does not mean a full deep report schema or new verification CLI (#18). Known-key scanning does not detect arbitrary credentials. Raw signed inputs may be sensitive: do not redact and rehash them for publication. Offline verification establishes internal consistency, not authenticity; presence/membership/length is not protocol semantics or proof a script executed. Genesis is observed, not independently allowlisted.
 
 ## Trust and safety
 
@@ -201,12 +208,13 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 
 - [`src/`](src/) — CLI, strict manifest parser, OffCKB adapter, runner, RPC boundary, and report canonicalization
 - [`showcases/`](showcases/) — bounded, executable integrations built on the runner
+- [`showcases/cell-properties/`](showcases/cell-properties/) — generic DAO/plain draft.4 matrix; native acceptance pending
 - [`showcases/secp-transfer/`](showcases/secp-transfer/) — the first showcase: committed, rejected, and assertion-failure secp transfer paths
 - [`tests/`](tests/) — unit and orchestration tests
 - [`.github/workflows/verify.yml`](.github/workflows/verify.yml) — read-only CI for unit/docs checks and the fresh-devnet showcase
 - [`showcases/secp-transfer/verify.sh`](showcases/secp-transfer/verify.sh) — real fresh-devnet acceptance, cleanup, and digest-stability harness
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — broader draft vocabulary and report design
-- [`docs/annotated-manifest.md`](docs/annotated-manifest.md) — every field in the currently executable manifest subset
+- [`docs/annotated-manifest.md`](docs/annotated-manifest.md) — legacy manifest walkthrough and the link to new draft.4 predicates
 - [`docs/evidence-report.md`](docs/evidence-report.md) — current report contract, digest boundaries, and checked real output
 - [`schemas/ckb-verify-provenance-v2.schema.json`](schemas/ckb-verify-provenance-v2.schema.json) — current provenance schema; cross-field replay and debugger consistency are enforced by the runtime verifier
 - [`schemas/ckb-verify-provenance-v1.schema.json`](schemas/ckb-verify-provenance-v1.schema.json) — unchanged historical provenance schema

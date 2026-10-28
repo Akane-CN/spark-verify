@@ -46,6 +46,14 @@ Run the repository validator before proposing an RFC/documentation change:
 
 It runs validator regression tests, parses every TOML and JSON fence, applies selected high-risk draft invariants, checks local links and common secret patterns, runs the pinned Markdown linter, and checks both staged and unstaged Git whitespace. It is not the future machine-readable manifest schema and does not exhaustively reject every missing or unknown field. Add `--external-links` when intentionally rechecking every public URL.
 
+## Draft.4 fixture and evidence
+
+The private `0.0.2` runner retains draft.3 and adds [bounded draft.4 Cell-property claims](docs/cell-claims-draft.4.md). Keep the generic DAO fixture repository-owned, not NervDAO adoption. Preserve historical grant/RFC/example bytes and never convert legacy evidence in place.
+
+Use `bun run showcase:cell-properties` for the six-case matrix plus fresh committed repeat after static checks. Its initial implementation has offline coverage only; real clean-checkpoint acceptance and independent reviews remain gates. Verify every complete saved PASS/FAIL artifact with `verifyReport`, not the v1-only component helper `verifyEvidenceDigests`. Check actual failure predicates and run file/account/pending/port checks independently of secondary audits. Compare outcomes, require environment equality where raw provenance repeats, and preserve differing deployment/genesis bindings. Presence/membership/length is not script-execution proof; verifier consistency is not authenticity.
+
+The Python validator now checks selected draft.4 grammar/bounds and report-version tuples while retaining historical RFC checks; it is not a full runtime manifest/report schema or public #18 verifier. For offline checks, invoke `python3 -B scripts/test-validate-docs.py` and `python3 -B scripts/validate-docs.py --examples`, plus an already installed local Markdown validator without package resolution. The existing convenience shell wrapper uses `npx` and must not be used in a no-network/no-install gate. CI artifact publication is separate #19 work.
+
 ## Implementation standards
 
 - TypeScript strict mode;
@@ -54,7 +62,7 @@ It runs validator regression tests, parses every TOML and JSON fence, applies se
 - no shell-string interpolation for untrusted paths;
 - redaction tests for logs/reports;
 - unit tests plus real OffCKB integration fixtures;
-- clean-run outcome digest and environment fingerprint checked twice by `bun run showcase:secp-transfer`;
+- clean-run repeatability: the secp harness compares both digests; the Cell-property harness retains/report differences in raw devnet bindings instead of forcing environment equality;
 - Linux required, macOS targeted, Windows support claimed only after real verification.
 
 ## Security

@@ -152,7 +152,61 @@ def validate_cell(v: Validation, file: Path, line: int, assertion: dict[str, Any
                     v.error(file, line, f"capacity.{comparator} must be a canonical CKB/shannon quantity string")
 
 
-def validate_assertions(v: Validation, file: Path, line: int, table: Any) -> None:
+def validate_v4_assertions(v: Validation, file: Path, line: int, table: Any, names: set[str] | frozenset[str]) -> None:
+    """Selected draft.4 documentation invariants, not the runtime parser/schema."""
+    if table is None:
+        return
+
+    def exact(value: Any, required: set[str], optional: set[str] | frozenset[str] = frozenset()) -> bool:
+        valid = isinstance(value, dict) and required <= set(value) and set(value) <= required | optional
+        if not valid:
+            v.error(file, line, f"draft.4 table requires {sorted(required)}; optional {sorted(optional)}")
+        return valid
+
+    def integer(value: Any, low: int, high: int) -> None:
+        if type(value) is not int or not low <= value <= high:
+            v.error(file, line, f"draft.4 integer must be in {low}..{high}")
+
+    def builtin(value: Any) -> None:
+        if value not in ("dao", "spore"):
+            v.error(file, line, "draft.4 builtin must be dao or spore")
+
+    def reference(value: Any) -> None:
+        if not isinstance(value, str) or value not in names:
+            v.error(file, line, "draft.4 reference must name this or an earlier step")
+
+    if not exact(table, set(), {"cell", "cell_deps"}):
+        return
+    for kind, entries in table.items():
+        if not isinstance(entries, list):
+            v.error(file, line, f"draft.4 assert.{kind} must be an array of tables")
+            continue
+        for item in entries:
+            if kind == "cell_deps":
+                if exact(item, {"step", "contains"}):
+                    reference(item["step"])
+                    if exact(item["contains"], {"builtin"}):
+                        builtin(item["contains"]["builtin"])
+                continue
+            if not exact(item, {"out_point", "count"}, {"type", "data"}):
+                continue
+            integer(item["count"], 0, 1)
+            if exact(item["out_point"], {"step", "index"}):
+                reference(item["out_point"]["step"])
+                integer(item["out_point"]["index"], 0, 4294967295)
+            if ("type" in item or "data" in item) and item["count"] != 1:
+                v.error(file, line, "draft.4 properties require count = 1")
+            if "type" in item and exact(item["type"], {"builtin", "args_bytes"}):
+                builtin(item["type"]["builtin"])
+                integer(item["type"]["args_bytes"], 0, 1048576)
+            if "data" in item and exact(item["data"], {"min_bytes"}):
+                integer(item["data"]["min_bytes"], 1, 1048576)
+
+
+def validate_assertions(v: Validation, file: Path, line: int, table: Any, *, draft4: bool = False, names: set[str] | frozenset[str] = frozenset()) -> None:
+    if draft4:
+        validate_v4_assertions(v, file, line, table, names)
+        return
     if not isinstance(table, dict):
         return
     for kind, validator in (("cell", validate_cell), ("balance", validate_amounts)):
@@ -253,8 +307,9 @@ def validate_expect(v: Validation, file: Path, line: int, expect: Any) -> None:
 def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str, Any]) -> None:
     full_manifest = all(key in obj for key in ("meta", "toolchain", "setup"))
     meta = obj.get("meta")
-    if isinstance(meta, dict) and meta.get("spec") != "0.1.0-draft.3":
-        v.error(file, line, "manifest examples must select spec 0.1.0-draft.3")
+    draft4 = isinstance(meta, dict) and meta.get("spec") == "0.1.0-draft.4"
+    if isinstance(meta, dict) and meta.get("spec") not in ("0.1.0-draft.3", "0.1.0-draft.4"):
+        v.error(file, line, "manifest examples must select spec 0.1.0-draft.3 or 0.1.0-draft.4")
 
     toolchain = obj.get("toolchain")
     if isinstance(toolchain, dict):
@@ -318,14 +373,14 @@ def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str,
             if full_manifest and isinstance(step.get("expect"), dict) and step["expect"].get("tx") == "rejected":
                 if not isinstance(toolchain, dict) or toolchain.get("ckb-debugger") != "1.1.1":
                     v.error(file, line, "declared rejection requires ckb-debugger 1.1.1")
-            validate_assertions(v, file, line, step.get("assert"))
+            validate_assertions(v, file, line, step.get("assert"), draft4=draft4, names=set(names))
             validate_output_references(v, file, line, step.get("assert"), set(names))
 
     if full_manifest:
         def contains_assertion(table: Any) -> bool:
             return isinstance(table, dict) and any(
                 isinstance(table.get(kind), list) and bool(table[kind])
-                for kind in ("cell", "balance")
+                for kind in (("cell", "cell_deps") if draft4 else ("cell", "balance"))
             )
 
         has_step_claim = isinstance(steps, list) and any(
@@ -340,7 +395,7 @@ def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str,
         if not has_step_claim and not contains_assertion(obj.get("assert")):
             v.error(file, line, "a full manifest requires at least one expectation or assertion")
 
-    validate_assertions(v, file, line, obj.get("assert"))
+    validate_assertions(v, file, line, obj.get("assert"), draft4=draft4, names=set(names))
     if isinstance(steps, list) and steps:
         validate_output_references(v, file, line, obj.get("assert"), set(names))
 
@@ -356,7 +411,8 @@ def validate_report_example(
     v: Validation, file: Path, line: int, obj: dict[str, Any], *, allow_legacy: bool = False
 ) -> None:
     schema = obj.get("schema")
-    if schema == "ckb-verify-report/1":
+    if schema in ("ckb-verify-report/1", "ckb-verify-report/2"):
+        v2 = schema == "ckb-verify-report/2"
         required = {
             "schema",
             "verdict",
@@ -381,8 +437,14 @@ def validate_report_example(
         if not isinstance(evidence, dict):
             v.error(file, line, "current report requires evidence")
         outcome = obj.get("outcomeClaims")
-        if not isinstance(outcome, dict) or outcome.get("schema") != "ckb-verify-outcome/1":
-            v.error(file, line, "current report requires ckb-verify-outcome/1 outcomeClaims")
+        expected_outcome = "ckb-verify-outcome/2" if v2 else "ckb-verify-outcome/1"
+        if not isinstance(outcome, dict) or outcome.get("schema") != expected_outcome:
+            v.error(file, line, f"current report requires {expected_outcome} outcomeClaims")
+        if v2:
+            if not isinstance(evidence, dict) or evidence.get("spec") != "0.1.0-draft.4" or not isinstance(evidence.get("manifestText"), str):
+                v.error(file, line, "report/2 requires draft.4 evidence and retained manifestText")
+            if not isinstance(outcome, dict) or outcome.get("spec") != "0.1.0-draft.4":
+                v.error(file, line, "report/2 requires draft.4 outcome")
         environment = obj.get("environment")
         environment_fields = {"schema", "runner", "toolchain", "provenance", "platform", "devnet"}
         if not isinstance(environment, dict) or environment.get("schema") not in {
@@ -396,7 +458,7 @@ def validate_report_example(
             pair = (environment.get("schema"), provenance.get("schema") if isinstance(provenance, dict) else None)
             current = pair == ("ckb-verify-environment/3", "ckb-verify-provenance/2")
             historical = pair == ("ckb-verify-environment/2", "ckb-verify-provenance/1")
-            if not current and not (allow_legacy and historical):
+            if not current and not (not v2 and allow_legacy and historical):
                 v.error(file, line, "current report requires ckb-verify-environment/3 + ckb-verify-provenance/2; historical /2 + /1 requires explicit allow_legacy")
             else:
                 assert isinstance(provenance, dict)
@@ -434,6 +496,9 @@ def validate_report_example(
                 if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
                     v.error(file, line, f"current report {name} digest must be canonical sha256")
         return
+
+    if isinstance(schema, str) and schema.startswith("ckb-verify-report/"):
+        v.error(file, line, "unsupported complete report schema")
 
     if isinstance(schema, str) and schema.startswith("spark-verify-report/"):
         digests = obj.get("digests")

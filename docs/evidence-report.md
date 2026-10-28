@@ -18,11 +18,11 @@ verify.toml + trusted producer
        terminal / CI summary
 ```
 
-> **Current contract:** the unreleased runner emits `ckb-verify-report/1` for draft.3 and `ckb-verify-report/2` for draft.4, both with `ckb-verify-environment/3` environment fields. The nested [`ckb-verify-provenance/2` JSON Schema](../schemas/ckb-verify-provenance-v2.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. A complete report/manifest schema and compatibility fixtures remain v0.1 work.
+> **Current contract:** the unreleased runner emits `ckb-verify-report/1` for draft.3 and `ckb-verify-report/2` for draft.4, both with `ckb-verify-environment/3` environment fields. The nested [`ckb-verify-provenance/2` JSON Schema](../schemas/ckb-verify-provenance-v2.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. Bounded claims-v2 compatibility fixtures exist; a complete report/manifest schema and public verifier remain #18 work. See the [draft.4 grammar and scope](cell-claims-draft.4.md).
 
 ## Verifier entrypoints and compatibility
 
-Use `verifyReport(report, options)` from `src/report.ts` when reading a **complete artifact**, including before runner publication and in the secp showcase post-check. Its input is `unknown`. It requires an explicit own top-level `schema` equal to `ckb-verify-report/1` or `ckb-verify-report/2`; missing, inherited, `undefined`, `null`, unknown, or other envelope versions raise `EvidenceIntegrityError`. It does not infer a version from the nested objects or fall back to another evaluator.
+Use `verifyReport(report, options)` from `src/report.ts` when reading a **complete artifact**, including before runner publication and in both showcase post-checks. Its input is `unknown`. It requires an explicit own top-level `schema` equal to `ckb-verify-report/1` or `ckb-verify-report/2`; missing, inherited, `undefined`, `null`, unknown, or other envelope versions raise `EvidenceIntegrityError`. It does not infer a version from the nested objects or fall back to another evaluator.
 
 Both entrypoints support exactly these v1 tuples:
 
@@ -63,7 +63,7 @@ The [claims-v2 schema fragment](../schemas/ckb-verify-claims-v2.schema.json) pro
 
 Retained manifest/transaction/witness bytes may be sensitive. A known exported development key in the pending report causes NO_VERDICT: cleanup still runs and neither pending nor canonical report survives. Hash-bound inputs must not be redacted/rehashed and then published. The existing scanner only knows exported development keys, not arbitrary credentials.
 
-Offline verification establishes **internal consistency**, not authentic RPC observations, deployment provenance, signatures, block inclusion/finality, or proof a type/dep executed. All-consistent rewrites remain possible. The claims-v2 fixtures are explicitly synthetic; fresh DAO, legacy secp lifecycle regression, separate Spore feasibility, hosted artifacts and installed-consumer acceptance are **not demonstrated by this core slice**. Broader documentation and real fixtures remain a later phase.
+Offline verification establishes **internal consistency**, not authentic RPC observations, deployment provenance, signatures, block inclusion/finality, or proof a type/dep executed. All-consistent rewrites remain possible. The claims-v2 unit fixtures are explicitly synthetic. The [generic DAO/plain showcase](../showcases/cell-properties/README.md) now supplies the planned six-case real-run entrypoint, but fresh DAO acceptance, legacy secp lifecycle regression, separate Spore feasibility, hosted artifacts and installed-consumer acceptance are **not demonstrated by the initial offline Phase B implementation**. No new real report or converted legacy sample is bundled.
 
 ## Checked example
 
@@ -105,7 +105,7 @@ digests.environment
 
 A published report currently contains `PASS` or `FAIL`:
 
-- `PASS` means all and only the declared claims passed in the recorded environment.
+- `PASS` means exactly: **All declared claims passed in the recorded environment.**
 - `FAIL` means execution completed, but at least one declared claim did not match.
 - An execution, evidence-integrity, secret-scan, or cleanup error exits with code `2` and does not publish a valid report.
 
@@ -174,7 +174,7 @@ SHA-256 of the RFC-8785-canonicalized `environment` object. It answers:
 
 > Were the recorded source, manifest, toolchain, platform, genesis, and system-script inputs identical?
 
-Equal outcome digests do not imply equal environments. A reviewer should compare both values and inspect the underlying fields before drawing a replay conclusion.
+Equal outcome digests do not imply equal environments. A reviewer should compare both values and inspect the underlying fields before drawing a replay conclusion. The Cell-property wrapper requires equal outcomes and unchanged non-devnet provenance; it requires equal environment fingerprints when raw provenance repeats. Differing genesis/deployment bindings are retained and printed as `recorded-devnet-difference`, never erased or rehashed to force equality. Genesis is observed, not independently allowlisted.
 
 ## Terminal and CI presentation
 
@@ -187,7 +187,7 @@ outcome: sha256:<64 lowercase hex characters>
 environment: sha256:<64 lowercase hex characters>
 ```
 
-This is intentionally not the authority. The report is the reviewable artifact; the terminal line is a concise index into it. CI should preserve the report directory as an artifact when the workflow is intended to publish evidence.
+This is intentionally not the authority. The report is the reviewable artifact; the terminal line is a concise index into it. The added named CI job executes the matrix without artifact upload. Publishing selected evidence and downloading/verifying the exact hosted artifact remains separate #19 work; a green job is not preserved evidence.
 
 ## What a reviewer should check
 
