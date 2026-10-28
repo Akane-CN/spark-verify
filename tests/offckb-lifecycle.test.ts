@@ -14,6 +14,20 @@ const directories: string[] = [];
 const HASH = `0x${"22".repeat(32)}`;
 const KEY = `0x${"11".repeat(32)}`;
 
+function fixtureCkbBinary(repository: string) {
+  return {
+    path: join(repository, "verified-ckb"),
+    version: "0.209.0",
+    platform: "linux" as const,
+    architecture: "x64",
+    asset: "ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+    sourceUrl: "https://github.com/nervosnetwork/ckb/releases/download/v0.209.0/fixture.tar.gz",
+    expectedArchiveSha256: `sha256:${"1".repeat(64)}` as const,
+    archiveSha256: `sha256:${"1".repeat(64)}` as const,
+    binarySha256: `sha256:${"2".repeat(64)}` as const,
+  };
+}
+
 function success(command: string, fields: Record<string, unknown> = {}): CommandResult {
   return {
     stdout: `${JSON.stringify({ ok: true, command, ...fields })}\n`,
@@ -133,11 +147,21 @@ describe("OffckbDevnet", () => {
       throw new Error(`unexpected RPC ${method}`);
     };
 
-    const devnet = new OffckbDevnet({ repositoryRoot: repository, ckbVersion: "0.209.0", accountCount: 2, run, rpc });
+    const ckbBinary = fixtureCkbBinary(repository);
+    const devnet = new OffckbDevnet({
+      repositoryRoot: repository,
+      ckbVersion: "0.209.0",
+      accountCount: 2,
+      run,
+      rpc,
+      installCkbBinary: async () => ckbBinary,
+    });
     const context = await devnet.start();
+    const { path: _ckbBinaryPath, ...ckbBinaryEvidence } = ckbBinary;
 
     expect(context).toMatchObject({
       ckbVersion: "0.209.0 (test)",
+      ckbBinary: ckbBinaryEvidence,
       offckbVersion: "0.4.13",
       genesisHash: HASH,
       rpcUrl: "http://127.0.0.1:8114",
@@ -150,7 +174,7 @@ describe("OffckbDevnet", () => {
     expect(calls.filter((argv) => argv[1] === "--json").map((argv) => argv.slice(2, 5))).toEqual([
       ["config", "set", "ckb-version"],
       ["clean"],
-      ["node", "0.209.0", "--daemon"],
+      ["node", "--binary-path", ckbBinary.path],
       ["devnet", "info"],
       ["accounts", "--show-private-keys"],
       ["system-scripts", "--output", paths.systemScriptsPath],

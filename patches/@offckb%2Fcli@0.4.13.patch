@@ -1,0 +1,18 @@
+diff --git a/build/index.js b/build/index.js
+index b2a8b9046542ddba7b689d6aa6958eaded19a213..67fcb952fe7cc461b110663988362acf395fbe4f 100755
+--- a/build/index.js
++++ b/build/index.js
+@@ -5709,2 +5709,2 @@ const os_1 = __importDefault(__nccwpck_require__(70857));
+-const adm_zip_1 = __importDefault(__nccwpck_require__(3858));
+-const tar = __importStar(__nccwpck_require__(7222));
++const adm_zip_1 = __importDefault(require("adm-zip"));
++const tar = __importStar(require("tar"));
+@@ -8048 +8048 @@ const crypto = __importStar(__nccwpck_require__(76982));
+-const tar = __importStar(__nccwpck_require__(7222));
++const tar = __importStar(require("tar"));
+@@ -8587 +8587 @@ const crypto = __importStar(__nccwpck_require__(76982));
+-const adm_zip_1 = __importDefault(__nccwpck_require__(3858));
++const adm_zip_1 = __importDefault(require("adm-zip"));
+@@ -68483 +68483 @@ var httpNative   = __nccwpck_require__(58611),
+-    followRedirects = __nccwpck_require__(230);
++    followRedirects = require("follow-redirects");

@@ -2,9 +2,9 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { runManifest, type DevnetAdapter, type StepCommandRunner } from "../src/runner";
+import { collectSourceRevision, runManifest, type DevnetAdapter, type StepCommandRunner } from "../src/runner";
 import type { OffckbRunContext } from "../src/offckb";
-import type { CommandResult } from "../src/process";
+import { runProcess, type CommandResult } from "../src/process";
 import { transactionHash } from "../src/transaction";
 import { RpcError } from "../src/rpc";
 
@@ -42,6 +42,11 @@ function commandResult(stdout = "", stderr = ""): CommandResult {
   return { stdout, stderr, exitCode: 0, signal: null, timedOut: false, durationMs: 7 };
 }
 
+async function git(cwd: string, ...args: string[]): Promise<void> {
+  const result = await runProcess(["git", ...args], { cwd, timeoutMs: 10_000 });
+  if (result.exitCode !== 0) throw new Error(result.stderr);
+}
+
 afterEach(async () => {
   await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
@@ -56,6 +61,20 @@ async function projectWithManifest(count: number): Promise<{ project: string; ma
     `[meta]\nname = "runner-committed"\nspec = "0.1.0-draft.3"\n\n[toolchain]\nckb = "0.209.0"\noffckb = "0.4.13"\n\n[replay]\ndependencies = []\n\n[setup]\naccounts = 2\n\n[[step]]\nname = "transfer"\nrun = "fake-producer committed"\ntimeout = "10s"\nexpect.tx = "committed"\n\n[[step.assert.cell]]\nout_point = { step = "transfer", index = 0 }\ncount = ${count}\n`,
   );
   return { project, manifestPath, outputDir };
+}
+
+async function gitProjectWithManifest(): Promise<{ project: string; manifestPath: string; outputDir: string }> {
+  const fixture = await projectWithManifest(1);
+  const { project } = fixture;
+  await writeFile(join(project, "package.json"), `${JSON.stringify({ packageManager: `bun@${Bun.version}` })}\n`);
+  await writeFile(join(project, "bun.lock"), "initial lock\n");
+  await writeFile(join(project, ".gitignore"), "evidence/\n.runtime/\n");
+  await git(project, "init", "-q");
+  await git(project, "config", "user.name", "Test");
+  await git(project, "config", "user.email", "test@example.invalid");
+  await git(project, "add", ".");
+  await git(project, "commit", "-qm", "initial");
+  return fixture;
 }
 
 async function projectWithRejectedManifest(): Promise<{ project: string; manifestPath: string; outputDir: string }> {
@@ -94,6 +113,16 @@ function fakeDevnet(project: string, debuggerOutput = "", privateKey = KEY): Dev
     offckbVersion: "0.4.13",
     ckbRequestedVersion: "0.209.0",
     ckbVersion: "0.209.0 (test)",
+    ckbBinary: {
+      version: "0.209.0",
+      platform: "linux",
+      architecture: "x64",
+      asset: "ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+      sourceUrl: "https://github.com/nervosnetwork/ckb/releases/download/v0.209.0/fixture.tar.gz",
+      expectedArchiveSha256: `sha256:${"1".repeat(64)}`,
+      archiveSha256: `sha256:${"1".repeat(64)}`,
+      binarySha256: `sha256:${"2".repeat(64)}`,
+    },
     genesisHash: HASH,
     rpcUrl: "http://127.0.0.1:8114",
     proxyUrl: "http://127.0.0.1:28114",
@@ -177,8 +206,56 @@ describe("runManifest", () => {
     expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
     expect(result.report.digests.outcome).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(result.report.digests.environment).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(Object.keys(result.report.environment).sort()).toEqual([
+      "devnet",
+      "platform",
+      "provenance",
+      "runner",
+      "schema",
+      "toolchain",
+    ]);
     expect(result.report.environment).toMatchObject({
-      sourceRevision: { gitCommit: null, dirty: null },
+      schema: "ckb-verify-environment/2",
+      runner: { name: "ckb-verify", version: "0.0.1" },
+      toolchain: {
+        requested: { ckb: "0.209.0", offckb: "0.4.13" },
+        observed: { ckb: "0.209.0 (test)", offckb: "0.4.13" },
+      },
+      provenance: {
+        schema: "ckb-verify-provenance/1",
+        replay: {
+          declaredDependencies: [],
+          status: "tainted",
+          reasons: [
+            { scope: "environment", code: "source_revision_unavailable" },
+            { scope: "environment", code: "source_state_unavailable" },
+            { scope: "environment", code: "runtime_pin_missing" },
+            { scope: "environment", code: "lockfile_missing" },
+          ],
+        },
+        source: { gitCommit: null, dirty: null, dirtyDigest: null },
+        manifest: { sha256: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) },
+        lockfile: { path: "bun.lock", sha256: null },
+        runtime: {
+          name: "bun",
+          requestedVersion: null,
+          observedVersion: Bun.version,
+          metadata: { path: "package.json", sha256: null },
+        },
+        binaries: {
+          ckb: {
+            version: "0.209.0",
+            platform: "linux",
+            architecture: "x64",
+            asset: "ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+            expectedArchiveSha256: `sha256:${"1".repeat(64)}`,
+            archiveSha256: `sha256:${"1".repeat(64)}`,
+            binarySha256: `sha256:${"2".repeat(64)}`,
+          },
+        },
+      },
+      platform: { os: process.platform, arch: process.arch },
+      devnet: { network: "devnet", genesisHash: HASH, systemScripts: {} },
     });
     expect(await Bun.file(join(outputDir, "steps", "01-transfer", "transaction.json")).exists()).toBe(true);
     expect(await Bun.file(join(outputDir, "steps", "01-transfer", "stdout.txt")).text()).toBe("producer complete\n");
@@ -253,6 +330,94 @@ describe("runManifest", () => {
     );
     expect(reportVisibleDuringStop).toBe(false);
     expect(await Bun.file(join(outputDir, "report.json")).exists()).toBe(false);
+    expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
+  });
+
+  test.each(["tracked file", "untracked file", "untracked symlink"] as const)(
+    "does not publish a verdict when %s differs between source snapshots",
+    async (source) => {
+      const { project, manifestPath, outputDir } = await gitProjectWithManifest();
+      const sourcePath = join(project, source === "tracked file" ? "bun.lock" : "fixture-input");
+      if (source === "untracked file") await writeFile(sourcePath, "initial input\n");
+      if (source === "untracked symlink") await symlink("verify.toml", sourcePath);
+      const before = await collectSourceRevision(project);
+      expect(before.dirty).toBe(source !== "tracked file");
+
+      const runStep: StepCommandRunner = async (_command, options) => {
+        const resultPath = options.env?.CKB_VERIFY_RESULT;
+        if (resultPath === undefined) throw new Error("missing result path");
+        await writeFile(resultPath, JSON.stringify({ protocol: 1, transaction: TRANSACTION }));
+        if (source === "untracked symlink") {
+          await rm(sourcePath);
+          await symlink("package.json", sourcePath);
+        } else await writeFile(sourcePath, "mutated during verification\n");
+        return commandResult();
+      };
+      const txHash = transactionHash(TRANSACTION);
+      const rpc = async (_url: string, method: string): Promise<unknown> => {
+        if (method === "test_tx_pool_accept") return { cycles: "0x64", fee: "0xa" };
+        if (method === "send_transaction") return txHash;
+        if (method === "get_transaction") return { transaction: TRANSACTION, tx_status: { status: "committed" } };
+        if (method === "get_live_cell") return { status: "live", cell: { output: {}, data: { content: "0x" } } };
+        throw new Error(`unexpected RPC ${method}`);
+      };
+      const devnet = fakeDevnet(project);
+      let stopped = false;
+      devnet.stop = async () => {
+        stopped = true;
+      };
+
+      await expect(
+        runManifest({ manifestPath, projectRoot: project, outputDir, devnet, runStep, rpc }),
+      ).rejects.toThrow("source revision changed during verification");
+      expect(stopped).toBe(true);
+      expect(await Bun.file(join(outputDir, "report.json")).exists()).toBe(false);
+      expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
+    },
+  );
+
+  test("does not detect source changes restored before the final snapshot", async () => {
+    const { project, manifestPath, outputDir } = await gitProjectWithManifest();
+    const sourcePath = join(project, "bun.lock");
+    const original = await Bun.file(sourcePath).text();
+    const before = await collectSourceRevision(project);
+    expect(before).toMatchObject({ dirty: false, dirtyDigest: null });
+
+    const runStep: StepCommandRunner = async (_command, options) => {
+      await writeFile(sourcePath, "temporarily changed during verification\n");
+      expect(await collectSourceRevision(project)).toMatchObject({
+        gitCommit: before.gitCommit,
+        dirty: true,
+        dirtyDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+      });
+      await writeFile(sourcePath, original);
+      const resultPath = options.env?.CKB_VERIFY_RESULT;
+      if (resultPath === undefined) throw new Error("missing result path");
+      await writeFile(resultPath, JSON.stringify({ protocol: 1, transaction: TRANSACTION }));
+      return commandResult();
+    };
+    const txHash = transactionHash(TRANSACTION);
+    const rpc = async (_url: string, method: string): Promise<unknown> => {
+      if (method === "test_tx_pool_accept") return { cycles: "0x64", fee: "0xa" };
+      if (method === "send_transaction") return txHash;
+      if (method === "get_transaction") return { transaction: TRANSACTION, tx_status: { status: "committed" } };
+      if (method === "get_live_cell") return { status: "live", cell: { output: {}, data: { content: "0x" } } };
+      throw new Error(`unexpected RPC ${method}`);
+    };
+
+    const result = await runManifest({
+      manifestPath,
+      projectRoot: project,
+      outputDir,
+      devnet: fakeDevnet(project),
+      runStep,
+      rpc,
+    });
+
+    expect(result.verdict).toBe("PASS");
+    expect(result.report.environment.provenance.source).toEqual(before);
+    expect(result.report.environment.provenance.replay).toEqual({ declaredDependencies: [], status: "stable", reasons: [] });
+    expect(await Bun.file(result.reportPath).exists()).toBe(true);
     expect(await Bun.file(join(outputDir, ".report.json.pending")).exists()).toBe(false);
   });
 
@@ -570,7 +735,7 @@ describe("runManifest", () => {
     expect(submitted).toBe(true);
     expect(result.verdict).toBe("PASS");
     expect(result.report.environment).toMatchObject({
-      observedToolchain: { ckbDebugger: "ckb-debugger 1.1.1" },
+      toolchain: { observed: { ckbDebugger: "ckb-debugger 1.1.1" } },
     });
     expect(result.report.evidence.steps[0]).toMatchObject({
       name: "bad-signature",

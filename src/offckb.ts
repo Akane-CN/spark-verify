@@ -2,6 +2,7 @@ import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { installPinnedCkbBinary, type InstalledCkbBinary } from "./ckb-binary";
 import { rpcCall } from "./rpc";
 import { runProcess, type CommandResult, type RunCommandOptions } from "./process";
 
@@ -20,6 +21,7 @@ export interface OffckbPaths {
   dataHome: string;
   cacheHome: string;
   stateHome: string;
+  toolchainRoot: string;
   systemScriptsPath: string;
   accountsPath: string;
   contextPath: string;
@@ -97,6 +99,7 @@ export function createOffckbPaths(repositoryRoot: string, offckbBinary: string):
     dataHome,
     cacheHome: join(root, "cache"),
     stateHome: join(root, "state"),
+    toolchainRoot: join(dataHome, "offckb-nodejs", "bins"),
     systemScriptsPath: join(root, "system-scripts.json"),
     accountsPath: join(root, "accounts.json"),
     contextPath: join(root, "context.json"),
@@ -208,12 +211,14 @@ export type OffckbCommandRunner = (
 ) => Promise<CommandResult>;
 
 export type OffckbRpcCaller = (url: string, method: string, params?: unknown[]) => Promise<unknown>;
+export type CkbBinaryInstaller = (version: string, root: string) => Promise<InstalledCkbBinary>;
 
 export interface OffckbRunContext {
   network: "devnet";
   offckbVersion: typeof OFFCKB_VERSION;
   ckbRequestedVersion: string;
   ckbVersion: string;
+  ckbBinary: Omit<InstalledCkbBinary, "path">;
   genesisHash: string;
   rpcUrl: string;
   proxyUrl: string;
@@ -230,6 +235,7 @@ interface OffckbDevnetOptions {
   offckbBinary?: string;
   run?: OffckbCommandRunner;
   rpc?: OffckbRpcCaller;
+  installCkbBinary?: CkbBinaryInstaller;
   timeoutMs?: number;
 }
 
@@ -309,6 +315,7 @@ export class OffckbDevnet {
   readonly accountCount: number;
   private readonly run: OffckbCommandRunner;
   private readonly rpc: OffckbRpcCaller;
+  private readonly installCkbBinary: CkbBinaryInstaller;
   private readonly timeoutMs: number;
   private started = false;
   private activeEndpoints: string[] = [];
@@ -329,6 +336,7 @@ export class OffckbDevnet {
     );
     this.run = options.run ?? runProcess;
     this.rpc = options.rpc ?? rpcCall;
+    this.installCkbBinary = options.installCkbBinary ?? ((version, root) => installPinnedCkbBinary({ version, root }));
     this.timeoutMs = options.timeoutMs ?? 10 * 60_000;
   }
 
@@ -384,9 +392,11 @@ export class OffckbDevnet {
     await this.verifyVersion();
     await mkdir(this.paths.root, { recursive: true });
     try {
+      const installedCkbBinary = await this.installCkbBinary(this.ckbVersion, this.paths.toolchainRoot);
+      const { path: ckbBinaryPath, ...ckbBinary } = installedCkbBinary;
       await this.command(["config", "set", "ckb-version", this.ckbVersion]);
       await this.command(["clean"]);
-      const node = await this.command(["node", this.ckbVersion, "--daemon"]);
+      const node = await this.command(["node", "--binary-path", ckbBinaryPath, "--daemon"]);
       this.started = true;
       parseOffckbResult(node.stdout, "node");
 
@@ -430,6 +440,7 @@ export class OffckbDevnet {
         offckbVersion: OFFCKB_VERSION,
         ckbRequestedVersion: this.ckbVersion,
         ckbVersion: actualCkbVersion,
+        ckbBinary,
         genesisHash,
         rpcUrl,
         proxyUrl,

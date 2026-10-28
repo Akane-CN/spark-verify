@@ -153,7 +153,17 @@ class ValidatorTests(unittest.TestCase):
             "createdAt": "2026-09-08T00:00:00.000Z",
             "evidence": {},
             "outcomeClaims": {"schema": "ckb-verify-outcome/1"},
-            "environment": {"schema": "ckb-verify-environment/1"},
+            "environment": {
+                "schema": "ckb-verify-environment/2",
+                "runner": {},
+                "toolchain": {},
+                "provenance": {
+                    "schema": "ckb-verify-provenance/1",
+                    "replay": {"declaredDependencies": [], "status": "stable", "reasons": []},
+                },
+                "platform": {},
+                "devnet": {},
+            },
             "digests": {"outcome": digest, "environment": digest},
         }
         self.assertEqual(self.validate_report(report), [])
@@ -174,7 +184,7 @@ class ValidatorTests(unittest.TestCase):
             "requires createdAt",
             "requires evidence",
             "requires ckb-verify-outcome/1",
-            "requires ckb-verify-environment/1",
+            "requires ckb-verify-environment/2",
             "digest must be canonical sha256",
         ):
             self.assert_error(errors, message)

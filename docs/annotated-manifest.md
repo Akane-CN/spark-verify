@@ -110,14 +110,14 @@ The `0.0.1` feasibility implementation accepts only:
 - manifest spec `0.1.0-draft.3`;
 - exact CKB and OffCKB versions supported by the adapter;
 - an optional exact ckb-debugger version;
-- an explicit empty replay dependency list;
+- an explicit replay dependency list containing zero or more unique supported dependency codes;
 - 1–20 OffCKB development accounts;
 - one signed transaction envelope per step;
 - committed or rejected transaction expectations;
 - an optional expected numeric script error code;
 - exact live-Cell count claims by prior step output.
 
-Unknown keys fail closed. Cycle limits, script-filtered Cell queries, Cell data/capacity comparators, balance/UDT claims, non-empty replay dependencies, and multi-transaction steps remain proposed v0.1 work. The draft RFC documents intent; it is not silently treated as current behavior.
+Unknown keys fail closed. A listed replay dependency makes the report explicitly `tainted` with an outcome-scoped reason. Cycle limits, script-filtered Cell queries, Cell data/capacity comparators, balance/UDT claims, and multi-transaction steps remain proposed v0.1 work. The draft RFC documents intent; it is not silently treated as current behavior.
 
 ## Run and inspect
 

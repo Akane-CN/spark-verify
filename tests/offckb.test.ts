@@ -97,6 +97,7 @@ describe("OffCKB runtime paths", () => {
       dataHome: "/work/project/.ckb-verify/offckb/data",
       cacheHome: "/work/project/.ckb-verify/offckb/cache",
       stateHome: "/work/project/.ckb-verify/offckb/state",
+      toolchainRoot: "/work/project/.ckb-verify/offckb/data/offckb-nodejs/bins",
       systemScriptsPath: "/work/project/.ckb-verify/offckb/system-scripts.json",
       accountsPath: "/work/project/.ckb-verify/offckb/accounts.json",
       contextPath: "/work/project/.ckb-verify/offckb/context.json",

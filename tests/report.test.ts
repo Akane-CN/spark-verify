@@ -4,6 +4,7 @@ import {
   buildEvidenceDigests,
   buildOutcomeClaims,
   verifyEvidenceDigests,
+  type EnvironmentEvidence,
   type RunEvidence,
 } from "../src/report";
 
@@ -35,15 +36,41 @@ function evidence(): RunEvidence {
   };
 }
 
-const ENVIRONMENT = {
-  schema: "ckb-verify-environment/1" as const,
-  runnerVersion: "0.0.1",
-  requestedToolchain: { ckb: "0.209.0", offckb: "0.4.13" },
-  observedToolchain: { bun: "1.2.19", ckb: "0.209.0", offckb: "0.4.13" },
-  source: { commit: "abc123", dirtyDigest: "sha256:clean", repository: "github.com/Akane-CN/spark-verify" },
-  manifestSha256: "sha256:manifest",
+const SHA256 = `sha256:${"1".repeat(64)}` as `sha256:${string}`;
+const ENVIRONMENT: EnvironmentEvidence = {
+  schema: "ckb-verify-environment/2",
+  runner: { name: "ckb-verify", version: "0.0.1" },
+  toolchain: {
+    requested: { ckb: "0.209.0", offckb: "0.4.13" },
+    observed: { ckb: "0.209.0", offckb: "0.4.13" },
+  },
+  provenance: {
+    schema: "ckb-verify-provenance/1",
+    replay: { declaredDependencies: [], status: "stable", reasons: [] },
+    source: { gitCommit: "a".repeat(40), dirty: false, dirtyDigest: null },
+    manifest: { sha256: SHA256 },
+    lockfile: { path: "bun.lock", sha256: SHA256 },
+    runtime: {
+      name: "bun",
+      requestedVersion: "1.2.19",
+      observedVersion: "1.2.19",
+      metadata: { path: "package.json", sha256: SHA256 },
+    },
+    binaries: {
+      ckb: {
+        version: "0.209.0",
+        platform: "linux",
+        architecture: "x64",
+        asset: "ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+        sourceUrl: "https://github.com/nervosnetwork/ckb/releases/download/v0.209.0/fixture.tar.gz",
+        expectedArchiveSha256: SHA256,
+        archiveSha256: SHA256,
+        binarySha256: SHA256,
+      },
+    },
+  },
   platform: { os: "linux", arch: "x64" },
-  genesisHash: "0xgenesis",
+  devnet: { network: "devnet", genesisHash: "0xgenesis", systemScripts: {} },
 };
 
 describe("evidence report digests", () => {
@@ -61,16 +88,115 @@ describe("evidence report digests", () => {
     expect(buildEvidenceDigests(second, ENVIRONMENT).outcome).toBe(buildEvidenceDigests(first, ENVIRONMENT).outcome);
   });
 
-  test("changes the environment fingerprint for tool version drift only", () => {
+  test("changes only the environment fingerprint and taints replay for runtime version drift", () => {
     const first = buildEvidenceDigests(evidence(), ENVIRONMENT);
     const drifted = {
       ...ENVIRONMENT,
-      observedToolchain: { ...ENVIRONMENT.observedToolchain, ckb: "0.210.0" },
-    };
+      provenance: {
+        ...ENVIRONMENT.provenance,
+        replay: {
+          declaredDependencies: [],
+          status: "tainted" as const,
+          reasons: [
+            {
+              scope: "environment" as const,
+              code: "runtime_version_drift" as const,
+              detail: "requested bun 1.2.19 but observed 1.2.20",
+            },
+          ],
+        },
+        runtime: { ...ENVIRONMENT.provenance.runtime, observedVersion: "1.2.20" },
+      },
+    } satisfies EnvironmentEvidence;
     const second = buildEvidenceDigests(evidence(), drifted);
 
+    expect(drifted.provenance.replay.status).toBe("tainted");
     expect(second.outcome).toBe(first.outcome);
     expect(second.environment).not.toBe(first.environment);
+  });
+
+  test("rejects replay qualifications that contradict provenance inputs even when digests are recomputed", () => {
+    const runEvidence = evidence();
+    const outcomeClaims = buildOutcomeClaims(runEvidence);
+    const contradictoryEnvironments: EnvironmentEvidence[] = [];
+
+    const stableRuntimeDrift = structuredClone(ENVIRONMENT);
+    stableRuntimeDrift.provenance.runtime.observedVersion = "1.2.20";
+    contradictoryEnvironments.push(stableRuntimeDrift);
+
+    const falseRuntimeTaint = structuredClone(ENVIRONMENT);
+    falseRuntimeTaint.provenance.replay = {
+      declaredDependencies: [],
+      status: "tainted",
+      reasons: [
+        {
+          scope: "environment",
+          code: "runtime_version_drift",
+          detail: "requested bun 1.2.19 but observed 1.2.20",
+        },
+      ],
+    };
+    contradictoryEnvironments.push(falseRuntimeTaint);
+
+    const mismatchedArchive = structuredClone(ENVIRONMENT);
+    mismatchedArchive.provenance.binaries.ckb.archiveSha256 = `sha256:${"2".repeat(64)}`;
+    contradictoryEnvironments.push(mismatchedArchive);
+
+    const falseLockfileTaint = structuredClone(ENVIRONMENT);
+    falseLockfileTaint.provenance.replay = {
+      declaredDependencies: [],
+      status: "tainted",
+      reasons: [{ scope: "environment", code: "lockfile_missing", detail: "bun.lock is missing" }],
+    };
+    contradictoryEnvironments.push(falseLockfileTaint);
+
+    const falseDirtySourceTaint = structuredClone(ENVIRONMENT);
+    falseDirtySourceTaint.provenance.replay = {
+      declaredDependencies: [],
+      status: "tainted",
+      reasons: [
+        {
+          scope: "environment",
+          code: "dirty_source",
+          detail: "source tree differs from the recorded git commit",
+        },
+      ],
+    };
+    contradictoryEnvironments.push(falseDirtySourceTaint);
+
+    const undeclaredDependencyReason = structuredClone(ENVIRONMENT);
+    undeclaredDependencyReason.provenance.replay = {
+      declaredDependencies: [],
+      status: "tainted",
+      reasons: [
+        {
+          scope: "outcome",
+          code: "external_network",
+          detail: "manifest declares replay dependency external_network",
+        },
+      ],
+    };
+    contradictoryEnvironments.push(undeclaredDependencyReason);
+
+    const missingDependencyReason = structuredClone(ENVIRONMENT);
+    missingDependencyReason.provenance.replay.declaredDependencies = ["external_network"];
+    contradictoryEnvironments.push(missingDependencyReason);
+
+    const pinnedRuntimeWithoutMetadata = structuredClone(ENVIRONMENT);
+    pinnedRuntimeWithoutMetadata.provenance.runtime.metadata.sha256 = null;
+    contradictoryEnvironments.push(pinnedRuntimeWithoutMetadata);
+
+    for (const environment of contradictoryEnvironments) {
+      expect(() =>
+        verifyEvidenceDigests({
+          verdict: "PASS",
+          evidence: runEvidence,
+          outcomeClaims,
+          environment,
+          digests: buildEvidenceDigests(runEvidence, environment),
+        }),
+      ).toThrow(EvidenceIntegrityError);
+    }
   });
 
   test("recomputes both embedded canonical objects and rejects tampering", () => {
