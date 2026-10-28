@@ -75,8 +75,11 @@ if [[ $MODE == consumer ]]; then
   (cd "$ROOT" && bun pm pack --destination "$DIST" >"$WORK/pack.log" 2>&1) || { cat "$WORK/pack.log"; echo "pack failed"; exit 1; }
   TGZ=$(ls "$DIST"/ckb-verify-*.tgz | head -1); PACKED_VERSION=$(basename "$TGZ" .tgz | sed 's/^ckb-verify-//')
   TGZ_SHA=$(sha256sum "$TGZ" | cut -d' ' -f1)
-  PROJECT=$WORK/consumer; mkdir -p "$PROJECT"
+  PROJECT=$WORK/consumer; mkdir -p "$PROJECT/patches"
   cp "$ROOT/showcases/secp-transfer/produce.ts" "$PROJECT/produce.ts"
+  # Bun refuses to install a package whose patchedDependencies file is absent from the installing
+  # project, so the shipped patch is extracted from the tarball and declared before the first install.
+  tar -xzf "$TGZ" -C "$PROJECT/patches" --strip-components=2 "package/patches/@offckb%2Fcli@0.4.13.patch"
   cat > "$PROJECT/package.json" <<JSON
 {
   "name": "ckb-verify-consumer-acceptance",
@@ -84,7 +87,9 @@ if [[ $MODE == consumer ]]; then
   "private": true,
   "type": "module",
   "packageManager": "bun@1.2.19",
-  "dependencies": { "ckb-verify": "file:$TGZ", "@ckb-ccc/core": "1.14.0" }
+  "dependencies": { "ckb-verify": "file:$TGZ", "@ckb-ccc/core": "1.14.0" },
+  "patchedDependencies": { "@offckb/cli@0.4.13": "patches/@offckb%2Fcli@0.4.13.patch" },
+  "overrides": { "adm-zip": "0.6.1", "fast-uri": "3.1.9", "follow-redirects": "1.16.1", "tar": "7.5.22" }
 }
 JSON
   (cd "$PROJECT" && git init -q && git config user.email acceptance@example.invalid && git config user.name acceptance && printf 'node_modules/\n.ckb-verify/\n' > .gitignore)
@@ -96,27 +101,26 @@ JSON
   SHIPPED=$(cd "$PROJECT/node_modules/ckb-verify" && find . -type f | sed 's|^\./||' | sort)
   if grep -qE '^(tests/|showcases/|\.github/|docs/media/)' <<<"$SHIPPED"; then record tarball-contents "no tests, showcases, CI config, or media shipped" "unexpected files present" FAIL
   else record tarball-contents "no tests, showcases, CI config, or media shipped" "$(wc -l <<<"$SHIPPED") files, src/schemas/patches/docs only" PASS; fi
-  write_manifests "$PROJECT" "bun run produce.ts"
-  (cd "$PROJECT" && git add -A && git commit -qm "consumer acceptance fixture")
-  # Unpatched install: the runtime gate must refuse before any devnet mutation.
-  run_manifest committed.toml
-  if (( STATUS == 2 )) && grep -q "not the verified patched build" <<<"$OUT" && [[ $(report_count) == 0 ]] && closeout_ok >/dev/null; then
-    record unpatched-offckb-refused "exit 2, no verdict, no runtime mutation" "exit $STATUS: $(grep -o 'OffCKB installation[^.]*' <<<"$OUT" | head -1)" PASS
-  else record unpatched-offckb-refused "exit 2 refusing unpatched bundle" "exit $STATUS: $(tail -1 <<<"$OUT")" FAIL; fi
-  mkdir -p "$PROJECT/patches" && cp "$PROJECT/node_modules/ckb-verify/patches/@offckb%2Fcli@0.4.13.patch" "$PROJECT/patches/"
-  bun -e 'const p = JSON.parse(await Bun.file("package.json").text());
-    p.patchedDependencies = { "@offckb/cli@0.4.13": "patches/@offckb%2Fcli@0.4.13.patch" };
-    p.overrides = { "adm-zip": "0.6.1", "fast-uri": "3.1.9", "follow-redirects": "1.16.1", "tar": "7.5.22" };
-    await Bun.write("package.json", JSON.stringify(p, null, 2) + "\n");' --cwd "$PROJECT" 2>/dev/null || (cd "$PROJECT" && bun -e 'const p = JSON.parse(await Bun.file("package.json").text());
-    p.patchedDependencies = { "@offckb/cli@0.4.13": "patches/@offckb%2Fcli@0.4.13.patch" };
-    p.overrides = { "adm-zip": "0.6.1", "fast-uri": "3.1.9", "follow-redirects": "1.16.1", "tar": "7.5.22" };
-    await Bun.write("package.json", JSON.stringify(p, null, 2) + "\n");')
-  (cd "$PROJECT" && bun install >"$WORK/install2.log" 2>&1) || { cat "$WORK/install2.log"; echo "patched install failed"; exit 1; }
   PATCHED=$(grep -c 'require("adm-zip")' "$PROJECT/node_modules/@offckb/cli/build/index.js")
   ADM=$(field "$PROJECT/node_modules/@offckb/cli/node_modules/adm-zip/package.json" version 2>/dev/null || field "$PROJECT/node_modules/adm-zip/package.json" version)
   if [[ $PATCHED == 2 && $ADM == 0.6.1 ]]; then record patch-active-after-install "2 patched adm-zip callsites, adm-zip 0.6.1 resolved" "$PATCHED callsites, adm-zip $ADM" PASS
   else record patch-active-after-install "2 patched callsites, adm-zip 0.6.1" "$PATCHED callsites, adm-zip $ADM" FAIL; fi
-  (cd "$PROJECT" && git add -A && git commit -qm "activate shipped OffCKB patch")
+  # Install-time gate: without the patch file the package manager refuses the install outright.
+  NOPATCH=$WORK/consumer-without-patch; mkdir -p "$NOPATCH"
+  printf '{"name":"no-patch","private":true,"dependencies":{"ckb-verify":"file:%s"}}\n' "$TGZ" > "$NOPATCH/package.json"
+  if (cd "$NOPATCH" && bun install >"$WORK/nopatch.log" 2>&1); then record install-without-patch-file "bun install refuses (missing patch file)" "install succeeded" FAIL
+  else record install-without-patch-file "bun install refuses (missing patch file)" "exit 1: $(grep -m1 -o 'could not find patch file[^ ]*' "$WORK/nopatch.log")" PASS; fi
+  write_manifests "$PROJECT" "bun run produce.ts"
+  (cd "$PROJECT" && git add -A && git commit -qm "consumer acceptance fixture")
+  # Runtime gate: a package manager that ignores patchedDependencies leaves the bundled archive code
+  # active. Simulate that bundle and prove the runner refuses before any devnet mutation.
+  BUNDLE=$PROJECT/node_modules/@offckb/cli/build/index.js; cp "$BUNDLE" "$WORK/patched-bundle.js"
+  sed -i 's/const adm_zip_1 = __importDefault(require("adm-zip"));/const adm_zip_1 = __importDefault(__nccwpck_require__(3858));/' "$BUNDLE"
+  run_manifest committed.toml
+  if (( STATUS == 2 )) && grep -q "not the verified patched build" <<<"$OUT" && [[ $(report_count) == 0 ]] && closeout_ok >/dev/null; then
+    record unpatched-offckb-refused "exit 2, no verdict, no runtime mutation" "exit 2: $(grep -o 'OffCKB installation[^.]*' <<<"$OUT" | head -1 | cut -c1-100)" PASS
+  else record unpatched-offckb-refused "exit 2 refusing unpatched bundle" "exit $STATUS: $(tail -1 <<<"$OUT" | cut -c1-120)" FAIL; fi
+  cp "$WORK/patched-bundle.js" "$BUNDLE"
   CONSUMER_HEAD=$(cd "$PROJECT" && git rev-parse HEAD)
 else
   PROJECT=$ROOT; CLI=(bun run "$ROOT/src/cli.ts")
@@ -166,7 +170,8 @@ if (( STATUS == 1 )) && [[ $OUT == FAIL:* && -f $REPORT ]] && closeout_ok >/dev/
   OUT2=$(cd "$PROJECT" && runner digest "$REPORT" 2>&1); S2=$?
   if (( S2 == 0 )) && grep -q "^verdict: FAIL" <<<"$OUT2"; then record assertion-failure "FAIL exit 1; offline digest exit 0 with verdict FAIL" "exit 1; digest exit 0, verdict FAIL" PASS
   else record assertion-failure "digest exit 0 verdict FAIL" "digest exit $S2" FAIL; fi
-  TAMPERED=$WORK/tampered-report.json; sed 's/"verdict":"FAIL"/"verdict":"PASS"/' "$REPORT" > "$TAMPERED"
+  TAMPERED=$WORK/tampered-report.json; sed -E 's/"verdict": ?"FAIL"/"verdict": "PASS"/' "$REPORT" > "$TAMPERED"
+  cmp -s "$REPORT" "$TAMPERED" && echo "tamper did not change the report" >&2
   OUT3=$(cd "$PROJECT" && runner digest "$TAMPERED" 2>&1); S3=$?
   if (( S3 == 1 )) && grep -q "^INVALID" <<<"$OUT3"; then record tampered-verdict-rejected "digest exit 1 INVALID" "exit 1" PASS; else record tampered-verdict-rejected "exit 1" "exit $S3" FAIL; fi
 else record assertion-failure "FAIL exit 1" "exit $STATUS: $(tail -1 <<<"$OUT")" FAIL; fi
@@ -195,9 +200,10 @@ if (( STATUS == 0 )) && closeout_ok >/dev/null; then record reuse-after-contenti
 
 # ---------------------------------------------------------------- interruption after the node is up
 BEFORE=$(report_count)
-(cd "$PROJECT" && "${CLI[@]}" run "$MANIFESTS/committed.toml" >"$WORK/interrupt.log" 2>&1; echo $? >"$WORK/interrupt.status") &
-I=$!; if wait_for_port 8114; then sleep 1; kill -INT "$I"; fi
-wait "$I"; I_STATUS=$(cat "$WORK/interrupt.status")
+# exec replaces the subshell so the signal reaches the runner process itself.
+(cd "$PROJECT" && exec "${CLI[@]}" run "$MANIFESTS/committed.toml") >"$WORK/interrupt.log" 2>&1 &
+I=$!; if wait_for_port 8114; then sleep 1; kill -INT "$I"; else echo "node never listened" >&2; fi
+wait "$I"; I_STATUS=$?
 if (( I_STATUS == 130 )) && [[ $(report_count) == "$BEFORE" ]] && closeout_ok >/dev/null; then
   record sigint-cleanup "exit 130, no report, accounts removed, ports released" "exit 130, clean closeout" PASS
 else record sigint-cleanup "exit 130 with clean closeout" "exit $I_STATUS, $(closeout_ok 2>&1 | tail -1)" FAIL; fi
@@ -212,7 +218,11 @@ else record producer-timeout "exit 2 timed out" "exit $STATUS: $(tail -1 <<<"$OU
 # ---------------------------------------------------------------- tampered debugger cache
 DBG=$PROJECT/.ckb-verify/offckb/cache/verified-debugger/1.1.1-linux-x64/ckb-debugger
 if [[ -f $DBG ]]; then
-  BEFORE=$(report_count); printf '\x00' | dd of="$DBG" bs=1 seek=100 conv=notrunc status=none
+  BEFORE=$(report_count); ORIGINAL=$(sha256sum "$DBG" | cut -d' ' -f1)
+  for offset in 100 4096 65536; do # flip a byte that was not already 0xff
+    printf '\xff' | dd of="$DBG" bs=1 seek=$offset conv=notrunc status=none
+    [[ $(sha256sum "$DBG" | cut -d' ' -f1) != "$ORIGINAL" ]] && break
+  done
   run_manifest "$MANIFESTS/rejected.toml"
   if (( STATUS == 2 )) && grep -qi "debugger" <<<"$OUT" && [[ $(report_count) == "$BEFORE" ]] && closeout_ok >/dev/null; then
     record tampered-debugger-cache "exit 2 no verdict, cache not repaired silently" "exit 2: $(grep -o 'debugger[^;]*' <<<"$OUT" | head -1 | cut -c1-80)" PASS

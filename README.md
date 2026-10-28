@@ -68,6 +68,10 @@ The private `0.0.2` runner also accepts [draft.4 type/args-length/data-length an
 
 The new wrapper verifies each complete PASS/FAIL report with `verifyReport`, checks the intended failing predicates, and independently checks account/pending-report absence and ports even if report readback fails. Repeats require equal outcomes; repeated raw provenance requires equal environments. Differing real genesis/deployment bindings remain visible, not scrubbed to force equality. Each showcase job then packages its canonical reports into a sanitized, checksummed [evidence bundle](docs/offline-verification.md#evidence-bundles) that a later job downloads through the API and re-verifies offline (#19).
 
+## Installing into your own project
+
+The one exercised installation path (Linux x64, Bun 1.2.19, Node 20+) is documented step by step in [docs/install.md](docs/install.md): pack the tarball, declare the shipped OffCKB security patch **before** the first `bun install`, install into a clean project, run, and verify offline. The runner refuses to start a devnet next to an unpatched OffCKB bundle. `scripts/acceptance-matrix.sh --consumer` reproduces that path end to end; `scripts/acceptance-matrix.sh` runs the same scenario matrix against this checkout. The package is unreleased and private; see the [release checklist](docs/release-checklist.md), [maintenance loop](docs/maintenance.md), and [changelog](CHANGELOG.md).
+
 ## CLI
 
 ```text

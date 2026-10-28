@@ -14,35 +14,32 @@ sha256sum dist/ckb-verify-0.0.2.tgz
 
 The tarball contains only `src/`, `schemas/`, `patches/`, the user-facing docs, `SECURITY.md`, `LICENSE`, `README.md`, and `package.json`. Tests, showcases, CI configuration, and media are not shipped. Record the checksum next to the revision you packed; `ckb-verify --version` reports the packed version.
 
-## 2. Install into a clean consumer project
+## 2. Declare the shipped OffCKB patch, then install
+
+`ckb-verify` depends on `@offckb/cli@0.4.13`, whose bundled copies of `adm-zip` and `tar` have known advisories. The repository patches that bundle to use audited external versions and ships the patch file inside the package. Two facts shape the installation order:
+
+- Bun resolves every `patchedDependencies` path, including the one declared by the `ckb-verify` package itself, **relative to the installing project**. If `patches/@offckb%2Fcli@0.4.13.patch` is absent from your project, `bun install` refuses with `could not find patch file` before anything is linked.
+- Other package managers may ignore a dependency's patch declaration entirely. The runner therefore re-checks the installed bundle and the resolved library versions before every devnet start and fails closed (see step 3).
+
+Extract the patch from the tarball and declare it explicitly before the first install:
 
 ```bash
 mkdir my-project && cd my-project && git init
-bun init -y
-bun add ./path/to/ckb-verify-0.0.2.tgz @ckb-ccc/core@1.14.0
-./node_modules/.bin/ckb-verify --version
-```
-
-`@ckb-ccc/core` is only needed because the producer in this guide is written with it; the runner itself does not require it in your project.
-
-## 3. Activate the OffCKB security patch (required)
-
-`ckb-verify` depends on `@offckb/cli@0.4.13`, whose bundled copies of `adm-zip` and `tar` have known advisories. The repository patches the bundle to use audited external versions, but **a package manager applies `patchedDependencies` only from the installing project's own `package.json`**. After step 2 your `node_modules/@offckb/cli` is therefore still unpatched, and `ckb-verify run` refuses to start a devnet:
-
-```text
-ERROR: OffCKB installation is not the verified patched build: OffCKB bundle retains 2 bundled vulnerable adm-zip import(s). The shipped patch must be active in the installing project (see docs/install.md); refusing to start a devnet.
-```
-
-Copy the shipped patch into your project and declare it, then reinstall:
-
-```bash
-mkdir -p patches
-cp node_modules/ckb-verify/patches/@offckb%2Fcli@0.4.13.patch patches/
+mkdir patches
+tar -xzf ../path/to/ckb-verify-0.0.2.tgz -C patches --strip-components=2 'package/patches/@offckb%2Fcli@0.4.13.patch'
 ```
 
 ```jsonc
 // package.json of your project
 {
+  "name": "my-project",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.2.19",
+  "dependencies": {
+    "ckb-verify": "file:../path/to/ckb-verify-0.0.2.tgz",
+    "@ckb-ccc/core": "1.14.0"
+  },
   "patchedDependencies": {
     "@offckb/cli@0.4.13": "patches/@offckb%2Fcli@0.4.13.patch"
   },
@@ -51,17 +48,27 @@ cp node_modules/ckb-verify/patches/@offckb%2Fcli@0.4.13.patch patches/
     "fast-uri": "3.1.9",
     "follow-redirects": "1.16.1",
     "tar": "7.5.22"
-  },
-  "packageManager": "bun@1.2.19"
+  }
 }
 ```
 
 ```bash
 bun install
-grep -c 'require("adm-zip")' node_modules/@offckb/cli/build/index.js   # prints 2
+./node_modules/.bin/ckb-verify --version                              # packed version
+grep -c 'require("adm-zip")' node_modules/@offckb/cli/build/index.js  # prints 2
 ```
 
-Keep the `overrides` so the external libraries resolve to the audited versions. `packageManager` pins the Bun version the runner records in each report's provenance; without a pin every report is marked `tainted` with `runtime_pin_missing`. The runner re-checks the installed bundle and resolved versions before every devnet start, so a later `bun install` that drops the patch fails closed instead of silently running vulnerable archive code.
+`@ckb-ccc/core` is only needed because the producer in this guide is written with it; the runner itself does not require it in your project. Keep the `overrides` so the external libraries resolve to the audited versions, and keep `packageManager` so the runner can record a pinned Bun version in each report's provenance; without a pin every report is marked `tainted` with `runtime_pin_missing`.
+
+## 3. What the runtime gate refuses
+
+Before any preflight, download, configuration, clean, or node launch, the runner verifies that the OffCKB it resolved **from its own dependency tree** is `0.4.13`, that its bundle contains exactly the patched `adm-zip`, `tar`, and `follow-redirects` callsites, and that those libraries resolve to `0.6.1`, `7.5.22`, and `1.16.1`. An unpatched or substituted bundle produces exit `2` and no verdict:
+
+```text
+ERROR: OffCKB installation is not the verified patched build: OffCKB bundle retains 2 bundled vulnerable adm-zip import(s). The shipped patch must be active in the installing project (see docs/install.md); refusing to start a devnet.
+```
+
+Fix the patch declaration and reinstall; the runner does not repair installs. The consumer acceptance script (`scripts/acceptance-matrix.sh --consumer`) exercises both gates: the install-time refusal without the patch file and the runtime refusal of an unpatched bundle.
 
 ## 4. Write a producer and a manifest
 
