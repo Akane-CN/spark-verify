@@ -40,6 +40,16 @@ function expectManifestError(source: string, message: string): void {
 }
 
 describe("parseManifestText", () => {
+  test("requires the supported exact debugger pin for every declared rejection", () => {
+    const rejected = VALID.replace('expect.tx = "committed"', 'expect.tx = "rejected"');
+    expectManifestError(rejected, "rejected transactions require toolchain.ckb-debugger");
+    const pinned = rejected.replace('offckb = "0.4.13"', 'offckb = "0.4.13"\nckb-debugger = "1.1.1"');
+    expect(parseManifestText(pinned).toolchain.ckbDebugger).toBe("1.1.1");
+    for (const bad of ["latest", "1.1.2", "01.1.1", "v1.1.1"]) {
+      expect(() => parseManifestText(pinned.replace('ckb-debugger = "1.1.1"', `ckb-debugger = "${bad}"`))).toThrow(ManifestError);
+    }
+    expect(parseManifestText(VALID).toolchain.ckbDebugger).toBeUndefined();
+  });
   test("normalizes the supported manifest subset", () => {
     const manifest = parseManifestText(VALID, "verify.toml");
 

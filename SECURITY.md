@@ -68,6 +68,14 @@ The development-only `ajv@8.20.0` dependency declares `fast-uri@^3.0.1`; an exac
 
 The audit gate fails on every finding except the exact low-severity `elliptic` advisory [GHSA-848j-6mx2-7j84](https://github.com/advisories/GHSA-848j-6mx2-7j84), audit ID `1112030`, while its waiver is unexpired. `elliptic@6.6.1` is a transitive dependency through `@ckb-ccc/core` → `@joyid/ckb` → `@nervosnetwork/ckb-sdk-utils`; the registry still has no fixed release as of 2026-10-26. This temporary waiver is limited to the current feasibility runner and its disposable devnet keys; it does not permit production-wallet use. A changed severity, advisory identity, URL, package, or any additional finding fails the gate and requires a new review.
 
+### Debugger integrity
+
+Debugger support is deliberately limited to `1.1.1` on Linux/x64. `src/debugger-binary.ts` pins the official `ckb-debugger_v1.1.1_x86_64-unknown-linux-gnu.tar.gz` archive (2,523,369 bytes, SHA-256 `0dee02804af46386527c8bb94c2ee63592594ca1ec952ea42ffa9df07a9f005e`) and executable (7,582,264 bytes, SHA-256 `24641357274ca464ecd86fd63b715ad96b5490d27b5ca029df37511e435d96f0`). Preparation never executes bytes. An entirely absent cache can download; an existing incomplete or tampered cache fails closed without repair or an ambient fallback. Archive and executable are remeasured on cache reuse.
+
+Only after successful devnet startup may the adapter prepare one private snapshot beneath the owned OffCKB data directory. It verifies that capability before `--version` and each debug call. The exact version output must match. Run-owned `offckb-nodejs/settings.json` preserves existing selected settings and points `tools.rootFolder` at that snapshot; malformed or changed settings fail. `OFFCKB_DEBUGGER_GUARD=1` suppresses OffCKB's ambient PATH probe. This does not use an invented `offckb config set tools...` option. Stop closes admission, drains complete native/filesystem/verification/process operations and failure cleanup, then cleans the node/endpoints, owned account/snapshot material, and lease. Cleanup uses a non-aborted context and reports multiple failures. It retains the verified cache.
+
+These checks assume trusted code and caller-controlled directories; private copies and hash-before-dispatch do not defeat an actively hostile same-UID writer. Current environment `/3` + provenance `/2` records path-free expected and observed identities, or explicit `null` when unused. Legacy environment `/2` + provenance `/1` remains verifiable only with explicit opt-in and carries no new debugger-integrity guarantee. Neither version provides offline execution authenticity.
+
 ### Elliptic waiver governance
 
 - **Owner:** Akane-CN, through the security contact below.

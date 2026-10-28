@@ -269,6 +269,8 @@ def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str,
         for name, version in toolchain.items():
             if not isinstance(version, str) or not VERSION_RE.fullmatch(version):
                 v.error(file, line, f"toolchain.{name} must be an exact version, not a range")
+        if "ckb-debugger" in toolchain and toolchain["ckb-debugger"] != "1.1.1":
+            v.error(file, line, "toolchain.ckb-debugger must select supported pin 1.1.1")
 
     validate_replay(v, file, line, obj.get("replay"), required=full_manifest)
 
@@ -313,6 +315,9 @@ def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str,
             if full_manifest and (not isinstance(step.get("run"), str) or not step.get("run")):
                 v.error(file, line, "every step in a full manifest requires a non-empty run command")
             validate_expect(v, file, line, step.get("expect"))
+            if full_manifest and isinstance(step.get("expect"), dict) and step["expect"].get("tx") == "rejected":
+                if not isinstance(toolchain, dict) or toolchain.get("ckb-debugger") != "1.1.1":
+                    v.error(file, line, "declared rejection requires ckb-debugger 1.1.1")
             validate_assertions(v, file, line, step.get("assert"))
             validate_output_references(v, file, line, step.get("assert"), set(names))
 
@@ -347,7 +352,9 @@ def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str,
             v.error(file, line, "code_hash examples must contain exactly 32 bytes of hex")
 
 
-def validate_report_example(v: Validation, file: Path, line: int, obj: dict[str, Any]) -> None:
+def validate_report_example(
+    v: Validation, file: Path, line: int, obj: dict[str, Any], *, allow_legacy: bool = False
+) -> None:
     schema = obj.get("schema")
     if schema == "ckb-verify-report/1":
         required = {
@@ -378,22 +385,46 @@ def validate_report_example(v: Validation, file: Path, line: int, obj: dict[str,
             v.error(file, line, "current report requires ckb-verify-outcome/1 outcomeClaims")
         environment = obj.get("environment")
         environment_fields = {"schema", "runner", "toolchain", "provenance", "platform", "devnet"}
-        if not isinstance(environment, dict) or environment.get("schema") != "ckb-verify-environment/2":
-            v.error(file, line, "current report requires ckb-verify-environment/2 environment")
+        if not isinstance(environment, dict) or environment.get("schema") not in {
+            "ckb-verify-environment/3", "ckb-verify-environment/2"
+        }:
+            v.error(file, line, "current report requires ckb-verify-environment/3 environment")
         elif set(environment) != environment_fields:
             v.error(file, line, f"current environment requires fields {sorted(environment_fields)}")
         else:
             provenance = environment.get("provenance")
-            if not isinstance(provenance, dict) or provenance.get("schema") != "ckb-verify-provenance/1":
-                v.error(file, line, "current environment requires ckb-verify-provenance/1 provenance")
+            pair = (environment.get("schema"), provenance.get("schema") if isinstance(provenance, dict) else None)
+            current = pair == ("ckb-verify-environment/3", "ckb-verify-provenance/2")
+            historical = pair == ("ckb-verify-environment/2", "ckb-verify-provenance/1")
+            if not current and not (allow_legacy and historical):
+                v.error(file, line, "current report requires ckb-verify-environment/3 + ckb-verify-provenance/2; historical /2 + /1 requires explicit allow_legacy")
             else:
+                assert isinstance(provenance, dict)
                 replay = provenance.get("replay")
                 if not isinstance(replay, dict) or replay.get("status") not in {"stable", "tainted"}:
                     v.error(file, line, "current provenance requires replay.status")
-                elif not isinstance(replay.get("declaredDependencies"), list) or not isinstance(
-                    replay.get("reasons"), list
-                ):
+                elif not isinstance(replay.get("declaredDependencies"), list) or not isinstance(replay.get("reasons"), list):
                     v.error(file, line, "current provenance requires replay dependencies and reasons")
+                if current:
+                    binaries = provenance.get("binaries")
+                    tools = environment.get("toolchain")
+                    if not isinstance(binaries, dict) or "ckbDebugger" not in binaries:
+                        v.error(file, line, "current provenance requires binaries.ckbDebugger (explicit null if unused)")
+                    elif not isinstance(tools, dict) or not all(isinstance(tools.get(k), dict) for k in ("requested", "observed")):
+                        v.error(file, line, "current environment requires requested and observed toolchains")
+                    else:
+                        binary = binaries["ckbDebugger"]
+                        requested, observed = tools["requested"], tools["observed"]
+                        steps = evidence.get("steps", []) if isinstance(evidence, dict) else []
+                        used = any(isinstance(step, dict) and (step.get("expectedStatus") == "rejected" or
+                            isinstance(step.get("rejection"), dict) and step["rejection"].get("kind") == "script") for step in steps)
+                        if binary is None:
+                            if "ckbDebugger" in requested or "ckbDebugger" in observed or used:
+                                v.error(file, line, "requested or used debugger requires binary identity")
+                        else:
+                            pin = json.loads((ROOT / "schemas/ckb-verify-provenance-v2.schema.json").read_text())["$defs"]["ckbDebuggerBinary"]["const"]
+                            if binary != pin or requested.get("ckbDebugger") != pin["version"] or observed.get("ckbDebugger") != "ckb-debugger " + pin["version"] or environment.get("platform") != {"os": pin["platform"], "arch": pin["architecture"]}:
+                                v.error(file, line, "debugger identity contradicts source pins, versions, or recorded platform")
 
         digests = obj.get("digests")
         if not isinstance(digests, dict) or set(digests) != {"outcome", "environment"}:

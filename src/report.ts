@@ -1,6 +1,6 @@
 import { canonicalSha256 } from "./canonical";
 import type { ResolvedSystemScripts } from "./offckb";
-import { assertProvenanceConsistency, type ProvenanceEvidence } from "./provenance";
+import { assertProvenanceConsistency, type ProvenanceEvidence, type LegacyProvenanceEvidence } from "./provenance";
 import type { ManifestToolchain, TransactionExpectation } from "./types";
 
 export interface ClaimEvidence {
@@ -62,7 +62,7 @@ export interface OutcomeClaims {
   assertions: OutcomeClaim[];
 }
 
-export interface EnvironmentEvidence {
+export interface LegacyEnvironmentEvidence {
   schema: "ckb-verify-environment/2";
   runner: {
     name: "ckb-verify";
@@ -76,7 +76,7 @@ export interface EnvironmentEvidence {
       ckbDebugger?: string;
     };
   };
-  provenance: ProvenanceEvidence;
+  provenance: LegacyProvenanceEvidence;
   platform: {
     os: NodeJS.Platform;
     arch: string;
@@ -86,6 +86,11 @@ export interface EnvironmentEvidence {
     genesisHash: string;
     systemScripts: ResolvedSystemScripts;
   };
+}
+
+export interface EnvironmentEvidence extends Omit<LegacyEnvironmentEvidence, "schema" | "provenance"> {
+  schema: "ckb-verify-environment/3";
+  provenance: ProvenanceEvidence;
 }
 
 export interface EvidenceDigests {
@@ -129,7 +134,7 @@ export function buildOutcomeClaims(evidence: RunEvidence): OutcomeClaims {
   };
 }
 
-export function buildEvidenceDigests(evidence: RunEvidence, environment: EnvironmentEvidence): EvidenceDigests {
+export function buildEvidenceDigests(evidence: RunEvidence, environment: EnvironmentEvidence | LegacyEnvironmentEvidence): EvidenceDigests {
   return {
     outcome: canonicalSha256(buildOutcomeClaims(evidence)),
     environment: canonicalSha256(environment),
@@ -159,15 +164,48 @@ export function verdictForOutcomeClaims(outcomeClaims: OutcomeClaims): "PASS" | 
   return passed ? "PASS" : "FAIL";
 }
 
+function record(value: unknown, label: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object`);
+  return value as Record<string, unknown>;
+}
+
+function verifyEnvironmentContract(value: unknown, evidence: RunEvidence, allowLegacy: boolean): void {
+  const environment = record(value, "environment");
+  const provenance = record(environment.provenance, "provenance");
+  const current = environment.schema === "ckb-verify-environment/3" && provenance.schema === "ckb-verify-provenance/2";
+  const historical = environment.schema === "ckb-verify-environment/2" && provenance.schema === "ckb-verify-provenance/1";
+  if (!current && !(allowLegacy && historical)) throw new Error("unsupported environment/provenance pair (legacy requires allowLegacy)");
+  assertProvenanceConsistency(provenance, { allowLegacy: historical && allowLegacy });
+  if (provenance.schema === "ckb-verify-provenance/1") return; // No retroactive artifact claim.
+  const toolchain = record(environment.toolchain, "toolchain");
+  const requested = record(toolchain.requested, "requested toolchain");
+  const observed = record(toolchain.observed, "observed toolchain");
+  const binary = provenance.binaries.ckbDebugger;
+  if (binary === null) {
+    if ("ckbDebugger" in requested || "ckbDebugger" in observed ||
+        evidence.steps.some(step => step.rejection?.kind === "script" || step.expectedStatus === "rejected")) {
+      throw new Error("requested or used debugger requires binary identity");
+    }
+  } else {
+    // assertProvenanceConsistency already checked every identity against source
+    // pins, including requested/binary version equality. Never use host defaults.
+    const platform = record(environment.platform, "recorded platform");
+    if (requested.ckbDebugger !== binary.version || observed.ckbDebugger !== `ckb-debugger ${binary.version}` ||
+        platform.os !== binary.platform || platform.arch !== binary.architecture) {
+      throw new Error("debugger versions or recorded platform contradict binary identity");
+    }
+  }
+}
+
 export function verifyEvidenceDigests(report: {
   verdict: string;
   evidence: RunEvidence;
   outcomeClaims: OutcomeClaims;
-  environment: EnvironmentEvidence;
+  environment: unknown;
   digests: EvidenceDigests;
-}): void {
+}, options: { allowLegacy?: boolean } = {}): void {
   try {
-    assertProvenanceConsistency(report.environment.provenance);
+    verifyEnvironmentContract(report.environment, report.evidence, options.allowLegacy === true);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new EvidenceIntegrityError(`provenance integrity mismatch: ${detail}`);

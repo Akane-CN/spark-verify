@@ -15,14 +15,14 @@ function result(verdict: "PASS" | "FAIL"): RunManifestResult {
       evidence: { name: "fixture", spec: "0.1.0-draft.3", steps: [], assertions: [] },
       outcomeClaims: { schema: "ckb-verify-outcome/1", name: "fixture", spec: "0.1.0-draft.3", steps: [], assertions: [] },
       environment: {
-        schema: "ckb-verify-environment/2",
+        schema: "ckb-verify-environment/3",
         runner: { name: "ckb-verify", version: "0.0.1" },
         toolchain: {
           requested: { ckb: "0.209.0", offckb: "0.4.13" },
           observed: { ckb: "0.209.0", offckb: "0.4.13" },
         },
         provenance: {
-          schema: "ckb-verify-provenance/1",
+          schema: "ckb-verify-provenance/2",
           replay: { declaredDependencies: [], status: "stable", reasons: [] },
           source: { gitCommit: "a".repeat(40), dirty: false, dirtyDigest: null },
           manifest: { sha256: SHA256 },
@@ -34,6 +34,7 @@ function result(verdict: "PASS" | "FAIL"): RunManifestResult {
             metadata: { path: "package.json", sha256: SHA256 },
           },
           binaries: {
+            ckbDebugger: null,
             ckb: {
               version: "0.209.0",
               platform: "linux",

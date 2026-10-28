@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import copy
 import tempfile
 import unittest
+from unittest.mock import patch as mock_patch
 from pathlib import Path
 
 VALIDATOR_PATH = Path(__file__).with_name("validate-docs.py")
@@ -85,6 +88,19 @@ class ValidatorTests(unittest.TestCase):
         }
         self.assertEqual(self.validate_manifest(manifest), [])
 
+    def test_rejected_manifest_requires_supported_debugger(self) -> None:
+        manifest = {
+            "meta": {"name": "x", "spec": "0.1.0-draft.3"},
+            "toolchain": {"ckb": "0.209.0", "offckb": "0.4.13"},
+            "replay": {"dependencies": []}, "setup": {"accounts": 2},
+            "step": [{"name": "bad", "run": "trusted-producer", "expect": {"tx": "rejected"}}],
+        }
+        self.assert_error(self.validate_manifest(manifest), "requires ckb-debugger 1.1.1")
+        manifest["toolchain"]["ckb-debugger"] = "1.1.2"
+        self.assert_error(self.validate_manifest(manifest), "requires ckb-debugger 1.1.1")
+        manifest["toolchain"]["ckb-debugger"] = "1.1.1"
+        self.assertEqual(self.validate_manifest(manifest), [])
+
     def test_full_manifest_accepts_optional_debugger_version(self) -> None:
         manifest = {
             "meta": {"name": "x", "spec": "0.1.0-draft.3"},
@@ -97,6 +113,17 @@ class ValidatorTests(unittest.TestCase):
             "setup": {"accounts": 0},
             "assert": {"balance": [{"account": 0, "gte": "0 CKB"}]},
         }
+        self.assertEqual(self.validate_manifest(manifest), [])
+
+    def test_optional_debugger_pin_must_be_supported_even_without_rejection(self) -> None:
+        manifest = {
+            "meta": {"name": "x", "spec": "0.1.0-draft.3"},
+            "toolchain": {"ckb": "0.209.0", "offckb": "0.4.13", "ckb-debugger": "1.1.2"},
+            "replay": {"dependencies": []}, "setup": {"accounts": 2},
+            "step": [{"name": "transfer", "run": "trusted-producer", "expect": {"tx": "committed"}}],
+        }
+        self.assert_error(self.validate_manifest(manifest), "ckb-debugger must select supported pin 1.1.1")
+        manifest["toolchain"]["ckb-debugger"] = "1.1.1"
         self.assertEqual(self.validate_manifest(manifest), [])
 
     def test_full_manifest_rejects_empty_claim_set(self) -> None:
@@ -126,7 +153,7 @@ class ValidatorTests(unittest.TestCase):
 {"schema":"spark-verify-report/0.1-draft.3","digests":{"outcome":"x","environment":"y"},"replay":{"status":"stable","reasons":[]}}
 ```
 """
-        with tempfile.TemporaryDirectory(dir=VALIDATOR.ROOT) as directory:
+        with tempfile.TemporaryDirectory() as directory, mock_patch.object(VALIDATOR, "ROOT", Path(directory)):
             path = Path(directory) / "report.md"
             path.write_text(report, encoding="utf-8")
             result = VALIDATOR.Validation()
@@ -138,12 +165,49 @@ class ValidatorTests(unittest.TestCase):
 {"schema":"ckb-verify-report/1","verdict":"PASS","digests":{"outcome":"sha256:0000000000000000000000000000000000000000000000000000000000000000","environment":"sha256:0000000000000000000000000000000000000000000000000000000000000000"}}
 ```
 """
-        with tempfile.TemporaryDirectory(dir=VALIDATOR.ROOT) as directory:
+        with tempfile.TemporaryDirectory() as directory, mock_patch.object(VALIDATOR, "ROOT", Path(directory)):
             path = Path(directory) / "report.md"
             path.write_text(report, encoding="utf-8")
             result = VALIDATOR.Validation()
             VALIDATOR.validate_markdown(result, path, set())
         self.assert_error(result.errors, "current report requires top-level fields")
+
+    def test_current_and_explicit_historical_report_policy(self) -> None:
+        historical = json.loads((VALIDATOR.ROOT / "docs/examples/secp-transfer-committed-report.json").read_text())
+        current = copy.deepcopy(historical)
+        current["environment"]["schema"] = "ckb-verify-environment/3"
+        current["environment"]["provenance"]["schema"] = "ckb-verify-provenance/2"
+        current["environment"]["provenance"]["binaries"]["ckbDebugger"] = None
+        self.assertEqual(self.validate_report(current), [])
+        self.assertTrue(self.validate_report(historical))
+        result = VALIDATOR.Validation()
+        VALIDATOR.validate_report_example(result, VALIDATOR_PATH, 1, historical, allow_legacy=True)
+        self.assertEqual(result.errors, [])
+        for env, prov in [("3", "1"), ("2", "2"), ("4", "2"), ("3", "3")]:
+            bad = copy.deepcopy(current)
+            bad["environment"]["schema"] = "ckb-verify-environment/" + env
+            bad["environment"]["provenance"]["schema"] = "ckb-verify-provenance/" + prov
+            for allow in [False, True]:
+                result = VALIDATOR.Validation()
+                VALIDATOR.validate_report_example(result, VALIDATOR_PATH, 1, bad, allow_legacy=allow)
+                self.assertTrue(result.errors)
+        missing = copy.deepcopy(current)
+        del missing["environment"]["provenance"]["binaries"]["ckbDebugger"]
+        self.assertTrue(self.validate_report(missing))
+        contradiction = copy.deepcopy(current)
+        contradiction["environment"]["toolchain"]["requested"]["ckbDebugger"] = "1.1.1"
+        self.assertTrue(self.validate_report(contradiction))
+        pinned = copy.deepcopy(current)
+        pin = json.loads((VALIDATOR.ROOT / "schemas/ckb-verify-provenance-v2.schema.json").read_text())["$defs"]["ckbDebuggerBinary"]["const"]
+        pinned["environment"]["provenance"]["binaries"]["ckbDebugger"] = pin
+        pinned["environment"]["toolchain"]["requested"]["ckbDebugger"] = "1.1.1"
+        pinned["environment"]["toolchain"]["observed"]["ckbDebugger"] = "ckb-debugger 1.1.1"
+        self.assertEqual(self.validate_report(pinned), [])
+        wrong_platform = copy.deepcopy(pinned)
+        wrong_platform["environment"]["platform"]["arch"] = "arm64"
+        self.assertTrue(self.validate_report(wrong_platform))
+        pinned["environment"]["provenance"]["binaries"]["ckbDebugger"]["archive"]["observed"]["bytes"] -= 1
+        self.assertTrue(self.validate_report(pinned))
 
     def test_current_report_accepts_the_implemented_envelope(self) -> None:
         digest = "sha256:" + ("0" * 64)
@@ -154,11 +218,12 @@ class ValidatorTests(unittest.TestCase):
             "evidence": {},
             "outcomeClaims": {"schema": "ckb-verify-outcome/1"},
             "environment": {
-                "schema": "ckb-verify-environment/2",
+                "schema": "ckb-verify-environment/3",
                 "runner": {},
-                "toolchain": {},
+                "toolchain": {"requested": {}, "observed": {}},
                 "provenance": {
-                    "schema": "ckb-verify-provenance/1",
+                    "schema": "ckb-verify-provenance/2",
+                    "binaries": {"ckbDebugger": None},
                     "replay": {"declaredDependencies": [], "status": "stable", "reasons": []},
                 },
                 "platform": {},
@@ -184,7 +249,7 @@ class ValidatorTests(unittest.TestCase):
             "requires createdAt",
             "requires evidence",
             "requires ckb-verify-outcome/1",
-            "requires ckb-verify-environment/2",
+            "requires ckb-verify-environment/3",
             "digest must be canonical sha256",
         ):
             self.assert_error(errors, message)

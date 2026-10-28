@@ -2,7 +2,8 @@ import { access, copyFile, lstat, mkdir, readFile, readdir, readlink, rename, rm
 import { join, relative, resolve } from "node:path";
 import { canonicalSha256, sha256Bytes } from "./canonical";
 import { loadManifest } from "./manifest";
-import type { OffckbRunContext, OffckbPaths } from "./offckb";
+import { resolvePinnedDebuggerAsset } from "./debugger-binary";
+import type { OffckbRunContext, OffckbPaths, PreparedDebugger } from "./offckb";
 import { OffckbDevnet } from "./offckb";
 import { runCommand, runProcess, type CommandResult, type RunCommandOptions } from "./process";
 import { collectProvenance, type SourceRevision } from "./provenance";
@@ -42,8 +43,7 @@ export type RunnerRpcCaller = (url: string, method: string, params?: unknown[], 
 export interface DevnetAdapter {
   paths: Pick<OffckbPaths, "transactionsPath" | "fullTransactionsPath">;
   start(signal?: AbortSignal): Promise<OffckbRunContext>;
-  installDebugger(): Promise<void>;
-  debuggerVersion(): Promise<string>;
+  prepareDebugger(version: string): Promise<PreparedDebugger>;
   debugScript(
     txHash: string,
     source: { cell: "input" | "output"; index: number; role: "lock" | "type" },
@@ -110,6 +110,15 @@ function redact(text: string, secrets: readonly string[]): string {
     (result, secret) => result.replace(new RegExp(regexEscape(secret), "gi"), "[REDACTED]"),
     text,
   );
+}
+
+function redactPreparationError(error: unknown, secrets: readonly string[]): Error {
+  const message = redact(error instanceof Error ? error.message : String(error), secrets);
+  if (error instanceof AggregateError) {
+    return new AggregateError(error.errors.map(entry => redactPreparationError(entry, secrets)), message);
+  }
+  return new Error(message, error instanceof Error && error.cause !== undefined
+    ? { cause: redactPreparationError(error.cause, secrets) } : undefined);
 }
 
 function outputDirectory(root: string, manifest: Manifest): string {
@@ -184,7 +193,7 @@ async function environmentEvidence(
   manifestBytes: Uint8Array,
   context: OffckbRunContext,
   sourceRevision: SourceRevision,
-  observedDebuggerVersion?: string,
+  preparedDebugger?: PreparedDebugger,
 ): Promise<EnvironmentEvidence> {
   const provenance = await collectProvenance({
     projectRoot,
@@ -192,16 +201,17 @@ async function environmentEvidence(
     replayDependencies: manifest.replay.dependencies,
     sourceRevision,
     ckbBinary: context.ckbBinary,
+    ckbDebuggerBinary: preparedDebugger?.binary ?? null,
   });
   return {
-    schema: "ckb-verify-environment/2",
+    schema: "ckb-verify-environment/3",
     runner: { name: "ckb-verify", version: VERSION },
     toolchain: {
       requested: manifest.toolchain,
       observed: {
         ckb: context.ckbVersion,
         offckb: context.offckbVersion,
-        ...(observedDebuggerVersion === undefined ? {} : { ckbDebugger: observedDebuggerVersion }),
+        ...(preparedDebugger === undefined ? {} : { ckbDebugger: preparedDebugger.version }),
       },
     },
     provenance,
@@ -359,6 +369,9 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const manifestPath = resolve(projectRoot, options.manifestPath);
   const { manifest, bytes: manifestBytes } = await loadManifest(manifestPath);
+  if (manifest.toolchain.ckbDebugger !== undefined) {
+    resolvePinnedDebuggerAsset(manifest.toolchain.ckbDebugger, process.platform, process.arch);
+  }
   const sourceRevision = await collectSourceRevision(projectRoot);
   const outputDir = resolve(options.outputDir ?? outputDirectory(projectRoot, manifest));
   const reportPath = join(outputDir, "report.json");
@@ -381,25 +394,20 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   await writeFile(join(outputDir, "manifest.toml"), manifestBytes);
 
   let context: OffckbRunContext | undefined;
-  let observedDebuggerVersion: string | undefined;
+  let preparedDebugger: PreparedDebugger | undefined;
   let secrets: string[] = [];
   let primaryError: unknown;
   let reportToPublish: RunManifestResult | undefined;
   try {
     throwIfAborted(options.signal);
     context = await devnet.start(options.signal);
+    secrets = await readSecrets(context.accountsPath);
     throwIfAborted(options.signal);
     if (manifest.toolchain.ckbDebugger !== undefined) {
-      await devnet.installDebugger();
-      observedDebuggerVersion = await devnet.debuggerVersion();
-      const requested = manifest.toolchain.ckbDebugger.replaceAll(".", "\\.");
-      if (!new RegExp(`(?:^|\\s)${requested}(?:$|\\s)`).test(observedDebuggerVersion)) {
-        throw new Error(
-          `ckb-debugger version ${observedDebuggerVersion} does not match requested ${manifest.toolchain.ckbDebugger}`,
-        );
-      }
+      try {
+        preparedDebugger = await devnet.prepareDebugger(manifest.toolchain.ckbDebugger);
+      } catch (error) { throw redactPreparationError(error, secrets); }
     }
-    secrets = await readSecrets(context.accountsPath);
     const transactionHashes = new Map<string, string>();
     const transactionOutputCounts = new Map<string, number>();
     const steps: RunEvidence["steps"] = [];
@@ -485,6 +493,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
             cause: error,
           });
         }
+        if (preparedDebugger === undefined) throw new Error("script rejection requires a prepared pinned debugger");
         observedStatus = "rejected";
         const debugSource = parsedRejection.source;
         const debugRole = parsedRejection.role;
@@ -497,10 +506,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
         const resolvedScript = await resolveRejectedScript(rejection, tx, context.rpcUrl, rpc, options.signal);
         rejection = resolvedScript.rejection;
         await writeJson(join(stepDirectory, "script-group.json"), resolvedScript.evidence);
-        if (observedDebuggerVersion === undefined) {
-          await devnet.installDebugger();
-          observedDebuggerVersion = await devnet.debuggerVersion();
-        }
+
         const debug = await devnet.debugScript(txHash, { ...debugSource, role: debugRole });
         const debuggerOutput = redact(`${debug.stdout}${debug.stderr === "" ? "" : `\n${debug.stderr}`}`, secrets);
         await writeFile(join(stepDirectory, "debugger.txt"), debuggerOutput);
@@ -557,7 +563,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       manifestBytes,
       context,
       finalSourceRevision,
-      observedDebuggerVersion,
+      preparedDebugger,
     );
     const outcomeClaims = buildOutcomeClaims(evidence);
     const digests = buildEvidenceDigests(evidence, environment);
