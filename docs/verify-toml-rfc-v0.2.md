@@ -1,7 +1,6 @@
 # `verify.toml` Schema & Assertion Vocabulary (RFC draft 0.2)
 
-> **Status:** this draft records intent. The [RFC-to-implementation matrix](rfc-implementation-matrix.md) states, item by item, what the current runner supports, what is deferred, and which decisions block the first release; the [version policy](version-policy.md) governs the identifiers. Nothing here is current behaviour unless the matrix marks it supported.
-
+> **Implementation status:** this draft records intent. The [RFC-to-implementation matrix](rfc-implementation-matrix.md) states, item by item, what the current runner supports, what is deferred, and which decisions block the first release; the [version policy](version-policy.md) governs the identifiers. Nothing here is current behaviour unless the matrix marks it supported.
 >
 > **Versioning:** this is document revision **0.2** for the intended `verify.toml` **v0.1** release. Draft manifests select `spec = "0.1.0-draft.3"`; draft.3 supersedes the briefly published draft.2 because the canonical transaction key and required replay declaration changed. The manifest-spec, outcome-claims, report-schema, and installed-runner versions are separate values.
 >
