@@ -50,8 +50,25 @@ Both gates (install-time missing patch, runtime unpatched bundle) and every scen
 
 ## 6. Evidence
 
-- Download the three `evidence-*-<sha>` bundles of the candidate's CI run and verify each with `ckb-verify check-bundle <dir> --source-sha <sha> --repository Akane-CN/spark-verify`.
-- CI artifacts expire after 30 days. For a release, attach the verified bundles and both acceptance records to the GitHub release as assets together with `SHA256SUMS`, so the evidence outlives workflow storage.
+The candidate's CI run already assembled the durable unit: the `release-evidence-<sha>` artifact holding `release-evidence-<sha>.tar.gz` and its `.sha256` (90-day retention; see [retention](offline-verification.md#retention)).
+
+```bash
+gh run download <run-id> -n release-evidence-<sha> -D release-evidence
+bun run scripts/release-evidence.ts verify release-evidence/release-evidence-<sha>.tar.gz --source-sha <sha> --repository Akane-CN/spark-verify
+```
+
+- The archive's sha256 must equal the one printed in the run's **Release evidence** step summary; record both the artifact id and the checksum in the release notes.
+- To carry the acceptance records (steps 3 and 5) and the rehearsal record with the evidence, re-assemble locally from the downloaded bundles and the records; the bundles inside stay byte-identical and the new archive is verified the same way:
+
+```bash
+gh run download <run-id> -p 'evidence-*-<sha>' -D bundles
+bun run scripts/release-evidence.ts assemble --out release-evidence-<version>-<sha>.tar.gz \
+  --bundle bundles/evidence-secp-transfer-<sha> --bundle bundles/evidence-cell-properties-<sha> --bundle bundles/evidence-ckb-ugmp-<sha> \
+  --record acceptance-source.md --record acceptance-consumer.md --record rehearsal-<date>.md \
+  --repository Akane-CN/spark-verify --source-sha <sha> --run-id <run-id>
+```
+
+- At publication (step 8) the archive and its `.sha256` are attached unchanged to the release as assets. Workflow artifacts are never cited as release evidence: they expire.
 
 ## 7. Release notes
 
@@ -61,7 +78,7 @@ Both gates (install-time missing patch, runtime unpatched bundle) and every scen
 
 ## 8. Publication (separately authorized)
 
-Only after a written go-ahead: create the annotated tag `v<version>` on the frozen SHA, create a **prerelease** with the assets from steps 4 and 6, then install the exact published package in a fresh consumer and repeat step 5 against it. `v0.1.0` is published only when every gate above passed on the same SHA; otherwise the project stays an explicitly labeled preview.
+Only after a written go-ahead: create the annotated tag `v<version>` on the frozen SHA, create a **prerelease** with the assets from steps 4 and 6 (`ckb-verify-<version>.tgz`, `SHA256SUMS`, `release-evidence-*.tar.gz` and its `.sha256`), then install the exact published package in a fresh consumer and repeat step 5 against it. `v0.1.0` is published only when every gate above passed on the same SHA; otherwise the project stays an explicitly labeled preview.
 
 ## Patch-release flow (`x.y.z` → `x.y.z+1`)
 

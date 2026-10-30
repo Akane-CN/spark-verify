@@ -81,7 +81,7 @@ async function regularFile(path: string, label: string): Promise<Buffer> {
   return readFile(path);
 }
 
-async function assertOnlyRegularEntries(root: string): Promise<string[]> {
+export async function assertOnlyRegularEntries(root: string): Promise<string[]> {
   const files: string[] = [];
   const pending = [root];
   while (pending.length > 0) {

@@ -20,6 +20,12 @@ the private `version` field of `package.json`, not published packages. Dates are
 - Sanitized, checksummed CI evidence bundles: packaged after each showcase job, uploaded with a
   commit-pinned action, read back through the GitHub API, downloaded into a separate directory and
   re-verified offline by the `verify-evidence` job (#19).
+- Durable release evidence: `scripts/release-evidence.ts` assembles a run's verified bundles and
+  acceptance records into one `release-evidence-<commit>.tar.gz` with a complete `SHA256SUMS`, a
+  checksum sidecar, and a manifest tied to the repository, source SHA, workflow run and runner
+  version; CI assembles it, verifies it with `tar`/`sha256sum`/`check-bundle`, uploads it with 90-day
+  retention and reads the artifact back through the API. The archive is what a release attaches
+  ([retention](docs/offline-verification.md#retention), #19).
 - Installable package layout (`files` allowlist), a fail-closed runtime check that the installed
   OffCKB bundle carries the shipped security patch, and the consumer
   [installation guide](docs/install.md) (#20).
