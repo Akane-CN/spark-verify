@@ -23,7 +23,7 @@ async function fakeTree(options: { version?: string; bundle?: string; admZip?: s
   await writeFile(join(caller, "package.json"), '{"name":"caller"}');
   await writeFile(join(caller, "node_modules", "@offckb", "cli", "package.json"), JSON.stringify({ name: "@offckb/cli", version: options.version ?? "0.4.13" }));
   const patched = 'const adm_zip_1 = __importDefault(require("adm-zip"));\n'.repeat(2) + 'const tar = __importStar(require("tar"));\n'.repeat(2) +
-    'followRedirects = require("follow-redirects");\n';
+    'followRedirects = require("follow-redirects");\n' + 'return server.listen(port, "127.0.0.1", () => {\n';
   await writeFile(join(caller, "node_modules", "@offckb", "cli", "build", "index.js"), options.bundle ?? patched);
   const libraries: Array<[string, string]> = [["adm-zip", options.admZip ?? "0.6.1"], ["tar", "7.5.22"], ["follow-redirects", "1.16.1"]];
   for (const [name, version] of libraries) {
@@ -35,6 +35,8 @@ async function fakeTree(options: { version?: string; bundle?: string; admZip?: s
 
 test.each([
   ["an unpatched bundle", { bundle: "__nccwpck_require__(3858); __nccwpck_require__(7222);" }, "bundled vulnerable"],
+  ["a wildcard-bound proxy", { bundle: 'const adm_zip_1 = __importDefault(require("adm-zip"));\n'.repeat(2) + 'const tar = __importStar(require("tar"));\n'.repeat(2) +
+    'followRedirects = require("follow-redirects");\nreturn server.listen(port, () => {\n' }, "wildcard RPC proxy listen"],
   ["a different OffCKB version", { version: "0.4.14" }, "expected @offckb/cli@0.4.13"],
   ["a wrong resolved archive library", { admZip: "0.5.16" }, "expected adm-zip@0.6.1"],
 ])("an installation with %s is refused before any devnet work", async (_label, options, message) => {

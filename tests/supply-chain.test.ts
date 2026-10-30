@@ -92,8 +92,15 @@ describe("supply-chain release gate", () => {
       'const tar = __importStar(require("tar"));',
       'const tar = __importStar(require("tar"));',
       'followRedirects = require("follow-redirects");',
+      'return server.listen(port, "127.0.0.1", () => {',
     ].join("\n");
     expect(() => assertOffckbUsesExternalLibraries(safe)).not.toThrow();
+    expect(() => assertOffckbUsesExternalLibraries(`${safe}\nreturn server.listen(port, () => {`)).toThrow(
+      "wildcard RPC proxy listen",
+    );
+    expect(() => assertOffckbUsesExternalLibraries(safe.replace('return server.listen(port, "127.0.0.1", () => {', ""))).toThrow(
+      "exactly 1 loopback-bound RPC proxy listen",
+    );
     expect(() =>
       assertOffckbUsesExternalLibraries(
         `${safe}\nconst adm_zip_1 = __importDefault(__nccwpck_require__(3858));`,
@@ -112,7 +119,7 @@ describe("supply-chain release gate", () => {
       'const tar = __importStar(require("tar"));',
     ].join("\n");
     const redirectImport = 'followRedirects = require("follow-redirects");';
-    const safe = `${archiveImports}\n${redirectImport}`;
+    const safe = `${archiveImports}\n${redirectImport}\nreturn server.listen(port, "127.0.0.1", () => {`;
     expect(() => assertOffckbUsesExternalLibraries(safe)).not.toThrow();
     expect(() => assertOffckbUsesExternalLibraries(`${safe}\n__nccwpck_require__(230)`)).toThrow(
       "bundled vulnerable follow-redirects import",
