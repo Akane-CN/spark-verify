@@ -8,6 +8,7 @@
         "@ckb-ccc/spore": "1.5.17",
         "@offckb/cli": "0.4.13",
         "adm-zip": "0.6.1",
+        "ajv": "8.20.0",
         "follow-redirects": "1.16.1",
         "json-canonicalize": "3.0.0",
         "tar": "7.5.22",
@@ -15,7 +16,6 @@
       "devDependencies": {
         "@types/adm-zip": "0.5.7",
         "@types/bun": "1.2.19",
-        "ajv": "8.20.0",
         "typescript": "5.9.2",
       },
     },

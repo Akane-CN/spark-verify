@@ -1,0 +1,1338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-report.schema.json",
+  "title": "CKB Verify evidence report (complete artifact)",
+  "description": "Structural validation of a complete report.json: ckb-verify-report/1 (manifest spec 0.1.0-draft.3) and ckb-verify-report/2 (0.1.0-draft.4). Historical report/1 artifacts with environment/2 + provenance/1 validate structurally but are accepted by the verifier only with --allow-legacy. Shape validation never replaces the semantic verifier, which re-derives claims, verdict and both digests.",
+  "$comment": "Unknown fields are rejected at every level except claim.evidence (retained RPC diagnostics). Digest, hash and cross-field agreement are semantic checks. The discriminator keyword is an OpenAPI extension Ajv understands; validators without it fall back to plain oneOf.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "verdict",
+    "createdAt",
+    "evidence",
+    "outcomeClaims",
+    "environment",
+    "digests"
+  ],
+  "properties": {
+    "schema": {
+      "enum": [
+        "ckb-verify-report/1",
+        "ckb-verify-report/2"
+      ]
+    },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "FAIL"
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "minLength": 1,
+      "$comment": "display/provenance metadata excluded from both digests; the runner writes an ISO-8601 UTC timestamp, synthetic fixtures label themselves"
+    },
+    "evidence": true,
+    "outcomeClaims": true,
+    "environment": true,
+    "digests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "environment"
+      ],
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "environment": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "schema": {
+          "const": "ckb-verify-report/1"
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "spec",
+            "steps",
+            "assertions"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "spec": {
+              "const": "0.1.0-draft.3"
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "claims",
+                  "durationMs",
+                  "transactionHash"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  },
+                  "expectedStatus": {
+                    "enum": [
+                      "committed",
+                      "rejected"
+                    ]
+                  },
+                  "expectedErrorCode": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "observedStatus": {
+                    "enum": [
+                      "committed",
+                      "rejected"
+                    ]
+                  },
+                  "cycles": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "rejection": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "script",
+                          "node"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "rpcCode": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "code": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "role": {
+                        "enum": [
+                          "lock",
+                          "type"
+                        ]
+                      },
+                      "source": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "cell",
+                          "index"
+                        ],
+                        "properties": {
+                          "cell": {
+                            "enum": [
+                              "input",
+                              "output"
+                            ]
+                          },
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        }
+                      },
+                      "script": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "codeHash",
+                          "hashType",
+                          "args"
+                        ],
+                        "properties": {
+                          "codeHash": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                          },
+                          "hashType": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hashType"
+                          },
+                          "args": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/bytes"
+                          }
+                        }
+                      },
+                      "scriptHash": {
+                        "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                      }
+                    }
+                  },
+                  "durationMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "transactionHash": {
+                    "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                  },
+                  "claims": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "kind",
+                        "target",
+                        "expected",
+                        "observed",
+                        "ok"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "cell"
+                        },
+                        "target": {
+                          "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/target"
+                        },
+                        "expected": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "count"
+                          ],
+                          "properties": {
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          }
+                        },
+                        "observed": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "count"
+                          ],
+                          "properties": {
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          }
+                        },
+                        "ok": {
+                          "type": "boolean"
+                        },
+                        "evidence": {
+                          "type": "object",
+                          "$comment": "free-form RPC diagnostics retained for humans; excluded from the outcome digest"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "assertions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "target",
+                  "expected",
+                  "observed",
+                  "ok"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "cell"
+                  },
+                  "target": {
+                    "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/target"
+                  },
+                  "expected": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "count"
+                    ],
+                    "properties": {
+                      "count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    }
+                  },
+                  "observed": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "count"
+                    ],
+                    "properties": {
+                      "count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    }
+                  },
+                  "ok": {
+                    "type": "boolean"
+                  },
+                  "evidence": {
+                    "type": "object",
+                    "$comment": "free-form RPC diagnostics retained for humans; excluded from the outcome digest"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "outcomeClaims": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "name",
+            "spec",
+            "steps",
+            "assertions"
+          ],
+          "properties": {
+            "schema": {
+              "const": "ckb-verify-outcome/1"
+            },
+            "name": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "spec": {
+              "const": "0.1.0-draft.3"
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "claims"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  },
+                  "expectedStatus": {
+                    "enum": [
+                      "committed",
+                      "rejected"
+                    ]
+                  },
+                  "expectedErrorCode": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "observedStatus": {
+                    "enum": [
+                      "committed",
+                      "rejected"
+                    ]
+                  },
+                  "cycles": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "rejection": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "script",
+                          "node"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "rpcCode": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "code": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "role": {
+                        "enum": [
+                          "lock",
+                          "type"
+                        ]
+                      },
+                      "source": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "cell",
+                          "index"
+                        ],
+                        "properties": {
+                          "cell": {
+                            "enum": [
+                              "input",
+                              "output"
+                            ]
+                          },
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        }
+                      },
+                      "script": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "codeHash",
+                          "hashType",
+                          "args"
+                        ],
+                        "properties": {
+                          "codeHash": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                          },
+                          "hashType": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hashType"
+                          },
+                          "args": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/bytes"
+                          }
+                        }
+                      },
+                      "scriptHash": {
+                        "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                      }
+                    }
+                  },
+                  "claims": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "kind",
+                        "target",
+                        "expected",
+                        "observed",
+                        "observationValid",
+                        "ok"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "const": "cell"
+                        },
+                        "target": {
+                          "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/target"
+                        },
+                        "expected": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "count"
+                          ],
+                          "properties": {
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          }
+                        },
+                        "observed": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "count"
+                          ],
+                          "properties": {
+                            "count": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          }
+                        },
+                        "observationValid": {
+                          "type": "boolean"
+                        },
+                        "ok": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "assertions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "target",
+                  "expected",
+                  "observed",
+                  "observationValid",
+                  "ok"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "cell"
+                  },
+                  "target": {
+                    "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/target"
+                  },
+                  "expected": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "count"
+                    ],
+                    "properties": {
+                      "count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    }
+                  },
+                  "observed": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "count"
+                    ],
+                    "properties": {
+                      "count": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    }
+                  },
+                  "observationValid": {
+                    "type": "boolean"
+                  },
+                  "ok": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "environment": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schema",
+                "runner",
+                "toolchain",
+                "provenance",
+                "platform",
+                "devnet"
+              ],
+              "properties": {
+                "schema": {
+                  "const": "ckb-verify-environment/3"
+                },
+                "runner": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "name",
+                    "version"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "ckb-verify"
+                    },
+                    "version": {
+                      "type": "string",
+                      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                    }
+                  }
+                },
+                "toolchain": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "requested",
+                    "observed"
+                  ],
+                  "properties": {
+                    "requested": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "ckb",
+                        "offckb"
+                      ],
+                      "properties": {
+                        "ckb": {
+                          "type": "string",
+                          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                        },
+                        "offckb": {
+                          "const": "0.4.13"
+                        },
+                        "ckbDebugger": {
+                          "type": "string",
+                          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                        }
+                      }
+                    },
+                    "observed": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "ckb",
+                        "offckb"
+                      ],
+                      "properties": {
+                        "ckb": {
+                          "$ref": "#/$defs/observedVersion"
+                        },
+                        "offckb": {
+                          "const": "0.4.13"
+                        },
+                        "ckbDebugger": {
+                          "type": "string",
+                          "pattern": "^ckb-debugger \\d+\\.\\d+\\.\\d+$"
+                        }
+                      }
+                    }
+                  }
+                },
+                "provenance": {
+                  "$ref": "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-provenance-v2.schema.json"
+                },
+                "platform": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "os",
+                    "arch"
+                  ],
+                  "properties": {
+                    "os": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    },
+                    "arch": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                "devnet": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "network",
+                    "genesisHash",
+                    "systemScripts"
+                  ],
+                  "properties": {
+                    "network": {
+                      "const": "devnet"
+                    },
+                    "genesisHash": {
+                      "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                    },
+                    "systemScripts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "$ref": "#/$defs/systemScriptBinding"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schema",
+                "runner",
+                "toolchain",
+                "provenance",
+                "platform",
+                "devnet"
+              ],
+              "properties": {
+                "schema": {
+                  "const": "ckb-verify-environment/2"
+                },
+                "runner": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "name",
+                    "version"
+                  ],
+                  "properties": {
+                    "name": {
+                      "const": "ckb-verify"
+                    },
+                    "version": {
+                      "type": "string",
+                      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                    }
+                  }
+                },
+                "toolchain": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "requested",
+                    "observed"
+                  ],
+                  "properties": {
+                    "requested": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "ckb",
+                        "offckb"
+                      ],
+                      "properties": {
+                        "ckb": {
+                          "type": "string",
+                          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                        },
+                        "offckb": {
+                          "const": "0.4.13"
+                        },
+                        "ckbDebugger": {
+                          "type": "string",
+                          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                        }
+                      }
+                    },
+                    "observed": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "ckb",
+                        "offckb"
+                      ],
+                      "properties": {
+                        "ckb": {
+                          "$ref": "#/$defs/observedVersion"
+                        },
+                        "offckb": {
+                          "const": "0.4.13"
+                        },
+                        "ckbDebugger": {
+                          "type": "string",
+                          "pattern": "^ckb-debugger \\d+\\.\\d+\\.\\d+$"
+                        }
+                      }
+                    }
+                  }
+                },
+                "provenance": {
+                  "$ref": "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-provenance-v1.schema.json"
+                },
+                "platform": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "os",
+                    "arch"
+                  ],
+                  "properties": {
+                    "os": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    },
+                    "arch": {
+                      "type": "string",
+                      "pattern": "\\S"
+                    }
+                  }
+                },
+                "devnet": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "network",
+                    "genesisHash",
+                    "systemScripts"
+                  ],
+                  "properties": {
+                    "network": {
+                      "const": "devnet"
+                    },
+                    "genesisHash": {
+                      "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                    },
+                    "systemScripts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "$ref": "#/$defs/systemScriptBinding"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "discriminator": {
+            "propertyName": "schema"
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    {
+      "properties": {
+        "schema": {
+          "const": "ckb-verify-report/2"
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "spec",
+            "manifestText",
+            "steps",
+            "assertions"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "spec": {
+              "const": "0.1.0-draft.4"
+            },
+            "manifestText": {
+              "type": "string"
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "claims",
+                  "durationMs",
+                  "transactionHash",
+                  "transaction"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  },
+                  "expectedStatus": {
+                    "enum": [
+                      "committed",
+                      "rejected"
+                    ]
+                  },
+                  "expectedErrorCode": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "observedStatus": {
+                    "enum": [
+                      "committed",
+                      "rejected"
+                    ]
+                  },
+                  "cycles": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "rejection": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "script",
+                          "node"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "rpcCode": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "code": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "role": {
+                        "enum": [
+                          "lock",
+                          "type"
+                        ]
+                      },
+                      "source": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "cell",
+                          "index"
+                        ],
+                        "properties": {
+                          "cell": {
+                            "enum": [
+                              "input",
+                              "output"
+                            ]
+                          },
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        }
+                      },
+                      "script": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "codeHash",
+                          "hashType",
+                          "args"
+                        ],
+                        "properties": {
+                          "codeHash": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                          },
+                          "hashType": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hashType"
+                          },
+                          "args": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/bytes"
+                          }
+                        }
+                      },
+                      "scriptHash": {
+                        "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                      }
+                    }
+                  },
+                  "durationMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "transactionHash": {
+                    "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                  },
+                  "transaction": {
+                    "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/transaction"
+                  },
+                  "claims": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/claimEvidence"
+                    }
+                  }
+                }
+              }
+            },
+            "assertions": {
+              "type": "array",
+              "items": {
+                "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/claimEvidence"
+              }
+            }
+          }
+        },
+        "outcomeClaims": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "name",
+            "spec",
+            "steps",
+            "assertions"
+          ],
+          "properties": {
+            "schema": {
+              "const": "ckb-verify-outcome/2"
+            },
+            "name": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "spec": {
+              "const": "0.1.0-draft.4"
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "claims"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  },
+                  "expectedStatus": {
+                    "enum": [
+                      "committed",
+                      "rejected"
+                    ]
+                  },
+                  "expectedErrorCode": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "observedStatus": {
+                    "enum": [
+                      "committed",
+                      "rejected"
+                    ]
+                  },
+                  "cycles": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "rejection": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "script",
+                          "node"
+                        ]
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "rpcCode": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "code": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "role": {
+                        "enum": [
+                          "lock",
+                          "type"
+                        ]
+                      },
+                      "source": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "cell",
+                          "index"
+                        ],
+                        "properties": {
+                          "cell": {
+                            "enum": [
+                              "input",
+                              "output"
+                            ]
+                          },
+                          "index": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        }
+                      },
+                      "script": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "codeHash",
+                          "hashType",
+                          "args"
+                        ],
+                        "properties": {
+                          "codeHash": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                          },
+                          "hashType": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hashType"
+                          },
+                          "args": {
+                            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/bytes"
+                          }
+                        }
+                      },
+                      "scriptHash": {
+                        "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                      }
+                    }
+                  },
+                  "claims": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/claimOutcome"
+                    }
+                  }
+                }
+              }
+            },
+            "assertions": {
+              "type": "array",
+              "items": {
+                "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/claimOutcome"
+              }
+            }
+          }
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "runner",
+            "toolchain",
+            "provenance",
+            "platform",
+            "devnet"
+          ],
+          "properties": {
+            "schema": {
+              "const": "ckb-verify-environment/3"
+            },
+            "runner": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "version"
+              ],
+              "properties": {
+                "name": {
+                  "const": "ckb-verify"
+                },
+                "version": {
+                  "type": "string",
+                  "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                }
+              }
+            },
+            "toolchain": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "requested",
+                "observed"
+              ],
+              "properties": {
+                "requested": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "ckb",
+                    "offckb"
+                  ],
+                  "properties": {
+                    "ckb": {
+                      "type": "string",
+                      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                    },
+                    "offckb": {
+                      "const": "0.4.13"
+                    },
+                    "ckbDebugger": {
+                      "type": "string",
+                      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+                    }
+                  }
+                },
+                "observed": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "ckb",
+                    "offckb"
+                  ],
+                  "properties": {
+                    "ckb": {
+                      "$ref": "#/$defs/observedVersion"
+                    },
+                    "offckb": {
+                      "const": "0.4.13"
+                    },
+                    "ckbDebugger": {
+                      "type": "string",
+                      "pattern": "^ckb-debugger \\d+\\.\\d+\\.\\d+$"
+                    }
+                  }
+                }
+              }
+            },
+            "provenance": {
+              "$ref": "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-provenance-v2.schema.json"
+            },
+            "platform": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "os",
+                "arch"
+              ],
+              "properties": {
+                "os": {
+                  "type": "string",
+                  "pattern": "\\S"
+                },
+                "arch": {
+                  "type": "string",
+                  "pattern": "\\S"
+                }
+              }
+            },
+            "devnet": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "network",
+                "genesisHash",
+                "systemScripts"
+              ],
+              "properties": {
+                "network": {
+                  "const": "devnet"
+                },
+                "genesisHash": {
+                  "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+                },
+                "systemScripts": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/$defs/systemScriptBinding"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "type": "object"
+    }
+  ],
+  "$defs": {
+    "systemScriptBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codeHash",
+        "hashType",
+        "cellDeps"
+      ],
+      "properties": {
+        "codeHash": {
+          "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hash32"
+        },
+        "hashType": {
+          "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/hashType"
+        },
+        "cellDeps": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/bindingDep"
+          }
+        }
+      },
+      "$comment": "exported system scripts may have zero deps (type_id); claim bindings additionally require at least one"
+    },
+    "observedVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "$comment": "observed CKB reports its full version string, for example 0.209.0 (abc123 2026-01-01)"
+    }
+  },
+  "discriminator": {
+    "propertyName": "schema"
+  }
+}
