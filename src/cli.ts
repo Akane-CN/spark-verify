@@ -115,6 +115,7 @@ function renderValidation(validation: ManifestValidation): string {
     `${manifest.toolchain.ckbDebugger === null ? ", no debugger" : `, ckb-debugger ${manifest.toolchain.ckbDebugger}`}\n` +
     `accounts: ${manifest.accounts}\nreplay dependencies: ${manifest.replayDependencies.length === 0 ? "none" : manifest.replayDependencies.join(", ")}\n` +
     steps + `final claims: ${manifest.finalClaims}\nclaims: ${manifest.claimCount}\n` +
+    `schema: ${validation.schema.id} ok\n` +
     "executed: nothing (no commands, listeners, installs, or network)\n";
 }
 
@@ -145,6 +146,7 @@ function renderInspection(inspection: ReportInspection): string {
     lines.push(`source: ${inspection.source.gitCommit ?? "unknown"}${inspection.source.dirty === null ? "" : inspection.source.dirty ? " (dirty)" : " (clean)"}`);
   }
   if (inspection.runner !== null) lines.push(`runner: ${inspection.runner.name} ${inspection.runner.version}`);
+  if (inspection.schemaCheck !== null) lines.push(`schema check: ${inspection.schemaCheck.ok ? "ok" : `${inspection.schemaCheck.problems.length} violation(s)`} (${inspection.schemaCheck.id})`);
   if (inspection.expected !== null) {
     for (const key of ["outcome", "environment"] as const) {
       const matches = inspection.expected[`${key}Matches`];

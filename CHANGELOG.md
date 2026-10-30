@@ -7,6 +7,10 @@ the private `version` field of `package.json`, not published packages. Dates are
 
 ### Added
 
+- Published whole-manifest and whole-report JSON Schemas (`schemas/ckb-verify-manifest-v1.schema.json`,
+  `schemas/ckb-verify-report.schema.json`) run by the offline commands next to the strict parser and
+  semantic verifier, with field-path diagnostics and manifest conformance fixtures; `ajv` is now a
+  runtime dependency (#18).
 - Offline commands `validate`, `digest`, `check-digest`, and `check-bundle` with text and `--json`
   output and documented exit codes; validity is reported separately from the recorded verdict
   ([offline verification](docs/offline-verification.md), #18).

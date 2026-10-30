@@ -112,7 +112,20 @@ Add `--json` to any offline command to print exactly one JSON object and nothing
 
 Manifest specs `0.1.0-draft.3` and `0.1.0-draft.4` are accepted by `validate`; the spec string selects the grammar and there is no automatic migration. A historical report is verified against the rules that applied when it was written; `--allow-legacy` never widens what report `/2` accepts.
 
-The strict parser is the manifest validator. The published JSON Schemas today cover [provenance `/1`](../schemas/ckb-verify-provenance-v1.schema.json), [provenance `/2`](../schemas/ckb-verify-provenance-v2.schema.json), and the [claims-v2 fragment](../schemas/ckb-verify-claims-v2.schema.json); a whole-manifest and whole-report JSON Schema is still open under #18 and would add structural checks, not replace the semantic ones above.
+## Published schemas
+
+Two whole-document JSON Schemas (Draft 2020-12) ship in `schemas/` and inside the package, next to the [provenance `/1`](../schemas/ckb-verify-provenance-v1.schema.json), [provenance `/2`](../schemas/ckb-verify-provenance-v2.schema.json), and [claims-v2](../schemas/ckb-verify-claims-v2.schema.json) definitions they reference:
+
+| Schema | `$id` | Validates |
+| --- | --- | --- |
+| [`ckb-verify-manifest-v1.schema.json`](../schemas/ckb-verify-manifest-v1.schema.json) | `https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-manifest-v1.schema.json` | the parsed `verify.toml` object for specs `0.1.0-draft.3` and `0.1.0-draft.4`; unknown keys are rejected at every level |
+| [`ckb-verify-report.schema.json`](../schemas/ckb-verify-report.schema.json) | `https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-report.schema.json` | a complete `report.json` for report `/1` (current and historical environment) and report `/2` |
+
+`validate` runs the manifest schema on the parsed TOML **and** the strict parser; `digest`, `check-digest`, and `check-bundle` run the report schema **and** the semantic verifier. The two layers must agree: a manifest the parser accepts but the schema rejects (or the reverse) is reported as invalid with both diagnostics, never hidden. Schema violations are listed as `problem: schema <json-pointer> <message>`, for example `schema /step/0/expect/tx must be equal to one of the allowed values (["committed","rejected"])`, and `--json` carries them under `schema` (manifest) or `schemaCheck` (report) with the schema `$id`.
+
+Rules only the parser or the verifier can enforce stay outside the schemas and are listed in each schema's `description`: step-name uniqueness and ordering of `out_point.step` references, the at-least-one-claim rule, `rejected` requiring a debugger pin, UTF-8 round-tripping for draft.4, and every hash, alignment, membership, verdict, and digest relationship in a report. Shape validation alone never makes a report trustworthy.
+
+Conformance fixtures live under `tests/fixtures/conformance/manifests/`: `valid/` manifests must pass both layers; each file in `invalid/` is listed in `cases.json` with the parser message and the schema JSON Pointer it must produce, and `semantic-cases.json` lists the rules the schema cannot express. `tests/schemas.test.ts` also validates the historical sample report and synthetic report/2 artifacts and checks that structural damage is pinpointed to its field.
 
 ## Typical uses
 

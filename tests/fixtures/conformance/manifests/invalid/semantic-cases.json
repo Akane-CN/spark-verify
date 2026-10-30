@@ -1,0 +1,18 @@
+[
+  {
+    "file": "forward-step-reference.toml",
+    "parser": "must reference this or an earlier step"
+  },
+  {
+    "file": "duplicate-step-name.toml",
+    "parser": "step name \"transfer\" is duplicated"
+  },
+  {
+    "file": "rejected-without-debugger.toml",
+    "parser": "rejected transactions require toolchain.ckb-debugger"
+  },
+  {
+    "file": "no-claims.toml",
+    "parser": "at least one expectation or assertion"
+  }
+]

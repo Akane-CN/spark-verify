@@ -33,7 +33,6 @@
   "devDependencies": {
     "@types/adm-zip": "0.5.7",
     "@types/bun": "1.2.19",
-    "ajv": "8.20.0",
     "typescript": "5.9.2"
   },
   "engines": {
@@ -43,6 +42,7 @@
   "packageManager": "bun@1.2.19",
   "dependencies": {
     "@ckb-ccc/core": "1.14.0",
+    "ajv": "8.20.0",
     "@ckb-ccc/spore": "1.5.17",
     "@offckb/cli": "0.4.13",
     "adm-zip": "0.6.1",

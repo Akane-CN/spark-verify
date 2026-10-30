@@ -1,0 +1,132 @@
+[
+  {
+    "file": "unknown-root-key.toml",
+    "parser": "extra is not supported",
+    "schema": "/ must NOT have additional properties (extra)"
+  },
+  {
+    "file": "unknown-meta-key.toml",
+    "parser": "meta.owner is not supported",
+    "schema": "/meta must NOT have additional properties (owner)"
+  },
+  {
+    "file": "unsupported-spec.toml",
+    "parser": "meta.spec must equal",
+    "schema": "/meta/spec must be equal to one of the allowed values"
+  },
+  {
+    "file": "offckb-not-pinned.toml",
+    "parser": "toolchain.offckb must equal",
+    "schema": "/toolchain/offckb must be equal to constant"
+  },
+  {
+    "file": "debugger-unsupported.toml",
+    "parser": "no supported pinned artifact",
+    "schema": "/toolchain/ckb-debugger must be equal to constant"
+  },
+  {
+    "file": "ckb-range.toml",
+    "parser": "toolchain.ckb must be an exact x.y.z version",
+    "schema": "/toolchain/ckb must match pattern"
+  },
+  {
+    "file": "replay-unknown.toml",
+    "parser": "supported replay dependency",
+    "schema": "/replay/dependencies/0 must be equal to one of the allowed values"
+  },
+  {
+    "file": "replay-duplicate.toml",
+    "parser": "must not contain duplicates",
+    "schema": "/replay/dependencies must NOT have duplicate items"
+  },
+  {
+    "file": "missing-replay.toml",
+    "parser": "replay must be a table",
+    "schema": "/ must have required property 'replay' (replay)"
+  },
+  {
+    "file": "accounts-zero.toml",
+    "parser": "setup.accounts must be an integer between 1 and 20",
+    "schema": "/setup/accounts must be >= 1"
+  },
+  {
+    "file": "accounts-too-many.toml",
+    "parser": "between 1 and 20",
+    "schema": "/setup/accounts must be <= 20"
+  },
+  {
+    "file": "timeout-too-long.toml",
+    "parser": "between 1s and 600s",
+    "schema": "/step/0/timeout"
+  },
+  {
+    "file": "timeout-format.toml",
+    "parser": "integer number of seconds",
+    "schema": "/step/0/timeout"
+  },
+  {
+    "file": "step-missing-run.toml",
+    "parser": "step[0].run must be a non-empty string",
+    "schema": "/step/0 must have required property 'run' (run)"
+  },
+  {
+    "file": "expect-unknown-status.toml",
+    "parser": "must be \"committed\" or \"rejected\"",
+    "schema": "/step/0/expect/tx must be equal to one of the allowed values"
+  },
+  {
+    "file": "error-without-rejected.toml",
+    "parser": "error requires tx = \"rejected\"",
+    "schema": "/step/0/expect/tx must be equal to constant"
+  },
+  {
+    "file": "draft3-negative-count.toml",
+    "parser": "count must be a non-negative safe integer",
+    "schema": "/step/1/assert/cell/0/count must be >= 0"
+  },
+  {
+    "file": "draft3-unknown-assert-kind.toml",
+    "parser": "assert.balance is not supported",
+    "schema": "/assert must NOT have additional properties (balance)"
+  },
+  {
+    "file": "draft3-draft4-syntax.toml",
+    "parser": "type is not supported",
+    "schema": "/step/1/assert/cell/0 must NOT have additional properties (type)"
+  },
+  {
+    "file": "draft4-count-two.toml",
+    "parser": "count must be a safe integer between 0 and 1",
+    "schema": "/assert/cell/0/count must be equal to one of the allowed values"
+  },
+  {
+    "file": "draft4-type-with-count-zero.toml",
+    "parser": "type requires count = 1",
+    "schema": "/assert/cell/0"
+  },
+  {
+    "file": "draft4-unknown-builtin.toml",
+    "parser": "must be dao or spore",
+    "schema": "/assert/cell/0/type/builtin must be equal to one of the allowed values"
+  },
+  {
+    "file": "draft4-min-bytes-zero.toml",
+    "parser": "min_bytes must be a safe integer between 1 and",
+    "schema": "/assert/cell/0/data/min_bytes must be >= 1"
+  },
+  {
+    "file": "draft4-args-bytes-too-large.toml",
+    "parser": "args_bytes must be a safe integer between 0 and 1048576",
+    "schema": "/assert/cell/0/type/args_bytes must be <= 1048576"
+  },
+  {
+    "file": "draft4-index-overflow.toml",
+    "parser": "index must be a safe integer between 0 and 4294967295",
+    "schema": "/assert/cell/0/out_point/index must be <= 4294967295"
+  },
+  {
+    "file": "draft4-cell-deps-unknown-key.toml",
+    "parser": "cell_deps[0].index is not supported",
+    "schema": "/assert/cell_deps/0 must NOT have additional properties (index)"
+  }
+]

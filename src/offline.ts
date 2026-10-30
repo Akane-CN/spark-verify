@@ -6,6 +6,7 @@ import { deriveOutcomeV2 } from "./cell-claims";
 import { ManifestError } from "./errors";
 import { loadManifest } from "./manifest";
 import { buildOutcomeClaims, verifyReport, type RunEvidence } from "./report";
+import { MANIFEST_SCHEMA_ID, REPORT_SCHEMA_ID, schemaProblems } from "./schemas";
 import type { Manifest } from "./types";
 
 export interface ManifestStepSummary {
@@ -30,14 +31,36 @@ export interface ManifestSummary {
   requiresDebugger: boolean;
 }
 
-export type ManifestValidation =
-  | { command: "validate"; ok: true; executed: false; path: string; manifest: ManifestSummary; problems: [] }
-  | { command: "validate"; ok: false; executed: false; path: string; manifest: null; problems: string[] };
+export interface SchemaCheck { id: string; ok: boolean; problems: string[] }
 
-/** Parses with the runner's strict grammar; never runs `step.run`, installs tools, or opens sockets. */
+export type ManifestValidation =
+  | { command: "validate"; ok: true; executed: false; path: string; manifest: ManifestSummary; schema: SchemaCheck; problems: [] }
+  | { command: "validate"; ok: false; executed: false; path: string; manifest: ManifestSummary | null; schema: SchemaCheck | null; problems: string[] };
+
+function manifestSchemaCheck(bytes: Uint8Array): SchemaCheck | null {
+  let parsed: unknown;
+  try {
+    parsed = Bun.TOML.parse(new TextDecoder().decode(bytes));
+  } catch {
+    return null; // not TOML at all: the parser's own diagnostic is the useful one
+  }
+  const problems = schemaProblems(MANIFEST_SCHEMA_ID, parsed);
+  return { id: MANIFEST_SCHEMA_ID, ok: problems.length === 0, problems };
+}
+
+/**
+ * Parses with the runner's strict grammar and validates the parsed TOML against the published
+ * manifest schema; never runs `step.run`, installs tools, or opens sockets. Both checks must agree.
+ */
 export async function validateManifestFile(path: string): Promise<ManifestValidation> {
   const absolute = resolve(path);
+  let schema: SchemaCheck | null = null;
   try {
+    try {
+      schema = manifestSchemaCheck(new Uint8Array(await Bun.file(absolute).arrayBuffer()));
+    } catch {
+      schema = null; // unreadable: loadManifest reports it
+    }
     const { manifest, bytes } = await loadManifest(absolute);
     const steps = manifest.steps.map((step) => ({
       name: step.name,
@@ -49,9 +72,7 @@ export async function validateManifestFile(path: string): Promise<ManifestValida
       claims: step.assertions.length,
     }));
     const claimCount = steps.reduce((count, step) => count + (step.expect === null ? 0 : 1) + step.claims, manifest.assertions.length);
-    return {
-      command: "validate", ok: true, executed: false, path: absolute, problems: [],
-      manifest: {
+    const summary: ManifestSummary = {
         path: absolute,
         sha256: sha256Bytes(bytes),
         name: manifest.meta.name,
@@ -64,11 +85,17 @@ export async function validateManifestFile(path: string): Promise<ManifestValida
         finalClaims: manifest.assertions.length,
         claimCount,
         requiresDebugger: manifest.toolchain.ckbDebugger !== undefined,
-      },
     };
+    if (schema === null || !schema.ok) {
+      // The strict parser accepted what the published schema rejects: report it rather than hide it.
+      return { command: "validate", ok: false, executed: false, path: absolute, manifest: summary, schema,
+        problems: (schema?.problems ?? ["manifest could not be checked against the published schema"]).map((problem) => `schema ${problem}`) };
+    }
+    return { command: "validate", ok: true, executed: false, path: absolute, manifest: summary, schema, problems: [] };
   } catch (error) {
     if (error instanceof ManifestError) {
-      return { command: "validate", ok: false, executed: false, path: absolute, manifest: null, problems: [error.message] };
+      return { command: "validate", ok: false, executed: false, path: absolute, manifest: null, schema,
+        problems: [error.message, ...(schema?.problems ?? []).map((problem) => `schema ${problem}`)] };
     }
     throw error;
   }
@@ -96,6 +123,8 @@ export interface ReportInspection {
   source: { gitCommit: string | null; dirty: boolean | null } | null;
   runner: { name: string; version: string } | null;
   legacyAllowed: boolean;
+  /** Published report schema result; `valid` requires this to pass as well as the semantic verifier. */
+  schemaCheck: SchemaCheck | null;
   problems: string[];
 }
 
@@ -139,10 +168,14 @@ export function inspectReport(
   const record = isRecord(report) ? report : undefined;
   if (record === undefined) problems.push("report must be a JSON object");
   let valid = false;
+  let schemaCheck: SchemaCheck | null = null;
   if (record !== undefined) {
+    const shape = schemaProblems(REPORT_SCHEMA_ID, record);
+    schemaCheck = { id: REPORT_SCHEMA_ID, ok: shape.length === 0, problems: shape };
+    problems.push(...shape.map((problem) => `schema ${problem}`));
     try {
       verifyReport(record, { allowLegacy: options.allowLegacy === true });
-      valid = true;
+      valid = shape.length === 0;
     } catch (error) {
       problems.push(error instanceof Error ? error.message : String(error));
     }
@@ -208,6 +241,7 @@ export function inspectReport(
     runner: runner === undefined || typeof runner.name !== "string" || typeof runner.version !== "string" ? null
       : { name: runner.name, version: runner.version },
     legacyAllowed: options.allowLegacy === true,
+    schemaCheck,
     problems,
   };
 }

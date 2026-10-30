@@ -1,0 +1,34 @@
+[meta]
+name = "conformance-draft3"
+spec = "0.1.0-draft.3"
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.13"
+ckb-debugger = "1.1.1"
+
+[replay]
+dependencies = ["fee_estimation", "fee_estimation"]
+
+[setup]
+accounts = 2
+
+[[step]]
+name = "transfer"
+run = "bun run produce.ts committed"
+timeout = 30
+expect.tx = "committed"
+
+[[step]]
+name = "bad"
+run = "bun run produce.ts rejected"
+expect.tx = "rejected"
+expect.error.code = -11
+
+[[step.assert.cell]]
+out_point = { step = "transfer", index = 0 }
+count = 1
+
+[[assert.cell]]
+out_point = { step = "transfer", index = 1 }
+count = 0
