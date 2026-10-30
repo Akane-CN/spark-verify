@@ -132,7 +132,7 @@ export function assertSafeArchiveEntry(entryPath: string, kind: ArchiveEntryKind
   }
 }
 
-function tarEntryKind(type: string): ArchiveEntryKind {
+export function tarEntryKind(type: string): ArchiveEntryKind {
   if (type === "Directory") return "directory";
   if (type === "File" || type === "OldFile" || type === "ContiguousFile") return "file";
   if (type === "SymbolicLink") return "symlink";

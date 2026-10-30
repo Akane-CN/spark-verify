@@ -175,3 +175,49 @@ jobs:
             bun run src/cli.ts check-bundle "$bundle" --source-sha "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY"
           done
           test "$count" -eq 3
+      - name: Assemble the release-evidence archive from the verified bundles
+        run: >
+          bun run scripts/release-evidence.ts assemble
+          --out "release-evidence/release-evidence-$GITHUB_SHA.tar.gz"
+          --bundle "downloaded-evidence/evidence-secp-transfer-$GITHUB_SHA"
+          --bundle "downloaded-evidence/evidence-cell-properties-$GITHUB_SHA"
+          --bundle "downloaded-evidence/evidence-ckb-ugmp-$GITHUB_SHA"
+          --repository "$GITHUB_REPOSITORY" --source-sha "$GITHUB_SHA"
+          --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
+      - name: Verify the archive the way a consumer would (tar, sha256sum, check-bundle)
+        run: |
+          set -euo pipefail
+          mkdir consumer-check
+          (cd release-evidence && sha256sum -c --strict "release-evidence-$GITHUB_SHA.tar.gz.sha256")
+          tar -xzf "release-evidence/release-evidence-$GITHUB_SHA.tar.gz" -C consumer-check
+          (cd consumer-check/release-evidence && sha256sum -c --strict --quiet SHA256SUMS)
+          count=0
+          for bundle in consumer-check/release-evidence/bundles/*/; do
+            count=$((count + 1))
+            bun run src/cli.ts check-bundle "$bundle" --source-sha "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY"
+          done
+          test "$count" -eq 3
+      - name: Upload the release-evidence archive
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-evidence-${{ github.sha }}
+          path: release-evidence
+          if-no-files-found: error
+          retention-days: 90
+      - name: Read back the release-evidence artifact through the API
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --paginate > release-artifacts.json
+          bun -e '
+            const name = `release-evidence-${process.env.GITHUB_SHA}`;
+            const listed = JSON.parse(await Bun.file("release-artifacts.json").text()).artifacts;
+            const artifact = listed.find(entry => entry.name === name && !entry.expired);
+            if (artifact === undefined || artifact.size_in_bytes <= 0) throw new Error(`artifact ${name} was not published by this run`);
+            const sha256 = (await Bun.file(`release-evidence/release-evidence-${process.env.GITHUB_SHA}.tar.gz.sha256`).text()).trim();
+            const summary = ["| artifact | id | bytes | expires | archive sha256 |", "| --- | --- | --- | --- | --- |",
+              `| ${name} | ${artifact.id} | ${artifact.size_in_bytes} | ${artifact.expires_at} | ${sha256.split(" ")[0]} |`].join("\n");
+            console.log(summary);
+            if (process.env.GITHUB_STEP_SUMMARY) await Bun.write(process.env.GITHUB_STEP_SUMMARY, `## Release evidence\n\n${summary}\n`);
+          '

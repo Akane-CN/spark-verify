@@ -30,6 +30,7 @@ step dependency-install bun install --frozen-lockfile
 step supply-chain-gate bun run check:supply-chain
 step regression bun run check
 step documentation ./scripts/validate-docs.sh --examples
+rm -rf .ckb-verify/runs   # the evidence packaged below must come from this rehearsal only
 step showcase-secp-transfer bun run showcase:secp-transfer
 rm -rf dist && mkdir -p dist
 step pack bun pm pack --destination dist
@@ -37,14 +38,25 @@ step pack bun pm pack --destination dist
 VERSION=$(bun run src/cli.ts --version)
 TGZ=$(ls dist/*.tgz 2>/dev/null | head -1)
 if (( CONSUMER )); then step consumer-acceptance scripts/acceptance-matrix.sh --consumer --results dist/acceptance-consumer.md; fi
+REPOSITORY=${CKB_VERIFY_REPOSITORY:-Akane-CN/spark-verify}
+step package-evidence bun run scripts/package-evidence.ts --out "dist/evidence-secp-transfer-$HEAD" \
+  --repository "$REPOSITORY" --source-sha "$HEAD" --workflow rehearsal --job secp-transfer
+RECORDS=()
+if (( CONSUMER )) && [[ -f dist/acceptance-consumer.md ]]; then RECORDS+=(--record dist/acceptance-consumer.md); fi
+ARCHIVE="dist/release-evidence-$VERSION-${HEAD:0:7}.tar.gz"
+step release-evidence bun run scripts/release-evidence.ts assemble --out "$ARCHIVE" \
+  --bundle "dist/evidence-secp-transfer-$HEAD" ${RECORDS[@]+"${RECORDS[@]}"} --repository "$REPOSITORY" --source-sha "$HEAD"
+step verify-release-evidence bun run scripts/release-evidence.ts verify "$ARCHIVE" --source-sha "$HEAD" --repository "$REPOSITORY"
 {
   printf '# Release rehearsal (no publication)\n\n'
-  printf -- '- candidate: `%s`\n- version: `%s`\n- platform: %s %s, bun %s, node %s\n- tarball: `%s`\n- tarball sha256: `%s`\n- date: %s\n\n' \
+  printf -- '- candidate: `%s`\n- version: `%s`\n- platform: %s %s, bun %s, node %s\n- tarball: `%s`\n- tarball sha256: `%s`\n- release evidence: `%s`\n- release evidence sha256: `%s`\n- date: %s\n\n' \
     "$HEAD" "$VERSION" "$(uname -s)" "$(uname -m)" "$(bun --version)" "$(node --version)" "${TGZ:-none}" \
-    "$( [[ -n $TGZ ]] && sha256sum "$TGZ" | cut -d' ' -f1 || echo none)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    "$( [[ -n $TGZ ]] && sha256sum "$TGZ" | cut -d' ' -f1 || echo none)" \
+    "$( [[ -f $ARCHIVE ]] && echo "$ARCHIVE" || echo none)" "$( [[ -f $ARCHIVE ]] && sha256sum "$ARCHIVE" | cut -d' ' -f1 || echo none)" \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf '| step | command | result | time |\n| --- | --- | --- | --- |\n%s\n' "$(printf '%s\n' "${ROWS[@]}")"
   if (( CONSUMER )) && [[ -f dist/acceptance-consumer.md ]]; then printf '\n## Installed-consumer acceptance\n\n'; cat dist/acceptance-consumer.md; fi
-  printf '\nNo tag, release, or package was published by this rehearsal.\n'
+  printf '\nThe release-evidence archive here was assembled from this host'"'"'s showcase run, not from a hosted CI run; the release attaches the CI archive (release checklist, step 6).\nNo tag, release, or package was published by this rehearsal.\n'
 } > "$OUT"
 printf '\nrecord: %s\n' "$OUT"
 (( FAILED )) && { echo "REHEARSAL FAILED"; exit 1; }

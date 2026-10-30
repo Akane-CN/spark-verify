@@ -170,4 +170,39 @@ The bundle is uploaded with a commit-pinned `actions/upload-artifact`, named `ev
 
 To inspect a bundle yourself, download it from the run's **Artifacts** list (or `gh run download <run-id> -n evidence-<job>-<commit>`), unpack it into an empty directory, and run `check-bundle` there. Checksums and digests detect alteration; they are not an authenticity signature, and a valid bundle may contain valid `FAIL` reports: read each `verdict` separately.
 
-CI artifacts expire; evidence for a release must be attached to that release as a durable asset (see the release checklist) rather than referenced from workflow storage.
+### Release-evidence archive
+
+Workflow artifacts expire, so the `verify-evidence` job also assembles the three verified bundles of a run into one archive, `release-evidence-<commit>.tar.gz`, with `scripts/release-evidence.ts assemble`. The archive is the unit that outlives CI storage: it is uploaded as the `release-evidence-<commit>` artifact (90-day retention), read back through the API, and at release time attached unchanged to the GitHub release.
+
+```text
+release-evidence-<commit>.tar.gz          one gzip tarball; every entry lives under release-evidence/
+release-evidence-<commit>.tar.gz.sha256   sha256sum line for the archive
+release-evidence/
+  release-evidence.json   schema ckb-verify-release-evidence/1: repository, source SHA, workflow run, runner version, bundles, records
+  SHA256SUMS              sha256 of every other file in the archive, including release-evidence.json
+  bundles/<artifact-name>/…   each CI evidence bundle, byte for byte (bundle.json, SHA256SUMS, reports/…)
+  records/<name>.md       acceptance and rehearsal records, when supplied
+```
+
+Assembly refuses the archive when any bundle fails `check-bundle` against the stated source SHA and repository, when bundles disagree on the runner version or the workflow run, when a record is not a regular Markdown file under 1 MiB, or when a record matches a credential marker. The archive is only reported once it has been re-extracted into a fresh directory and re-verified; a refused assembly leaves no archive behind. Entries are limited to regular files and directories under `release-evidence/`; links, devices, absolute and dot-dot paths are refused on extraction.
+
+To verify an archive with the installed runner and standard tools:
+
+```bash
+sha256sum -c release-evidence-<commit>.tar.gz.sha256
+mkdir release-evidence-check && tar -xzf release-evidence-<commit>.tar.gz -C release-evidence-check
+cd release-evidence-check/release-evidence && sha256sum -c --strict SHA256SUMS
+for bundle in bundles/*/; do ckb-verify check-bundle "$bundle" --source-sha <commit> --repository Akane-CN/spark-verify; done
+```
+
+From a source checkout, `bun run scripts/release-evidence.ts verify release-evidence-<commit>.tar.gz --source-sha <commit> --repository Akane-CN/spark-verify` performs the same steps in one process, including the manifest and record checks, with the usual exit codes (`0` valid, `1` invalid or mismatch, `2` usage); `--json` emits one object. Validity is internal consistency, not authenticity, and each report's `verdict` is still read separately.
+
+### Retention
+
+| Storage | What | Expires | Retrieval |
+| --- | --- | --- | --- |
+| Workflow artifact `evidence-<job>-<commit>` | one bundle per showcase job | 30 days after the run | run's **Artifacts** list, `gh run download <run-id> -n <name>`, or the artifacts API |
+| Workflow artifact `release-evidence-<commit>` | the assembled archive and its `.sha256` | 90 days after the run | same as above; the artifact id and archive checksum are printed in the run's step summary |
+| GitHub release asset | the same archive, attached at release time (step 6 of the [release checklist](release-checklist.md)) | with the release | the release page; the archive checksum is listed in the release notes |
+
+Only the release asset is durable. Evidence cited from a workflow artifact is a pointer that stops resolving at expiry; a release must cite the asset and its checksum, never the run.
