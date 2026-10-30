@@ -28,6 +28,7 @@ Use the [bug report template](../.github/ISSUE_TEMPLATE/bug_report.md): runner a
 4. `bun run check:supply-chain`; note any new advisory. A new finding is triaged in an issue, never waived in place.
 5. Triage new issues with the template; label `bug`, `enhancement`, or `rfc`; close duplicates with the reason.
 6. Update roadmap blockers and evidence links on the open milestone issues; confirm the latest `main` CI run is green including `verify-evidence`.
+7. If a roadmap checkpoint date has passed (week 3: 2026-10-23, week 8: 2026-11-27), record its state in [external checkpoints](external-checkpoints.md) and on #2/#3; silence is recorded as such, never inferred as consent.
 
 ## Monthly pin review
 

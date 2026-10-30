@@ -262,6 +262,8 @@ Relevant tracking issues:
 - [#2 — OffCKB package boundary and built-in script references](https://github.com/Akane-CN/spark-verify/issues/2)
 - [#3 — completed-project conformance example](https://github.com/Akane-CN/spark-verify/issues/3)
 
+The state of both tracks at each roadmap checkpoint is recorded in [external checkpoints](docs/external-checkpoints.md).
+
 ## License
 
 [MIT](LICENSE)
