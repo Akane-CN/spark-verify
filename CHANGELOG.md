@@ -11,6 +11,9 @@ the private `version` field of `package.json`, not published packages. Dates are
   `schemas/ckb-verify-report.schema.json`) run by the offline commands next to the strict parser and
   semantic verifier, with field-path diagnostics and manifest conformance fixtures; `ajv` is now a
   runtime dependency (#18).
+- `docs/rfc-implementation-matrix.md` (every RFC v0.2 item marked supported, deferred, or
+  release-blocking) and `docs/version-policy.md` (independent version lines, accepted tuples, no
+  silent migration) (#18).
 - Offline commands `validate`, `digest`, `check-digest`, and `check-bundle` with text and `--json`
   output and documented exit codes; validity is reported separately from the recorded verdict
   ([offline verification](docs/offline-verification.md), #18).

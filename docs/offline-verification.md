@@ -103,6 +103,8 @@ Add `--json` to any offline command to print exactly one JSON object and nothing
 
 ## Version compatibility
 
+The policy behind this table, including what changes each identifier and the no-silent-migration rule, is written in [version policy](version-policy.md).
+
 | Report `schema` | Nested tuple | Supported by | Notes |
 | --- | --- | --- | --- |
 | `ckb-verify-report/2` | outcome `/2`, specs `0.1.0-draft.4`, environment `/3`, provenance `/2` | `digest`, `check-digest` | current draft.4 envelope |

@@ -1,0 +1,137 @@
+# RFC v0.2 to implementation matrix
+
+This matrix compares every normative item of [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md) with what the private `0.0.2` runner actually does. It exists so the RFC is never silently narrowed: an item is **supported** only when the parser, runner, verifier, and a real fixture all implement it; **deferred** items are intentionally not implemented and say why; **release-blocking** items need a decision or work before `v0.1.0` (#20) and are tracked on #18. "Supported" never implies grant-scope completion.
+
+Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred · ⛔ release-blocking decision or work.
+
+## §0–§1 Trust, scope, structure
+
+| RFC item | Status | Implementation and notes |
+| --- | --- | --- |
+| No sandbox; trusted repositories only; loopback RPC; fresh OffCKB devnet; no production keys | ✅ | `SECURITY.md`; RPC and proxy URLs must be loopback; genesis recorded (not yet allowlisted, see §6) |
+| Sections `[meta]`, `[toolchain]`, `[replay]`, `[setup]`, `[[step]]`, `[[assert.*]]` | ◐ | all present; `[[step]]` requires at least one step (RFC: zero or more); `[[assert.balance]]` is not accepted |
+| Evaluation order validate → setup → steps → final assertions → report | ✅ | `src/runner.ts` |
+| Schema and execution errors are no-verdict (exit 2), distinct from FAIL (exit 1) | ✅ | CLI exit codes; `report.json` is never published without a verdict |
+| At least one expectation or assertion required | ✅ | parser rule; also a parser-only conformance case |
+| Unknown keys are errors | ✅ | parser `exactKeys` everywhere; published manifest schema uses `additionalProperties: false` |
+| Dotted keys and explicit tables normalize identically | ✅ | TOML parser normalizes before validation |
+
+## §2 Metadata, toolchain, replay
+
+| RFC item | Status | Implementation and notes |
+| --- | --- | --- |
+| `meta.name` (required, ≤ 100), `meta.spec`, `meta.description` | ✅ | specs `0.1.0-draft.3` and `0.1.0-draft.4` |
+| Exact `toolchain.ckb` | ◐ | any exact `x.y.z` parses; only `0.209.0` has pinned release assets, so other values fail at setup with no verdict |
+| Exact `toolchain.offckb` | ◐ | must equal the adapter pin `0.4.13` |
+| Exact `toolchain.ckb-debugger` | ◐ | must be `1.1.1` (the only pinned Linux x64 asset); required whenever a step expects `rejected` |
+| `--allow-version-drift` | ⏸ | tool pins are exact-only; the runner refuses other versions rather than tainting. Runtime (Bun) drift and missing pins are recorded as `tainted` reasons instead |
+| Repository runtime/package-manager pins and lockfile recorded | ✅ | provenance `runtime` (Bun pin from `packageManager`), `lockfile` (`bun.lock`), `manifest.sha256`; other runtimes/lockfiles are not read (⏸) |
+| `[replay].dependencies` required, unique, from the five codes; listed codes taint with outcome-scoped reasons | ✅ | `src/provenance.ts`; conformance fixtures for unknown and duplicate codes |
+
+## §3 Setup
+
+| RFC item | Status | Implementation and notes |
+| --- | --- | --- |
+| `setup.accounts` in `0..20` | ◐ | implemented as `1..20`; `0` is rejected because the producers need a funded signer. ⛔ decide whether `0` is allowed for pure/read-only flows |
+| `[setup.scripts.<name>]` with `binary` (deploy with Type ID or data hash, record hashes/out-points) | ⏸ | not implemented; no deployment path exists. Required for any project with its own scripts; see release decision below |
+| `[setup.scripts.<name>]` with `builtin` | ◐ | no `[setup.scripts]` table; draft.4 claims reference OffCKB built-ins directly as `builtin = "dao" \| "spore"` with the resolved identity recorded in `environment.devnet.systemScripts` |
+| Seeded genesis Cells | ⏸ | out of scope per RFC |
+
+## §4 Steps and command protocol
+
+| RFC item | Status | Implementation and notes |
+| --- | --- | --- |
+| Unique required step names; ordered execution from the repository root | ✅ | parser and runner |
+| `timeout` 1–600 s, default 60 s | ✅ | integer seconds or `"<n>s"` |
+| Injected `CKB_VERIFY_RPC_URL`, `_ACCOUNTS`, `_SYSTEM_SCRIPTS`, `_CONTEXT`, `_RESULT` | ✅ | `src/runner.ts`; `_CONTEXT` carries the normalized devnet context |
+| Result envelope `{ protocol: 1, transaction }`, atomic single write, runner submits | ✅ | malformed or missing envelope is an execution error |
+| At most one transaction per step | ✅ | |
+| Pure steps (no `expect.tx`, no result file, immediate assertions only) | ⏸ | every step must write a result envelope and is submitted; a step without `expect.tx` is still transaction-producing. ⛔ implement or drop from v0.1 |
+| Result-contract errors (missing result on a tx step; result on a pure step) | ◐ | the first is an execution error; the second cannot occur because pure steps do not exist |
+| Non-zero command exit is an execution error | ✅ | |
+| `expect.tx = "committed" \| "rejected"` | ✅ | terminal node status via the OffCKB proxy |
+| `expect.cycles.{lt,lte,eq,gte}` | ⏸ | cycles are observed and recorded in the outcome (`test_tx_pool_accept`), but no comparator is accepted |
+| `expect.error.code` | ✅ | satisfied only by script evidence from the pinned debugger |
+| `expect.error.group` (role, script, args) | ⏸ | the rejection evidence records `role`, `source`, `script`, and `scriptHash`, but the manifest cannot pin a group |
+| Rejection kinds `script` vs `node`; bare `rejected` satisfied by either | ✅ | `src/transaction.ts`; node messages excluded from the outcome digest |
+| Immediate `[[step.assert.cell]]` | ✅ | `[[step.assert.balance]]` ⏸ |
+
+## §5 Assertions
+
+| RFC item | Status | Implementation and notes |
+| --- | --- | --- |
+| `cell` selector by `out_point = { step, index }` | ✅ | symbolic target retained in the outcome digest |
+| `cell` selector by `lock`/`type` script filter (query all matching live Cells) | ⏸ | no indexer query path |
+| `count = N` exact | ◐ | draft.3: any non-negative count; draft.4: `0` or `1` only |
+| `count.eq/gte/lte` comparators | ⏸ | |
+| `data.eq` | ⏸ | |
+| `data.len` | ◐ | draft.4 `data = { min_bytes = N }` is a lower bound on decoded length, not exact length |
+| `capacity.{eq,gte,lte}` | ⏸ | |
+| Output type identity and args length | ✅ (draft.4) | `type = { builtin, args_bytes }`; identity normalized to the claimed builtin or retained raw on mismatch |
+| Transaction CellDep membership | ✅ (draft.4) | `[[…assert.cell_deps]] contains = { builtin }`, beyond the RFC's vocabulary |
+| No vacuous success | ✅ | a missing output fails even `count = 0`; draft.4 property checks require `count = 1` |
+| `balance` by `account`/`address`/`lock`, with or without `udt` | ⏸ | no aggregate queries, no quantity grammar, no UDT decoding |
+| Script references (explicit, named setup script, wildcard args) | ⏸ | follows from the absence of `[setup.scripts]`; draft.4 builtin references are the only named form |
+| Comparator validation rules | ⏸ | no comparators exist to validate |
+
+## §6 Reproducibility
+
+| RFC item | Status | Implementation and notes |
+| --- | --- | --- |
+| Outcome digest and environment fingerprint, SHA-256 over RFC 8785 canonical JSON, each object self-versioned | ✅ | `src/canonical.ts`; `digests.outcome`, `digests.environment` |
+| §6.1 recorded evidence | ◐ | present: manifest hash and bytes (draft.4), runner version, Git commit and dirty digest, requested/observed CKB/OffCKB/debugger, Bun pin and observed version, `bun.lock` hash, OS/arch, genesis hash, resolved system scripts, per-step hash/status/cycles/rejection, every claim's target/expected/observed/result, replay declaration and status. Missing: sanitized repository identity (URL), sealing-configuration fingerprint, deployed-binary hashes (no deployments) |
+| §6.2 outcome digest contents and exclusions | ✅ | raw transaction hashes, timestamps, durations, paths and provenance are excluded; manifest-spec and outcome-schema versions included |
+| §6.3 environment fingerprint contents | ◐ | as §6.1; no sealing-configuration fingerprint |
+| §6.4 replay qualification `stable`/`tainted` with scoped reasons | ✅ | reason codes: the five dependencies, `dirty_source`, `source_revision_unavailable`, `source_state_unavailable`, `runtime_pin_missing`, `runtime_version_drift`, `lockfile_missing`; `nondefault_devnet` ⏸ (the devnet is always default) |
+| Genesis compared with an independent allowlist | ⏸ | recorded, not allowlisted |
+| Hex lowercase `0x`; large integers as decimal strings | ✅ | |
+
+## §7 Report and CLI
+
+| RFC item | Status | Implementation and notes |
+| --- | --- | --- |
+| Report with versions, evidence, outcome claims, environment, pass flag, digests, replay | ◐ | implemented as `schema`, `verdict`, `createdAt`, `evidence`, `outcomeClaims`, `environment` (with `provenance.replay`), `digests`; camelCase names and `ckb-verify-*` schema ids differ from the RFC's illustrative `spark-verify-*` snake_case sketch. ⛔ reconcile the RFC text with the shipped contract ([report anatomy](evidence-report.md)) |
+| `ckb-verify run [path]` | ✅ | |
+| `run --report <file>`, `run --json` | ⏸ | the report path is fixed under `.ckb-verify/runs/`; machine-readable output exists for the offline commands only |
+| `run --allow-version-drift` | ⏸ | see §2 |
+| `ckb-verify validate [path]` | ✅ | strict parser plus the published manifest schema; executes nothing |
+| `ckb-verify digest <report>` | ✅ | always re-derives both digests (the RFC's `--kind` selector is not needed) |
+| `ckb-verify check-digest <report> …` | ◐ | implemented as `--outcome <sha256:…>` / `--environment <sha256:…>` instead of `--kind <k> <hash>`; same semantics |
+| `ckb-verify check-bundle <dir>` | ✅ | beyond the RFC: verifies a downloaded CI evidence bundle |
+| Exit codes 0 / 1 / 2 | ✅ | identical meaning for `run`; offline commands document their own `0 / 1 / 2` |
+| JSON plus terminal summary; HTML deferred | ✅ | HTML remains deferred |
+
+## §8 Validation and conformance
+
+| RFC item | Status | Implementation and notes |
+| --- | --- | --- |
+| 1. machine-readable schema for parsed TOML | ✅ | `schemas/ckb-verify-manifest-v1.schema.json` |
+| 2. valid/invalid manifest fixtures incl. unknown keys | ✅ | `tests/fixtures/conformance/manifests/` |
+| 3. canonicalization and digest fixtures | ◐ | `tests/canonical.test.ts`, `tests/report.test.ts`; no standalone fixture files |
+| 4. committed-transaction fixture | ✅ | secp transfer, cell-properties, CKB-UGMP showcases |
+| 5. rejected-script fixture with group and code evidence | ◐ | code and script identity recorded and asserted; no manifest-level group pin |
+| 6. non-script node-rejection fixture | ◐ | unit coverage of `kind = "node"`; no real-devnet fixture |
+| 7. pure-step fixture | ⏸ | pure steps not implemented |
+| 8. result-contract fixtures | ◐ | missing-result covered; pure-step variant not applicable |
+| 9. zero-match / vacuous-success regressions | ✅ | draft.4 missing-output and count rules |
+| 10. quantity overflow and UDT decoding | ⏸ | with `balance` |
+| 11. replay fixtures (missing, empty, each dependency) | ✅ | parser and provenance tests |
+| 12. two clean runs with equal digests | ✅ | every showcase and the acceptance matrix repeat case |
+| 13. version-drift fixture | ◐ | runtime drift taints and changes the fingerprint; tool drift is refused rather than tainted |
+| 14. cross-environment equal-outcome fixture | ✅ | cell-properties repeat comparison (`recorded-devnet-difference`) |
+| Error messages with path, key path, observed value | ✅ | parser messages carry source and key path; schema problems carry the JSON Pointer |
+
+## §9 Open questions and deferred scope
+
+Declarative transaction construction, arbitrary genesis Cells, testnet/mainnet execution, property-based generation, and include files remain out of scope exactly as the RFC states. Of the open questions, two are answered by the implementation: the runner is a standalone package (Q1), and a step is exactly one transaction (Q3). Molecule result files (Q2), named outputs (Q5), `udt16le` naming (Q6), and the isolation container (Q7) are untouched. Q8 is answered by the merged CKB-UGMP feasibility probe only as feasibility, not adoption.
+
+## Release-blocking decisions (#18 → #20)
+
+These must be decided, and the chosen option implemented or written down, before `v0.1.0`. They are decisions for the maintainer; this document does not pre-empt them.
+
+1. **Scope of the first release vocabulary.** Either implement the RFC §5 family that real projects need first (`balance` with quantities and UDT decoding, `cell` script filters and comparators, `expect.cycles`) or publish `v0.1.0` with the draft.3/draft.4 subset and move those items to RFC v0.3 explicitly. The matrix above is the input; the recommendation is to release the implemented subset and re-title the RFC sections as v0.3 proposals, because every deferred item needs new query or deployment machinery.
+2. **Repository script deployment (`[setup.scripts]`).** Without it the runner verifies only flows built on OffCKB built-ins. Decide whether this is a release requirement or a documented limitation of v0.1.
+3. **Pure steps and `setup.accounts = 0`.** Implement both (they are a small runner change plus fixtures §8.7–8.8) or remove them from the RFC for v0.1.
+4. **`expect.error.group`.** Implement the manifest pin against the already-recorded script evidence, or document code-only pinning for v0.1.
+5. **Report shape and naming in RFC §7.** Rewrite the illustrative report and CLI sketch to the shipped contract (`ckb-verify-report/N`, camelCase, `verdict`, `--outcome/--environment`), so the RFC and the published schemas say the same thing.
+6. **Spec naming at release.** See [version policy](version-policy.md#decisions-still-open-18).

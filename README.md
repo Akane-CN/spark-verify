@@ -242,6 +242,9 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 - [`showcases/secp-transfer/verify.sh`](showcases/secp-transfer/verify.sh) — real fresh-devnet acceptance, cleanup, and digest-stability harness
 - [`showcases/ckb-ugmp/verify.sh`](showcases/ckb-ugmp/verify.sh) — fresh-devnet Spore acceptance, script-identity readback, and repeatability harness
 - [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) — broader draft vocabulary and report design
+- [`docs/rfc-implementation-matrix.md`](docs/rfc-implementation-matrix.md) — RFC item by item: supported, deferred, or release-blocking
+- [`docs/version-policy.md`](docs/version-policy.md) — manifest, report, outcome, environment, provenance, bundle, and runner version lines
+- [`docs/offline-verification.md`](docs/offline-verification.md) — offline commands, exit codes, published schemas, evidence bundles
 - [`docs/annotated-manifest.md`](docs/annotated-manifest.md) — legacy manifest walkthrough and the link to new draft.4 predicates
 - [`docs/evidence-report.md`](docs/evidence-report.md) — current report contract, digest boundaries, and checked real output
 - [`schemas/ckb-verify-provenance-v2.schema.json`](schemas/ckb-verify-provenance-v2.schema.json) — current provenance schema; cross-field replay and debugger consistency are enforced by the runtime verifier
