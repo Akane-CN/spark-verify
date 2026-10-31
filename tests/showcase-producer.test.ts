@@ -413,7 +413,9 @@ describe("CKB-UGMP showcase producer boundary", () => {
   test("pins the Spore SDK used by the upstream revision", async () => {
     const packageJson = await Bun.file(join(root, "package.json")).json();
 
-    expect(packageJson.dependencies?.["@ckb-ccc/spore"]).toBe("1.5.17");
+    // Showcase-only: the SDK is a devDependency so a consumer install does not pull it.
+    expect(packageJson.devDependencies?.["@ckb-ccc/spore"]).toBe("1.5.17");
+    expect(packageJson.dependencies?.["@ckb-ccc/spore"]).toBeUndefined();
   });
 
   test("keeps the adapted mint headless, deterministic, and runner-owned", async () => {
