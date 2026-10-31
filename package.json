@@ -31,6 +31,7 @@
     "check": "bun run check:bun && bun test && bun run typecheck && bun run check:supply-chain && git diff --check"
   },
   "devDependencies": {
+    "@ckb-ccc/spore": "1.5.17",
     "@types/adm-zip": "0.5.7",
     "@types/bun": "1.2.19",
     "typescript": "5.9.2"
@@ -43,7 +44,6 @@
   "dependencies": {
     "@ckb-ccc/core": "1.14.0",
     "ajv": "8.20.0",
-    "@ckb-ccc/spore": "1.5.17",
     "@offckb/cli": "0.4.13",
     "adm-zip": "0.6.1",
     "follow-redirects": "1.16.2",
