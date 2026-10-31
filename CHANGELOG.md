@@ -35,6 +35,9 @@ the private `version` field of `package.json`, not published packages. Dates are
   download failure and recovery; `--consumer` runs it against the packed, installed package.
 - Maintenance material: [release checklist](docs/release-checklist.md),
   [maintenance loop](docs/maintenance.md), bug report template, `scripts/release-rehearsal.sh` (#20, #21).
+- `docs/external-checkpoints.md`: the week-3 and week-8 upstream/pilot checkpoint record with its
+  vocabulary (consented, no response, no outreach sent, no-go) and the unpublished draft upstream
+  question for #2 (#21).
 
 ### Changed
 
