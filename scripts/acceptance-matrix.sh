@@ -89,7 +89,7 @@ if [[ $MODE == consumer ]]; then
   "packageManager": "bun@1.2.19",
   "dependencies": { "ckb-verify": "file:$TGZ", "@ckb-ccc/core": "1.14.0" },
   "patchedDependencies": { "@offckb/cli@0.4.13": "patches/@offckb%2Fcli@0.4.13.patch" },
-  "overrides": { "adm-zip": "0.6.1", "fast-uri": "3.1.9", "follow-redirects": "1.16.1", "tar": "7.5.22" }
+  "overrides": { "adm-zip": "0.6.1", "fast-uri": "3.1.9", "follow-redirects": "1.16.2", "tar": "7.5.22" }
 }
 JSON
   (cd "$PROJECT" && git init -q && git config user.email acceptance@example.invalid && git config user.name acceptance && printf 'node_modules/\n.ckb-verify/\n' > .gitignore)

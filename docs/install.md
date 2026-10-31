@@ -46,7 +46,7 @@ tar -xzf ../path/to/ckb-verify-0.0.2.tgz -C patches --strip-components=2 'packag
   "overrides": {
     "adm-zip": "0.6.1",
     "fast-uri": "3.1.9",
-    "follow-redirects": "1.16.1",
+    "follow-redirects": "1.16.2",
     "tar": "7.5.22"
   }
 }
@@ -62,7 +62,7 @@ grep -c 'require("adm-zip")' node_modules/@offckb/cli/build/index.js  # prints 2
 
 ## 3. What the runtime gate refuses
 
-Before any preflight, download, configuration, clean, or node launch, the runner verifies that the OffCKB it resolved **from its own dependency tree** is `0.4.13`, that its bundle contains exactly the patched `adm-zip`, `tar`, and `follow-redirects` callsites, and that those libraries resolve to `0.6.1`, `7.5.22`, and `1.16.1`. An unpatched or substituted bundle produces exit `2` and no verdict:
+Before any preflight, download, configuration, clean, or node launch, the runner verifies that the OffCKB it resolved **from its own dependency tree** is `0.4.13`, that its bundle contains exactly the patched `adm-zip`, `tar`, and `follow-redirects` callsites, and that those libraries resolve to `0.6.1`, `7.5.22`, and `1.16.2`. An unpatched or substituted bundle produces exit `2` and no verdict:
 
 ```text
 ERROR: OffCKB installation is not the verified patched build: OffCKB bundle retains 2 bundled vulnerable adm-zip import(s). The shipped patch must be active in the installing project (see docs/install.md); refusing to start a devnet.

@@ -39,6 +39,14 @@ the private `version` field of `package.json`, not published packages. Dates are
   vocabulary (consented, no response, no outreach sent, no-go) and the unpublished draft upstream
   question for #2 (#21).
 
+### Security
+
+- `follow-redirects` pinned and overridden to `1.16.2` (from `1.16.1`) for
+  [GHSA-mrwp-f3q8-3g9p](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p) (high), reported by the audit
+  on 2026-10-31; the supply-chain gate, the installed-runtime check, and the consumer install guide
+  require the new version. OffCKB's proxy does not enable redirect following, so the runner did not
+  exercise the vulnerable path, but a high finding blocks release regardless.
+
 ### Changed
 
 - The shipped OffCKB patch now binds the RPC proxy (`28114`) to `127.0.0.1` instead of every

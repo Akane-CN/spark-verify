@@ -20,7 +20,7 @@ describe("supply-chain release gate", () => {
     expect(supplyChain.assertPackageVersion).toBeFunction();
     for (const [name, version] of [
       ["@offckb/cli", "0.4.13"], ["adm-zip", "0.6.1"], ["tar", "7.5.22"],
-      ["follow-redirects", "1.16.1"], ["fast-uri", "3.1.9"],
+      ["follow-redirects", "1.16.2"], ["fast-uri", "3.1.9"],
     ] as const) {
       expect(() => supplyChain.assertPackageVersion({ name, version }, name, version)).not.toThrow();
       for (const invalid of [null, [], {}, { name }, { name, version: "0.0.0" }, { name: "other", version }]) {

@@ -25,7 +25,7 @@ async function fakeTree(options: { version?: string; bundle?: string; admZip?: s
   const patched = 'const adm_zip_1 = __importDefault(require("adm-zip"));\n'.repeat(2) + 'const tar = __importStar(require("tar"));\n'.repeat(2) +
     'followRedirects = require("follow-redirects");\n' + 'return server.listen(port, "127.0.0.1", () => {\n';
   await writeFile(join(caller, "node_modules", "@offckb", "cli", "build", "index.js"), options.bundle ?? patched);
-  const libraries: Array<[string, string]> = [["adm-zip", options.admZip ?? "0.6.1"], ["tar", "7.5.22"], ["follow-redirects", "1.16.1"]];
+  const libraries: Array<[string, string]> = [["adm-zip", options.admZip ?? "0.6.1"], ["tar", "7.5.22"], ["follow-redirects", "1.16.2"]];
   for (const [name, version] of libraries) {
     await mkdir(join(caller, "node_modules", name), { recursive: true });
     await writeFile(join(caller, "node_modules", name, "package.json"), JSON.stringify({ name, version }));

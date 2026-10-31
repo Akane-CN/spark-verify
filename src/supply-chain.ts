@@ -158,7 +158,7 @@ export const OFFCKB_PACKAGE_VERSION = "0.4.13";
 const OFFCKB_EXTERNAL_LIBRARIES: ReadonlyArray<readonly [name: string, version: string]> = [
   ["adm-zip", "0.6.1"],
   ["tar", "7.5.22"],
-  ["follow-redirects", "1.16.1"],
+  ["follow-redirects", "1.16.2"],
 ];
 
 /** Locates the OffCKB CLI from ckb-verify's own dependency tree, never from the project being verified. */

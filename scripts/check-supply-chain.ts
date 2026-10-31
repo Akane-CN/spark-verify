@@ -25,7 +25,7 @@ await Promise.all([
   assertInstalledPackageVersion(offckbPackagePath, "@offckb/cli", "0.4.13"),
   assertInstalledPackageVersion(resolvedAdmZipPackagePath, "adm-zip", "0.6.1"),
   assertInstalledPackageVersion(resolvedTarPackagePath, "tar", "7.5.22"),
-  assertInstalledPackageVersion(resolvedRedirectPackagePath, "follow-redirects", "1.16.1"),
+  assertInstalledPackageVersion(resolvedRedirectPackagePath, "follow-redirects", "1.16.2"),
   assertInstalledPackageVersion(resolvedUriPackagePath, "fast-uri", "3.1.9"),
 ]);
 
@@ -55,5 +55,5 @@ try {
 assertAuditCommandResult(auditReport, auditExitCode);
 
 console.log(
-  "supply-chain gate passed: verified OffCKB patch, adm-zip@0.6.1, tar@7.5.22, follow-redirects@1.16.1, fast-uri@3.1.9, and audit allowlist",
+  "supply-chain gate passed: verified OffCKB patch, adm-zip@0.6.1, tar@7.5.22, follow-redirects@1.16.2, fast-uri@3.1.9, and audit allowlist",
 );
