@@ -275,6 +275,7 @@ export async function main(
             ? "All declared claims passed in the recorded environment."
             : "One or more declared claims failed."
         }\n` +
+          (result.verdict === "PASS" ? "" : renderFailures(result.report)) +
           `report: ${result.reportPath}\n` +
           `outcome: ${result.report.digests.outcome}\n` +
           `environment: ${result.report.digests.environment}\n`,
@@ -291,6 +292,30 @@ export async function main(
 
   dependencies.stderr(`ckb-verify: unsupported command: ${args.join(" ")}\n`);
   return 2;
+}
+
+interface ClaimLike { kind: string; target: unknown; expected: unknown; observed: unknown; ok: boolean }
+interface StepLike { name: string; expectedStatus?: string; observedStatus?: string; expectedErrorCode?: number; rejection?: { code?: number }; claims: ClaimLike[] }
+
+/** One `failed:` block per failed expectation or claim: the field, then the expected and observed values. */
+export function renderFailures(report: { outcomeClaims: unknown }): string {
+  const outcome = report.outcomeClaims as { steps: StepLike[]; assertions: ClaimLike[] };
+  const lines: string[] = [];
+  const diff = (field: string, expected: unknown, observed: unknown) => {
+    lines.push(`failed: ${field}`, `  expected: ${JSON.stringify(expected)}`, `  observed: ${JSON.stringify(observed ?? null)}`);
+  };
+  const claims = (list: ClaimLike[], where: string) => {
+    list.forEach((claim, index) => {
+      if (!claim.ok) diff(`${where}.${claim.kind}[${index}] target ${JSON.stringify(claim.target)}`, claim.expected, claim.observed);
+    });
+  };
+  for (const step of outcome.steps) {
+    if (step.expectedStatus !== undefined && step.expectedStatus !== step.observedStatus) diff(`step "${step.name}" expect.tx`, step.expectedStatus, step.observedStatus);
+    if (step.expectedErrorCode !== undefined && step.expectedErrorCode !== step.rejection?.code) diff(`step "${step.name}" expect.error.code`, step.expectedErrorCode, step.rejection?.code);
+    claims(step.claims, `step "${step.name}" assert`);
+  }
+  claims(outcome.assertions, "assert");
+  return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
 }
 
 if (import.meta.main) {

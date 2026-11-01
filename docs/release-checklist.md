@@ -26,6 +26,7 @@ bun run showcase:secp-transfer
 bun run showcase:cell-properties
 bun run showcase:ckb-ugmp
 scripts/acceptance-matrix.sh --results acceptance-source.md
+bun run verify:release                        # the proposal's §8.B release verification surface, with a record
 ```
 
 Hosted CI on the candidate must be green for all jobs, including `verify-evidence`. Local results never substitute for the hosted run; record the run ID.

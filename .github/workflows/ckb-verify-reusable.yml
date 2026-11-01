@@ -1,0 +1,77 @@
+# Reusable, pinned, secret-free workflow: validate and run one verify.toml on a fresh OffCKB devnet and
+# keep only the canonical report.json files as a workflow artifact. Call it from a consumer repository:
+#
+#   jobs:
+#     verify:
+#       uses: Akane-CN/spark-verify/.github/workflows/ckb-verify-reusable.yml@<commit-sha>
+#       with:
+#         manifest: verify.toml
+#
+# The consumer repository must have installed ckb-verify and declared the shipped OffCKB patch as in
+# docs/install.md; the default command runs the installed binary. Nothing here reads repository secrets.
+name: ckb-verify
+
+on:
+  workflow_call:
+    inputs:
+      manifest:
+        description: Path of the manifest to verify, relative to the repository root.
+        type: string
+        default: verify.toml
+      command:
+        description: The ckb-verify command prefix (the installed binary by default).
+        type: string
+        default: bunx ckb-verify
+      bun-version:
+        description: Bun version to set up; the runner is exercised with 1.2.19 only.
+        type: string
+        default: 1.2.19
+      retention-days:
+        description: Artifact retention in days.
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify ${{ inputs.manifest }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@db6bcf6eb8d88a8aa03265b887ec7bd84d64cd68 # v2.1.1
+        with:
+          bun-version: ${{ inputs.bun-version }}
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Validate the manifest (executes nothing)
+        run: ${{ inputs.command }} validate "${{ inputs.manifest }}"
+      - name: Run the manifest on a fresh devnet
+        run: ${{ inputs.command }} run "${{ inputs.manifest }}"
+      - name: Collect canonical reports only
+        run: |
+          set -euo pipefail
+          mkdir -p ckb-verify-reports
+          count=0
+          while IFS= read -r report; do
+            run=$(basename "$(dirname "$report")")
+            mkdir -p "ckb-verify-reports/$run"
+            cp "$report" "ckb-verify-reports/$run/report.json"
+            ${{ inputs.command }} digest "ckb-verify-reports/$run/report.json"
+            count=$((count + 1))
+          done < <(find .ckb-verify/runs -mindepth 2 -maxdepth 2 -name report.json -type f)
+          test "$count" -ge 1
+          test ! -e .ckb-verify/offckb/accounts.json
+      - name: Upload reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ckb-verify-reports-${{ github.sha }}
+          path: ckb-verify-reports
+          if-no-files-found: error
+          retention-days: ${{ inputs.retention-days }}

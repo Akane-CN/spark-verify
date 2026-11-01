@@ -6,7 +6,7 @@ A small, repeatable maintainer workflow that keeps the verified baseline usable 
 
 | Component | Exercised pin | Notes |
 | --- | --- | --- |
-| OS / architecture | Linux x64 | the runtime ownership and debugger paths refuse other platforms before touching the runtime |
+| OS / architecture | Linux x64 | the runtime ownership and debugger paths refuse other platforms before touching the runtime. macOS (arm64, `macos-14` CI runner): the offline commands and the platform-independent tests run in the `checks-macos` job, and `run` is refused with exit `2` before any runtime mutation; devnet execution is not supported there. Windows: not executed, not supported |
 | Bun | 1.2.19 | `bun run check` fails fast on any other version; consumers pin it with `packageManager` so provenance records it |
 | Node.js | 22 (any ≥ 20) | required because the OffCKB CLI is a Node program |
 | `@offckb/cli` | 0.4.13 with the shipped patch | runtime gate refuses an unpatched bundle |

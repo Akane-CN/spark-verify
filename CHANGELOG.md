@@ -35,7 +35,14 @@ the private `version` field of `package.json`, not published packages. Dates are
   download failure and recovery; `--consumer` runs it against the packed, installed package.
 - Maintenance material: [release checklist](docs/release-checklist.md),
   [maintenance loop](docs/maintenance.md), bug report template, `scripts/release-rehearsal.sh` (#20, #21).
-- `docs/release-decisions.md` records the six release decisions for `v0.1.0`: the implemented
+- Repository-root dogfood manifest (`verify.toml`), `bun run verify:release` (the proposal's release
+  verification surface with a Markdown record), `bun run build`, the pinned secret-free reusable
+  workflow `.github/workflows/ckb-verify-reusable.yml` (called by the `dogfood` job), a `checks-macos`
+  CI job proving the offline commands on macOS and that `run` is refused there, and
+  `docs/proposal-coverage.md` mapping every promised deliverable to its status (#20).
+- `run` prints a field-level expected/observed diff for every failed expectation and claim on FAIL.
+- `docs/release-decisions.md` records the six release decisions for `v0.1.0` (decision 1 reopened on
+  2026-11-02: the promised vocabulary is implemented as spec `0.1.0-draft.5`): the implemented
   draft.3/draft.4 subset ships; `balance`, script-filter selectors and comparators, `expect.cycles`,
   `[setup.scripts]` deployment, pure steps, `accounts = 0`, and `expect.error.group` are v0.3
   proposals; RFC §7 is rewritten to the shipped report and CLI contract; the spec identifiers stay

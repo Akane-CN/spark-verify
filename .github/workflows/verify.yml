@@ -32,6 +32,51 @@ jobs:
       - name: Validate documentation
         run: ./scripts/validate-docs.sh --examples
 
+  checks-macos:
+    name: macOS boundary (offline commands only)
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@db6bcf6eb8d88a8aa03265b887ec7bd84d64cd68 # v2.1.1
+        with:
+          bun-version: 1.2.19
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Type-check and run the platform-independent tests
+        run: |
+          bun run typecheck
+          bun test tests/canonical.test.ts tests/manifest.test.ts tests/schemas.test.ts tests/offline.test.ts \
+            tests/report.test.ts tests/cell-claims.test.ts tests/cell-claims-schema.test.ts tests/provenance.test.ts \
+            tests/transaction.test.ts tests/evidence-bundle.test.ts tests/release-evidence.test.ts \
+            tests/package-layout.test.ts tests/cli.test.ts tests/documentation-evidence.test.ts
+      - name: Offline commands work on macOS
+        run: |
+          set -euo pipefail
+          bun run src/cli.ts validate verify.toml
+          bun run src/cli.ts digest docs/examples/secp-transfer-committed-report.json --allow-legacy
+      - name: Running a manifest is refused before any runtime mutation
+        run: |
+          set +e
+          output=$(bun run src/cli.ts run verify.toml 2>&1); status=$?
+          set -e
+          printf '%s\n' "$output"
+          test "$status" -eq 2
+          grep -q "requires Linux x64" <<<"$output"
+          test ! -e .ckb-verify/offckb/accounts.json
+          test -z "$(find .ckb-verify -name report.json 2>/dev/null)"
+
+  dogfood:
+    name: Root manifest through the reusable workflow
+    uses: ./.github/workflows/ckb-verify-reusable.yml
+    with:
+      manifest: verify.toml
+      command: bun run src/cli.ts
+
   secp-transfer:
     name: Secp transfer showcase
     runs-on: ubuntu-24.04
