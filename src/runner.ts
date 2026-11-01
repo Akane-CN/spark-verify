@@ -32,7 +32,7 @@ import {
   scriptHash,
   transactionHash,
 } from "./transaction";
-import { isManifestV4, type CellAssertion, type ClaimV4, type Manifest } from "./types";
+import { isManifestV4, isManifestV5, type CellAssertion, type ClaimV4, type Manifest, type ManifestV3 } from "./types";
 import { claimDefinition, deriveOutcomeV2, populateEvidenceV2, validateLiveCellResponse, validateTransaction,
   verdictForOutcomeV2, type CellInput, type ClaimInputV2, type RunInputV2, type RunEvidenceV2, type OutcomeV2 } from "./cell-claims";
 import { VERSION } from "./version";
@@ -449,7 +449,8 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     const modernSteps: RunInputV2["steps"] = [];
     const transactions = new Map<string, CkbJsonRpcTransaction>();
     const modernManifest = isManifestV4(manifest) ? manifest : undefined;
-    const legacyManifest = isManifestV4(manifest) ? undefined : manifest;
+    const legacyManifest = manifest.meta.spec === "0.1.0-draft.3" ? (manifest as ManifestV3) : undefined;
+    if (isManifestV5(manifest)) throw new Error("0.1.0-draft.5 execution is not wired into the runner yet");
 
     for (const [index, step] of manifest.steps.entries()) {
       throwIfAborted(options.signal);

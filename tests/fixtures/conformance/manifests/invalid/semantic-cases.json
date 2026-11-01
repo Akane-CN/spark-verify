@@ -14,5 +14,21 @@
   {
     "file": "no-claims.toml",
     "parser": "at least one expectation or assertion"
+  },
+  {
+    "file": "draft5-account-out-of-range.toml",
+    "parser": "lock.account must be below setup.accounts (2)"
+  },
+  {
+    "file": "draft5-count-zero-with-property.toml",
+    "parser": "count zero is incompatible with per-Cell property checks"
+  },
+  {
+    "file": "draft5-data-len-contradiction.toml",
+    "parser": "data.len contradicts the length of data.eq"
+  },
+  {
+    "file": "draft5-out-point-count-two.toml",
+    "parser": "an out_point selects at most one Cell"
   }
 ]

@@ -1,0 +1,23 @@
+[meta]
+name = "bad"
+spec = "0.1.0-draft.5"
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.13"
+
+[replay]
+dependencies = []
+
+[setup]
+accounts = 2
+
+[[step]]
+name = "mint"
+run = "bun run produce.ts"
+expect.tx = "committed"
+
+[[assert.balance]]
+account = 0
+udt = { type = { builtin = "xudt", args = "0x" } }
+gte = "1 CKB"

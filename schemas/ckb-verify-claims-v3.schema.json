@@ -1,0 +1,682 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://spark-verify.invalid/schemas/ckb-verify-claims-v3.schema.json",
+ "title": "draft.5 / outcome3 semantic claims fragment",
+ "$comment": "Bounded semantic fragment for the 0.1.0-draft.5 vocabulary (RFC §4.2 cycles, §5.1 Cell selectors and property checks, §5.2 balance, §5.3 script references). Select a $defs reference. Shape validation does not verify hashes, target existence, indexer page consistency, binding membership, truth, manifest cross-links or provenance. Parser-only rules: exactly one balance target; data.len/min_bytes agreement with data.eq; count zero incompatible with property checks; out_point selects at most one Cell; account indices below setup.accounts; gte/lte ordering. MAX_BYTES and MAX_SELECTED_CELLS are runner resource policy, not consensus.",
+ "not": {},
+ "$defs": {
+  "systemScript": {
+   "enum": [
+    "secp256k1_blake160_sighash_all",
+    "dao",
+    "secp256k1_blake160_multisig_all",
+    "sudt",
+    "xudt",
+    "omnilock",
+    "anyone_can_pay",
+    "always_success",
+    "spore",
+    "spore_cluster",
+    "spore_cluster_agent",
+    "spore_cluster_proxy",
+    "spore_extension_lua",
+    "ckb_js_vm",
+    "nostr_lock",
+    "secp256k1_keccak256_sighash_all",
+    "secp256k1_keccak256_sighash_all_acpl",
+    "secp256k1_blake160_multisig_all_v2",
+    "type_id"
+   ]
+  },
+  "hashType": {
+   "enum": [
+    "data",
+    "type",
+    "data1",
+    "data2"
+   ]
+  },
+  "hash32": {
+   "type": "string",
+   "pattern": "^0x[0-9a-f]{64}$"
+  },
+  "bytes": {
+   "type": "string",
+   "pattern": "^0x(?:[0-9a-f]{2})*$",
+   "maxLength": 2097154
+  },
+  "u32": {
+   "type": "integer",
+   "minimum": 0,
+   "maximum": 4294967295
+  },
+  "byteCount": {
+   "type": "integer",
+   "minimum": 0,
+   "maximum": 1048576
+  },
+  "positiveByteCount": {
+   "type": "integer",
+   "minimum": 1,
+   "maximum": 1048576
+  },
+  "name": {
+   "type": "string",
+   "pattern": "\\S"
+  },
+  "ckbQuantity": {
+   "type": "string",
+   "pattern": "^(?:\\d+(?:\\.\\d{1,8})? CKB|\\d+ shannon)$"
+  },
+  "udtQuantity": {
+   "type": "string",
+   "pattern": "^\\d+$"
+  },
+  "decimal": {
+   "type": "string",
+   "pattern": "^(?:0|[1-9]\\d*)$"
+  },
+  "explicitScript": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "code_hash",
+    "hash_type",
+    "args"
+   ],
+   "properties": {
+    "code_hash": {
+     "$ref": "#/$defs/hash32"
+    },
+    "hash_type": {
+     "$ref": "#/$defs/hashType"
+    },
+    "args": {
+     "$ref": "#/$defs/bytes"
+    }
+   }
+  },
+  "builtinScript": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "builtin"
+   ],
+   "properties": {
+    "builtin": {
+     "$ref": "#/$defs/systemScript"
+    },
+    "args": {
+     "$ref": "#/$defs/bytes"
+    }
+   }
+  },
+  "builtinScriptExact": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "builtin",
+    "args"
+   ],
+   "properties": {
+    "builtin": {
+     "$ref": "#/$defs/systemScript"
+    },
+    "args": {
+     "$ref": "#/$defs/bytes"
+    }
+   }
+  },
+  "accountLock": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "account"
+   ],
+   "properties": {
+    "account": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 19
+    }
+   }
+  },
+  "lockRef": {
+   "oneOf": [
+    {
+     "$ref": "#/$defs/explicitScript"
+    },
+    {
+     "$ref": "#/$defs/builtinScript"
+    },
+    {
+     "$ref": "#/$defs/accountLock"
+    }
+   ]
+  },
+  "typeRef": {
+   "oneOf": [
+    {
+     "$ref": "#/$defs/explicitScript"
+    },
+    {
+     "$ref": "#/$defs/builtinScript"
+    }
+   ]
+  },
+  "exactLockRef": {
+   "oneOf": [
+    {
+     "$ref": "#/$defs/explicitScript"
+    },
+    {
+     "$ref": "#/$defs/builtinScriptExact"
+    },
+    {
+     "$ref": "#/$defs/accountLock"
+    }
+   ]
+  },
+  "exactTypeRef": {
+   "oneOf": [
+    {
+     "$ref": "#/$defs/explicitScript"
+    },
+    {
+     "$ref": "#/$defs/builtinScriptExact"
+    }
+   ]
+  },
+  "countRange": {
+   "oneOf": [
+    {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 4294967295
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "minProperties": 1,
+     "properties": {
+      "eq": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 4294967295
+      },
+      "gte": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 4294967295
+      },
+      "lte": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 4294967295
+      }
+     },
+     "allOf": [
+      {
+       "if": {
+        "required": [
+         "eq"
+        ],
+        "properties": {
+         "eq": {}
+        }
+       },
+       "then": {
+        "not": {
+         "anyOf": [
+          {
+           "required": [
+            "gte"
+           ],
+           "properties": {
+            "gte": {}
+           }
+          },
+          {
+           "required": [
+            "lte"
+           ],
+           "properties": {
+            "lte": {}
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "ckbRange": {
+   "type": "object",
+   "additionalProperties": false,
+   "minProperties": 1,
+   "properties": {
+    "eq": {
+     "$ref": "#/$defs/ckbQuantity"
+    },
+    "gte": {
+     "$ref": "#/$defs/ckbQuantity"
+    },
+    "lte": {
+     "$ref": "#/$defs/ckbQuantity"
+    }
+   },
+   "allOf": [
+    {
+     "if": {
+      "required": [
+       "eq"
+      ],
+      "properties": {
+       "eq": {}
+      }
+     },
+     "then": {
+      "not": {
+       "anyOf": [
+        {
+         "required": [
+          "gte"
+         ],
+         "properties": {
+          "gte": {}
+         }
+        },
+        {
+         "required": [
+          "lte"
+         ],
+         "properties": {
+          "lte": {}
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "cyclesCheck": {
+   "type": "object",
+   "additionalProperties": false,
+   "minProperties": 1,
+   "properties": {
+    "lt": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 9007199254740991
+    },
+    "lte": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 9007199254740991
+    },
+    "eq": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 9007199254740991
+    },
+    "gte": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 9007199254740991
+    }
+   },
+   "allOf": [
+    {
+     "if": {
+      "required": [
+       "eq"
+      ],
+      "properties": {
+       "eq": {}
+      }
+     },
+     "then": {
+      "maxProperties": 1
+     }
+    },
+    {
+     "not": {
+      "required": [
+       "lt",
+       "lte"
+      ],
+      "properties": {
+       "lt": {},
+       "lte": {}
+      }
+     }
+    }
+   ]
+  },
+  "manifestData": {
+   "type": "object",
+   "additionalProperties": false,
+   "minProperties": 1,
+   "properties": {
+    "eq": {
+     "$ref": "#/$defs/bytes"
+    },
+    "len": {
+     "$ref": "#/$defs/byteCount"
+    },
+    "min_bytes": {
+     "$ref": "#/$defs/positiveByteCount"
+    }
+   }
+  },
+  "manifestCell": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "out_point": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "step",
+      "index"
+     ],
+     "properties": {
+      "step": {
+       "$ref": "#/$defs/name"
+      },
+      "index": {
+       "$ref": "#/$defs/u32"
+      }
+     }
+    },
+    "lock": {
+     "$ref": "#/$defs/lockRef"
+    },
+    "type": {
+     "$ref": "#/$defs/typeRef"
+    },
+    "count": {
+     "$ref": "#/$defs/countRange"
+    },
+    "data": {
+     "$ref": "#/$defs/manifestData"
+    },
+    "capacity": {
+     "$ref": "#/$defs/ckbRange"
+    }
+   },
+   "anyOf": [
+    {
+     "required": [
+      "out_point"
+     ],
+     "properties": {
+      "out_point": {}
+     }
+    },
+    {
+     "required": [
+      "lock"
+     ],
+     "properties": {
+      "lock": {}
+     }
+    },
+    {
+     "required": [
+      "type"
+     ],
+     "properties": {
+      "type": {}
+     }
+    }
+   ],
+   "allOf": [
+    {
+     "anyOf": [
+      {
+       "required": [
+        "count"
+       ],
+       "properties": {
+        "count": {}
+       }
+      },
+      {
+       "required": [
+        "data"
+       ],
+       "properties": {
+        "data": {}
+       }
+      },
+      {
+       "required": [
+        "capacity"
+       ],
+       "properties": {
+        "capacity": {}
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "manifestCellDeps": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "step",
+    "contains"
+   ],
+   "properties": {
+    "step": {
+     "$ref": "#/$defs/name"
+    },
+    "contains": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "builtin"
+     ],
+     "properties": {
+      "builtin": {
+       "$ref": "#/$defs/systemScript"
+      }
+     }
+    }
+   }
+  },
+  "manifestBalance": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "account": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 19
+    },
+    "address": {
+     "type": "string",
+     "pattern": "^ck[bt]1[02-9ac-hj-np-z]{6,}$"
+    },
+    "lock": {
+     "$ref": "#/$defs/exactLockRef"
+    },
+    "udt": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "type"
+     ],
+     "properties": {
+      "type": {
+       "$ref": "#/$defs/exactTypeRef"
+      }
+     }
+    },
+    "eq": {
+     "type": "string"
+    },
+    "gte": {
+     "type": "string"
+    },
+    "lte": {
+     "type": "string"
+    }
+   },
+   "oneOf": [
+    {
+     "required": [
+      "account"
+     ],
+     "properties": {
+      "account": {}
+     }
+    },
+    {
+     "required": [
+      "address"
+     ],
+     "properties": {
+      "address": {}
+     }
+    },
+    {
+     "required": [
+      "lock"
+     ],
+     "properties": {
+      "lock": {}
+     }
+    }
+   ],
+   "allOf": [
+    {
+     "anyOf": [
+      {
+       "required": [
+        "eq"
+       ],
+       "properties": {
+        "eq": {}
+       }
+      },
+      {
+       "required": [
+        "gte"
+       ],
+       "properties": {
+        "gte": {}
+       }
+      },
+      {
+       "required": [
+        "lte"
+       ],
+       "properties": {
+        "lte": {}
+       }
+      }
+     ]
+    },
+    {
+     "if": {
+      "required": [
+       "udt"
+      ],
+      "properties": {
+       "udt": {}
+      }
+     },
+     "then": {
+      "properties": {
+       "eq": {
+        "$ref": "#/$defs/udtQuantity"
+       },
+       "gte": {
+        "$ref": "#/$defs/udtQuantity"
+       },
+       "lte": {
+        "$ref": "#/$defs/udtQuantity"
+       }
+      }
+     },
+     "else": {
+      "properties": {
+       "eq": {
+        "$ref": "#/$defs/ckbQuantity"
+       },
+       "gte": {
+        "$ref": "#/$defs/ckbQuantity"
+       },
+       "lte": {
+        "$ref": "#/$defs/ckbQuantity"
+       }
+      }
+     }
+    },
+    {
+     "if": {
+      "required": [
+       "eq"
+      ],
+      "properties": {
+       "eq": {}
+      }
+     },
+     "then": {
+      "not": {
+       "anyOf": [
+        {
+         "required": [
+          "gte"
+         ],
+         "properties": {
+          "gte": {}
+         }
+        },
+        {
+         "required": [
+          "lte"
+         ],
+         "properties": {
+          "lte": {}
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "manifestAssertions": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [],
+   "properties": {
+    "cell": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/manifestCell"
+     }
+    },
+    "cell_deps": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/manifestCellDeps"
+     }
+    },
+    "balance": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/manifestBalance"
+     }
+    }
+   }
+  }
+ }
+}
