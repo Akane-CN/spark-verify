@@ -74,7 +74,7 @@ bun run scripts/release-evidence.ts assemble --out release-evidence-<version>-<s
 ## 7. Release notes
 
 - Move the `Unreleased` section of `CHANGELOG.md` under the new version heading with the date.
-- Complete the [release notes draft](release-notes-draft.md): candidate SHA, run id, artifact ids, checksums, the #18 decisions.
+- Complete the [release notes draft](release-notes-draft.md): candidate SHA, run id, artifact ids, checksums; the scope decisions are already recorded in [release decisions](release-decisions.md).
 - State known limitations (see [maintenance](maintenance.md#supported-combinations)), the report/manifest versions the runner reads and writes, and the upgrade and rollback notes below.
 - State what was **not** run (platforms, external pilots). Silence from external maintainers is not a gate.
 

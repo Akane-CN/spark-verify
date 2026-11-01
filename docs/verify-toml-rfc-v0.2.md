@@ -8,7 +8,7 @@
 >
 > **Changes from draft 0.1:** the runner-owned result-file contract is retained; the uploaded `expect.tx` vocabulary is canonical; immediate state checks use `[[step.assert.*]]`; result identity is split into an outcome digest and an environment fingerprint; `[replay].dependencies` makes replay qualification authorable; pure-step/result semantics are explicit; zero-match Cell behavior remains explicit; and the report/replay semantics distinguish a hash from a reproducibility claim.
 >
-> **Implementation note:** the CLI/package name is now `ckb-verify`. The report in §7 preserves the broader pre-implementation draft shape for review; it is not sample output from the current runner. See the [checked `ckb-verify-report/1` example and field guide](evidence-report.md) for implemented behavior. Stabilizing and reconciling these contracts is explicitly remaining v0.1 work.
+> **Implementation note:** the CLI/package name is now `ckb-verify`. §7 describes the shipped report and CLI contract; the [report field guide](evidence-report.md) is the detailed reference. Sections marked **v0.3 proposal** are not part of `v0.1.0` by the [release decisions](release-decisions.md); their text is retained as the proposal.
 
 ## Design goals
 
@@ -91,11 +91,15 @@ builtin = "spore"
 
 ### 3.1 Accounts
 
+> **v0.3 proposal:** `accounts = 0` is not accepted by v0.1 (`1..20`); [decision 3](release-decisions.md#3-pure-steps-and-setupaccounts--0-not-in-v01).
+
 `accounts` is an integer in `0..20`. The runner exports the first N deterministic, pre-funded OffCKB devnet accounts.
 
 Assertions can refer to them as `account = 0`, `account = 1`, and so on. This is preferred to copying network-specific addresses into a manifest.
 
 ### 3.2 Repository binaries
+
+> **v0.3 proposal:** `[setup.scripts]` deployment is not in v0.1; flows use OffCKB built-ins referenced from claims; [decision 2](release-decisions.md#2-repository-script-deployment-a-documented-limitation).
 
 Each `[setup.scripts.<name>]` must define exactly one of `binary` or `builtin`.
 
@@ -172,6 +176,8 @@ Runner-owned submission avoids the ambiguous case where a rejected transaction n
 
 ### 4.2 Transaction expectations
 
+> **v0.3 proposal:** `expect.cycles.*` and `expect.error.group` are not in v0.1; `expect.tx` and `expect.error.code` are; [decisions 1 and 4](release-decisions.md).
+
 | Key | Values | Meaning |
 | --- | --- | --- |
 | `expect.tx` | `"committed"` / `"rejected"` | Node outcome for this step's transaction |
@@ -193,11 +199,15 @@ expect.error.group = { role = "lock", script = "sample_lock", args = "0x0102" }
 
 ### 4.3 Immediate state assertions
 
+> **v0.3 proposal:** pure steps are not in v0.1; every step produces one transaction; [decision 3](release-decisions.md#3-pure-steps-and-setupaccounts--0-not-in-v01).
+
 `[[step.assert.cell]]` and `[[step.assert.balance]]` use the same syntax as final assertions. They run after a submitted transaction reaches its terminal status, or immediately after a declared pure step exits successfully. A rejected transaction does not advance chain state, but immediate assertions may verify that prior Cells remain live. This keeps transaction expectations under `step.expect` and state assertions under `step.assert`.
 
 ## 5. Assertions
 
 ### 5.1 `cell`
+
+> **v0.3 proposal:** in v0.1 a Cell assertion selects by `out_point` with `count` (draft.3) or the draft.4 typed-Cell properties; script-filter selectors, `count` comparators, `data.eq` and `capacity` are proposals; [decision 1](release-decisions.md#1-first-release-vocabulary-the-implemented-subset).
 
 A Cell assertion selects live Cells by a specific prior output or by scripts, then checks cardinality and properties.
 
@@ -232,6 +242,8 @@ At least one `count`, `data`, or `capacity` check is required. Property checks a
 
 ### 5.2 `balance`
 
+> **v0.3 proposal:** not in v0.1; [decision 1](release-decisions.md#1-first-release-vocabulary-the-implemented-subset).
+
 A balance assertion chooses exactly one target:
 
 ```toml
@@ -261,6 +273,8 @@ Floating point is never used. Bare TOML integers are rejected for asset amounts 
 
 ### 5.3 Script references
 
+> **v0.3 proposal:** named setup-script references and wildcard args are not in v0.1; draft.4 `builtin` references are the only named form; [decision 1](release-decisions.md#1-first-release-vocabulary-the-implemented-subset).
+
 A script-valued field accepts a fully explicit script:
 
 ```toml
@@ -284,6 +298,8 @@ A bare name or `{ script = "name" }` resolves `code_hash` and `hash_type` and tr
 Explicit hashes are normalized and validated as 32 bytes. `hash_type` accepts `type`, `data`, `data1`, or `data2`.
 
 ### 5.4 Comparator validation
+
+> **v0.3 proposal:** no comparators exist in v0.1; [decision 1](release-decisions.md#1-first-release-vocabulary-the-implemented-subset).
 
 - `eq` cannot coexist with another comparator for the same value.
 - `gte` and `lte` may coexist to define a closed range.
@@ -364,85 +380,41 @@ Hex values are lowercase and `0x`-prefixed before canonicalization. Integers tha
 
 ## 7. Report and CLI
 
-Abbreviated illustrative report shape; an actual report includes every field required by §6.1:
+This section describes the shipped contract ([release decision 5](release-decisions.md#5-rfc-7-rewritten-to-the-shipped-contract)). The field-by-field reference is the [report guide](evidence-report.md); the machine-readable definition is `schemas/ckb-verify-report.schema.json`; the identifiers and accepted tuples are governed by the [version policy](version-policy.md).
 
-```json
-{
-  "schema": "spark-verify-report/0.1-draft.3",
-  "name": "sample-lock-basic",
-  "versions": {
-    "spec": "0.1.0-draft.3",
-    "runner": "0.1.0",
-    "ckb": "0.209.0",
-    "offckb": "0.4.13",
-    "ckb_debugger": "1.1.1"
-  },
-  "evidence": {
-    "transactions": [
-      { "step": "2-of-3 spend", "tx_hash": "0x…" }
-    ]
-  },
-  "outcome_claims": {
-    "schema": "spark-verify-outcome-claims/2",
-    "spec": "0.1.0-draft.3",
-    "deployments": [],
-    "steps": [
-      {
-        "name": "2-of-3 spend",
-        "status": "committed",
-        "cycles": 4231889,
-        "expectations": [
-          { "kind": "tx", "ok": true, "expected": "committed", "observed": "committed" },
-          { "kind": "cycles.lt", "ok": true, "expected": 5000000, "observed": 4231889 }
-        ]
-      }
-    ],
-    "assertions": [
-      { "kind": "cell", "ok": true, "expected": { "count": 1 }, "observed": { "count": 1 } }
-    ]
-  },
-  "environment": {
-    "schema": "spark-verify-environment/1",
-    "git_commit": "…",
-    "git_dirty": false,
-    "manifest_sha256": "sha256:…",
-    "genesis_hash": "0x…"
-  },
-  "pass": true,
-  "digests": {
-    "outcome": "sha256:…",
-    "environment": "sha256:…"
-  },
-  "replay": {
-    "declared_dependencies": [],
-    "status": "stable",
-    "reasons": []
-  }
-}
-```
+A report is one JSON object with exactly these top-level fields:
 
-Proposed CLI:
+| Field | Content |
+| --- | --- |
+| `schema` | `ckb-verify-report/1` (manifests with `spec = "0.1.0-draft.3"`) or `ckb-verify-report/2` (`0.1.0-draft.4`) |
+| `verdict` | `"PASS"` or `"FAIL"`; a report is never written without a verdict |
+| `createdAt` | RFC 3339 timestamp |
+| `evidence` | manifest name and spec, per-step transaction hash, terminal status, cycles, and normalized rejection evidence (`kind`, `code`, `role`, `source`, `script`, `scriptHash`) |
+| `outcomeClaims` | `ckb-verify-outcome/1` or `/2`: the normalized claims with target, expected, observed, and result per claim; its RFC 8785 hash is `digests.outcome` |
+| `environment` | `ckb-verify-environment/3`: requested and observed CKB, OffCKB, debugger and Bun identities, OS and architecture, genesis hash, resolved system scripts, and `provenance` (`ckb-verify-provenance/2`: source commit and dirty digest, manifest hash, lockfile hash, binary identities, and `replay` with the declared dependencies, status and reasons); its hash is `digests.environment` |
+| `digests` | `outcome` and `environment`, both `sha256:` hex |
+
+Field names are camelCase and schema identifiers are `ckb-verify-*`; earlier drafts of this section sketched `spark-verify-*` snake_case names, which were never written by any runner. A checked `report/1` example is `docs/examples/secp-transfer-committed-report.json` (a historical `environment/2` artifact, verified with `--allow-legacy`).
+
+Implemented CLI:
 
 ```text
-ckb-verify run [path]
-  --report <file>
-  --json
-  --allow-version-drift
-
-ckb-verify validate [path]
-ckb-verify digest <report.json> [--kind outcome|environment]
-ckb-verify check-digest <report.json> --kind <outcome|environment> <sha256:...>
+ckb-verify run [path]                                   run a manifest on a fresh devnet; writes .ckb-verify/runs/<run>/report.json
+ckb-verify validate [path] [--json]                     strict parse plus the published manifest schema; executes nothing
+ckb-verify digest <report.json> [--json] [--allow-legacy]
+ckb-verify check-digest <report.json> --outcome <sha256:…> --environment <sha256:…>
+ckb-verify check-bundle <dir> [--source-sha <commit>] [--repository owner/repo]
 ```
 
-Without `--kind`, `digest` recomputes and prints both hashes. `check-digest` recomputes the selected embedded object, verifies the stored value, and then compares it with the supplied hash.
+`digest` always re-derives both digests from the report's own content and compares them with the stored values; `check-digest` additionally compares them with the supplied ones. `run --report <file>`, `run --json`, and `--allow-version-drift` from earlier drafts are not implemented; the report path is fixed and tool pins are exact.
 
-Exit codes:
+Exit codes for `run`:
 
-- `0`: all declared claims passed;
-- `1`: one or more expectations/assertions were evaluated and failed;
+- `0`: every declared claim passed;
+- `1`: one or more claims were evaluated and failed;
 - `2`: invalid manifest, setup error, command failure, timeout, unavailable tooling, or any other condition that prevented a verdict.
 
-The MVP emits JSON and a terminal summary. HTML output is deliberately deferred.
+The offline commands use `0` valid (and every supplied digest matched), `1` invalid or mismatch, `2` usage or I/O; validity is reported separately from the recorded verdict ([offline verification](offline-verification.md)). Output is a terminal summary, with `--json` on the offline commands; HTML output is deliberately deferred.
 
 ## 8. Validation and conformance
 

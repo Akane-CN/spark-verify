@@ -35,6 +35,12 @@ the private `version` field of `package.json`, not published packages. Dates are
   download failure and recovery; `--consumer` runs it against the packed, installed package.
 - Maintenance material: [release checklist](docs/release-checklist.md),
   [maintenance loop](docs/maintenance.md), bug report template, `scripts/release-rehearsal.sh` (#20, #21).
+- `docs/release-decisions.md` records the six release decisions for `v0.1.0`: the implemented
+  draft.3/draft.4 subset ships; `balance`, script-filter selectors and comparators, `expect.cycles`,
+  `[setup.scripts]` deployment, pure steps, `accounts = 0`, and `expect.error.group` are v0.3
+  proposals; RFC §7 is rewritten to the shipped report and CLI contract; the spec identifiers stay
+  `0.1.0-draft.3`/`0.1.0-draft.4` at release. The matrix, the version policy, and the RFC section
+  status lines point at the record (#18).
 - `tests/package-layout.test.ts` packs the tree on every `bun run check` and proves the tarball carries the
   bin, every runtime import, schema, and patch, and nothing from the checkout; `docs/package-identity.md`
   records the registry-name check, the credential and installation-path decisions, and the release
