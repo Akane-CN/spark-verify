@@ -39,6 +39,7 @@ sha256sum dist/ckb-verify-<version>.tgz > dist/SHA256SUMS
 
 - The tarball contains only the `files` allowlist (`src`, `schemas`, `patches`, user docs, `SECURITY.md`, `LICENSE`, `README.md`, `package.json`).
 - `ckb-verify --version` from the installed package equals the `version` in `package.json` and the changelog heading.
+- `tests/package-layout.test.ts` (part of `bun run check`) proves the tarball carries the bin, every runtime import, schema, and patch, and nothing from the checkout; name, scope, credentials, and the runtime requirements are recorded in [package identity](package-identity.md).
 
 ## 5. Installed-consumer acceptance
 
@@ -73,6 +74,7 @@ bun run scripts/release-evidence.ts assemble --out release-evidence-<version>-<s
 ## 7. Release notes
 
 - Move the `Unreleased` section of `CHANGELOG.md` under the new version heading with the date.
+- Complete the [release notes draft](release-notes-draft.md): candidate SHA, run id, artifact ids, checksums, the #18 decisions.
 - State known limitations (see [maintenance](maintenance.md#supported-combinations)), the report/manifest versions the runner reads and writes, and the upgrade and rollback notes below.
 - State what was **not** run (platforms, external pilots). Silence from external maintainers is not a gate.
 

@@ -35,15 +35,30 @@ the private `version` field of `package.json`, not published packages. Dates are
   download failure and recovery; `--consumer` runs it against the packed, installed package.
 - Maintenance material: [release checklist](docs/release-checklist.md),
   [maintenance loop](docs/maintenance.md), bug report template, `scripts/release-rehearsal.sh` (#20, #21).
+- `tests/package-layout.test.ts` packs the tree on every `bun run check` and proves the tarball carries the
+  bin, every runtime import, schema, and patch, and nothing from the checkout; `docs/package-identity.md`
+  records the registry-name check, the credential and installation-path decisions, and the release
+  commit's exact contents; `docs/release-notes-draft.md` is the v0.1.0 candidate notes with `TBD` fields (#20).
 - `docs/external-checkpoints.md`: the week-3 and week-8 upstream/pilot checkpoint record with its
   vocabulary (consented, no response, no outreach sent, no-go) and the unpublished draft upstream
   question for #2 (#21).
+
+### Security
+
+- `follow-redirects` pinned and overridden to `1.16.2` (from `1.16.1`) for
+  [GHSA-mrwp-f3q8-3g9p](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p) (high), reported by the audit
+  on 2026-10-31; the supply-chain gate, the installed-runtime check, and the consumer install guide
+  require the new version. OffCKB's proxy does not enable redirect following, so the runner did not
+  exercise the vulnerable path, but a high finding blocks release regardless.
 
 ### Changed
 
 - The shipped OffCKB patch now binds the RPC proxy (`28114`) to `127.0.0.1` instead of every
   interface; the supply-chain gate and the runtime installation check require the loopback-bound
   listen and reject the wildcard one (#15).
+- `@ckb-ccc/spore` is a devDependency: only the CKB-UGMP showcase uses it, so a consumer install no
+  longer pulls it; `tests/package-layout.test.ts` now requires every runtime dependency to be imported
+  by `src/` or be a redirect target of the shipped OffCKB patch (#20).
 - The devnet adapter resolves the OffCKB CLI from `ckb-verify`'s own dependency tree instead of the
   verified project's `node_modules/.bin`.
 - The cell-properties showcase wrapper tolerates hosts where IPv6 cannot bind, matching the runner's
