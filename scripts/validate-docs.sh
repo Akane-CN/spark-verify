@@ -7,6 +7,6 @@ cd "$ROOT"
 python3 scripts/test-validate-docs.py
 bun test tests/documentation-evidence.test.ts
 python3 scripts/validate-docs.py "$@"
-npx --yes markdownlint-cli2@0.23.2 '**/*.md' '#.ckb-verify' '#node_modules'
+npx --yes markdownlint-cli2@0.23.2 '**/*.md' '#.ckb-verify' '#node_modules' '#dist' '#coverage' '#.bun'
 git diff --check
 git diff --cached --check
