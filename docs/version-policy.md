@@ -53,6 +53,6 @@ Legacy acceptance is an explicit reader opt-in and never widens what `report/2` 
 - `tests/fixtures/conformance/manifests/` holds the manifest fixtures for both specs.
 - Real acceptance records under `docs/acceptance/` name the runner version and source commit that produced them.
 
-## Decisions still open (#18)
+## Decisions recorded (#18)
 
-The identifiers above are a policy for the preview. Before the first release the maintainer decides, on #18 and #20: whether `0.1.0-draft.3` is retained or retired at `v0.1.0`; whether the first released manifest spec is named `0.1.0` or keeps a draft suffix; and whether report `/1` continues to be written for draft.3 manifests after release. This page is updated with that decision, not ahead of it.
+[Release decision 6](release-decisions.md#6-spec-naming-at-release-draft-identifiers-stay): at `v0.1.0` the manifest spec identifiers are `0.1.0-draft.3` and `0.1.0-draft.4`, both read and written as in the tables above, and no `0.1.0` spec string is introduced. `0.1.0-draft.3` is retained through `v0.1.x`; its retirement, if any, is announced one minor release ahead and report `/1` keeps being written for draft.3 manifests until then. A `0.1.0` spec string is reserved for the first grammar freeze after the v0.3 proposals are settled.

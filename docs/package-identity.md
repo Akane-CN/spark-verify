@@ -55,6 +55,6 @@ A release changes exactly: `version` in `package.json`, `VERSION` in `src/versio
 
 - [ ] registry publication decided (yes/no); if yes, the name or scope, the owning account, and the credential method are written on #20;
 - [ ] `curl` check above repeated on the day; result recorded on #20;
-- [ ] the six release-blocking decisions on #18 recorded;
+- [x] the six release-blocking decisions on #18 recorded in [release decisions](release-decisions.md);
 - [ ] independent review of the candidate SHA recorded on #20;
 - [ ] the [release notes draft](release-notes-draft.md) completed with the candidate SHA, run id, artifact ids, and checksums.

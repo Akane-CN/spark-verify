@@ -28,11 +28,11 @@ Not supported: macOS, Windows, other architectures, Node-only execution, other B
 - Reports `ckb-verify-report/1` and `/2` with `environment/3` + `provenance/2` written; `/1` with `environment/2` + `provenance/1` read with `--allow-legacy` (`schemas/ckb-verify-report.schema.json`).
 - Evidence bundles `ckb-verify-evidence-bundle/1`, release evidence `ckb-verify-release-evidence/1`.
 
-The rules are in [version policy](version-policy.md); unsupported tuples are rejected explicitly, never migrated silently. `TBD`: the spec identifier chosen at release (#18 decision 6).
+The rules are in [version policy](version-policy.md); unsupported tuples are rejected explicitly, never migrated silently. Manifest spec identifiers at release stay `0.1.0-draft.3` and `0.1.0-draft.4`; no `0.1.0` spec string is introduced ([release decision 6](release-decisions.md#6-spec-naming-at-release-draft-identifiers-stay)).
 
 ## Known limitations
 
-- The RFC v0.2 vocabulary is only partly implemented; the [implementation matrix](rfc-implementation-matrix.md) marks every item supported, partial, deferred, or release-blocking. `TBD`: the outcome of the six release-blocking decisions (#18).
+- The RFC v0.2 vocabulary is only partly implemented; the [implementation matrix](rfc-implementation-matrix.md) marks every item supported, partial, or deferred; the six release decisions are recorded in [release decisions](release-decisions.md): the implemented draft.3/draft.4 subset ships, and `balance`, script-filter selectors and comparators, `expect.cycles`, `[setup.scripts]` deployment, pure steps, `accounts = 0`, and `expect.error.group` are v0.3 proposals.
 - Trusted repositories only: `verify.toml` is executable code and there is no sandbox ([`SECURITY.md`](../SECURITY.md)).
 - Listener scope is loopback for RPC `8114` and proxy `28114`; the peer-to-peer port follows OffCKB's configuration. Network isolation beyond that is the host's job.
 - The source guard compares Git-visible snapshots before and after a run; it does not monitor execution continuously.

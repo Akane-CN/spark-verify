@@ -1,6 +1,6 @@
 # RFC v0.2 to implementation matrix
 
-This matrix compares every normative item of [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md) with what the private `0.0.2` runner actually does. It exists so the RFC is never silently narrowed: an item is **supported** only when the parser, runner, verifier, and a real fixture all implement it; **deferred** items are intentionally not implemented and say why; **release-blocking** items need a decision or work before `v0.1.0` (#20) and are tracked on #18. "Supported" never implies grant-scope completion.
+This matrix compares every normative item of [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md) with what the private `0.0.2` runner actually does. It exists so the RFC is never silently narrowed: an item is **supported** only when the parser, runner, verifier, and a real fixture all implement it; **deferred** items are intentionally not implemented and say why; **release-blocking** items needed a decision or work before `v0.1.0`; all six are recorded in [release decisions](release-decisions.md) (#18), so none remain. "Supported" never implies grant-scope completion.
 
 Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred · ⛔ release-blocking decision or work.
 
@@ -32,8 +32,8 @@ Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred 
 
 | RFC item | Status | Implementation and notes |
 | --- | --- | --- |
-| `setup.accounts` in `0..20` | ◐ | implemented as `1..20`; `0` is rejected because the producers need a funded signer. ⛔ decide whether `0` is allowed for pure/read-only flows |
-| `[setup.scripts.<name>]` with `binary` (deploy with Type ID or data hash, record hashes/out-points) | ⏸ | not implemented; no deployment path exists. Required for any project with its own scripts; see release decision below |
+| `setup.accounts` in `0..20` | ◐ | implemented as `1..20`; `0` is rejected because the producers need a funded signer. Decided: `0` is a v0.3 proposal ([decision 3](release-decisions.md#3-pure-steps-and-setupaccounts--0-not-in-v01)) |
+| `[setup.scripts.<name>]` with `binary` (deploy with Type ID or data hash, record hashes/out-points) | ⏸ | not implemented; no deployment path exists. Decided: documented limitation of v0.1, v0.3 proposal ([decision 2](release-decisions.md#2-repository-script-deployment-a-documented-limitation)) |
 | `[setup.scripts.<name>]` with `builtin` | ◐ | no `[setup.scripts]` table; draft.4 claims reference OffCKB built-ins directly as `builtin = "dao" \| "spore"` with the resolved identity recorded in `environment.devnet.systemScripts` |
 | Seeded genesis Cells | ⏸ | out of scope per RFC |
 
@@ -46,13 +46,13 @@ Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred 
 | Injected `CKB_VERIFY_RPC_URL`, `_ACCOUNTS`, `_SYSTEM_SCRIPTS`, `_CONTEXT`, `_RESULT` | ✅ | `src/runner.ts`; `_CONTEXT` carries the normalized devnet context |
 | Result envelope `{ protocol: 1, transaction }`, atomic single write, runner submits | ✅ | malformed or missing envelope is an execution error |
 | At most one transaction per step | ✅ | |
-| Pure steps (no `expect.tx`, no result file, immediate assertions only) | ⏸ | every step must write a result envelope and is submitted; a step without `expect.tx` is still transaction-producing. ⛔ implement or drop from v0.1 |
+| Pure steps (no `expect.tx`, no result file, immediate assertions only) | ⏸ | every step must write a result envelope and is submitted; a step without `expect.tx` is still transaction-producing. Decided: v0.3 proposal ([decision 3](release-decisions.md#3-pure-steps-and-setupaccounts--0-not-in-v01)) |
 | Result-contract errors (missing result on a tx step; result on a pure step) | ◐ | the first is an execution error; the second cannot occur because pure steps do not exist |
 | Non-zero command exit is an execution error | ✅ | |
 | `expect.tx = "committed" \| "rejected"` | ✅ | terminal node status via the OffCKB proxy |
 | `expect.cycles.{lt,lte,eq,gte}` | ⏸ | cycles are observed and recorded in the outcome (`test_tx_pool_accept`), but no comparator is accepted |
 | `expect.error.code` | ✅ | satisfied only by script evidence from the pinned debugger |
-| `expect.error.group` (role, script, args) | ⏸ | the rejection evidence records `role`, `source`, `script`, and `scriptHash`, but the manifest cannot pin a group |
+| `expect.error.group` (role, script, args) | ⏸ | the rejection evidence records `role`, `source`, `script`, and `scriptHash`, but the manifest cannot pin a group. Decided: code-only pinning in v0.1 ([decision 4](release-decisions.md#4-expecterrorgroup-code-only-pinning)) |
 | Rejection kinds `script` vs `node`; bare `rejected` satisfied by either | ✅ | `src/transaction.ts`; node messages excluded from the outcome digest |
 | Immediate `[[step.assert.cell]]` | ✅ | `[[step.assert.balance]]` ⏸ |
 
@@ -90,7 +90,7 @@ Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred 
 
 | RFC item | Status | Implementation and notes |
 | --- | --- | --- |
-| Report with versions, evidence, outcome claims, environment, pass flag, digests, replay | ◐ | implemented as `schema`, `verdict`, `createdAt`, `evidence`, `outcomeClaims`, `environment` (with `provenance.replay`), `digests`; camelCase names and `ckb-verify-*` schema ids differ from the RFC's illustrative `spark-verify-*` snake_case sketch. ⛔ reconcile the RFC text with the shipped contract ([report anatomy](evidence-report.md)) |
+| Report with versions, evidence, outcome claims, environment, pass flag, digests, replay | ✅ | `schema`, `verdict`, `createdAt`, `evidence`, `outcomeClaims`, `environment` (with `provenance.replay`), `digests`; RFC §7 now describes this shipped contract ([decision 5](release-decisions.md#5-rfc-7-rewritten-to-the-shipped-contract), [report anatomy](evidence-report.md)) |
 | `ckb-verify run [path]` | ✅ | |
 | `run --report <file>`, `run --json` | ⏸ | the report path is fixed under `.ckb-verify/runs/`; machine-readable output exists for the offline commands only |
 | `run --allow-version-drift` | ⏸ | see §2 |
@@ -125,13 +125,6 @@ Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred 
 
 Declarative transaction construction, arbitrary genesis Cells, testnet/mainnet execution, property-based generation, and include files remain out of scope exactly as the RFC states. Of the open questions, two are answered by the implementation: the runner is a standalone package (Q1), and a step is exactly one transaction (Q3). Molecule result files (Q2), named outputs (Q5), `udt16le` naming (Q6), and the isolation container (Q7) are untouched. Q8 is answered by the merged CKB-UGMP feasibility probe only as feasibility, not adoption.
 
-## Release-blocking decisions (#18 → #20)
+## Release decisions (#18 → #20)
 
-These must be decided, and the chosen option implemented or written down, before `v0.1.0`. They are decisions for the maintainer; this document does not pre-empt them.
-
-1. **Scope of the first release vocabulary.** Either implement the RFC §5 family that real projects need first (`balance` with quantities and UDT decoding, `cell` script filters and comparators, `expect.cycles`) or publish `v0.1.0` with the draft.3/draft.4 subset and move those items to RFC v0.3 explicitly. The matrix above is the input; the recommendation is to release the implemented subset and re-title the RFC sections as v0.3 proposals, because every deferred item needs new query or deployment machinery.
-2. **Repository script deployment (`[setup.scripts]`).** Without it the runner verifies only flows built on OffCKB built-ins. Decide whether this is a release requirement or a documented limitation of v0.1.
-3. **Pure steps and `setup.accounts = 0`.** Implement both (they are a small runner change plus fixtures §8.7–8.8) or remove them from the RFC for v0.1.
-4. **`expect.error.group`.** Implement the manifest pin against the already-recorded script evidence, or document code-only pinning for v0.1.
-5. **Report shape and naming in RFC §7.** Rewrite the illustrative report and CLI sketch to the shipped contract (`ckb-verify-report/N`, camelCase, `verdict`, `--outcome/--environment`), so the RFC and the published schemas say the same thing.
-6. **Spec naming at release.** See [version policy](version-policy.md#decisions-still-open-18).
+The six decisions this matrix raised are recorded, with rationale and consequences, in [release decisions](release-decisions.md): (1) `v0.1.0` ships the implemented draft.3/draft.4 subset and the rest of RFC §4–§5 becomes v0.3 proposals; (2) `[setup.scripts]` deployment is a documented limitation; (3) pure steps and `accounts = 0` are not in v0.1; (4) `expect.error.group` is code-only pinning; (5) RFC §7 is rewritten to the shipped contract; (6) the spec identifiers stay `0.1.0-draft.3` and `0.1.0-draft.4` with no `0.1.0` string at release. No ⛔ item remains; reopening a decision is a dated new entry on that page.
