@@ -59,6 +59,8 @@ describe("draft.5 runner", () => {
         if (method === "send_transaction") return transactionHash(tx);
         if (method === "get_transaction") return { tx_status: { status: "committed" } };
         if (method === "get_live_cell") return liveResponse(tx);
+        if (method === "get_tip_block_number") return "0x5";
+        if (method === "get_indexer_tip") return { block_hash: `0x${"55".repeat(32)}`, block_number: "0x5" };
         if (method === "get_cells") {
           const [key, order, limit, cursor] = params as [{ script: { args: string }; with_data: boolean; filter?: unknown }, string, string, string | null];
           expect(order).toBe("asc"); expect(limit).toBe("0x64"); expect(cursor).toBeNull();
@@ -71,6 +73,9 @@ describe("draft.5 runner", () => {
     expect(result.verdict).toBe("PASS");
     expect(result.report.schema).toBe("ckb-verify-report/3");
     expect(calls.filter((m) => m === "get_cells")).toHaveLength(3); // filtered cell, CKB balance, UDT balance (identical keys are snapshotted once)
+    // One sync per phase with indexer-backed claims (only the final phase here), always before its first page.
+    expect(calls.filter((m) => m === "get_indexer_tip")).toHaveLength(1);
+    expect(calls.indexOf("get_indexer_tip")).toBeLessThan(calls.indexOf("get_cells"));
     const stored = JSON.parse(await Bun.file(result.reportPath).text());
     expect(() => verifyReport(stored)).not.toThrow();
     expect(schemaProblems(REPORT_SCHEMA_ID, stored)).toEqual([]);
@@ -100,6 +105,8 @@ describe("draft.5 runner", () => {
         if (method === "send_transaction") return transactionHash(tx);
         if (method === "get_transaction") return { tx_status: { status: "committed" } };
         if (method === "get_live_cell") return liveResponse(tx);
+        if (method === "get_tip_block_number") return "0x5";
+        if (method === "get_indexer_tip") return { block_hash: `0x${"55".repeat(32)}`, block_number: "0x5" };
         if (method === "get_cells") {
           page += 1;
           const objects = Array.from({ length: 100 }, (_, i) => ({ ...indexerCell(tx, 0, true), out_point: { tx_hash: `0x${(page * 1000 + i).toString(16).padStart(64, "0")}`, index: "0x0" } }));
@@ -108,6 +115,58 @@ describe("draft.5 runner", () => {
         throw new Error(`unexpected RPC ${method}`);
       },
     })).rejects.toThrow("more than 1000 live Cells");
+    expect(await Bun.file(join(project, "evidence", "report.json")).exists()).toBe(false);
+  });
+
+  async function lagProject(): Promise<{ project: string; manifestPath: string; tx: ReturnType<typeof mintTransaction> }> {
+    const project = await mkdtemp(join(tmpdir(), "ckb-verify-runner-v5-lag-"));
+    directories.push(project);
+    const manifestPath = join(project, "verify.toml");
+    await writeFile(manifestPath, manifest5("", "0.1.0"));
+    return { project, manifestPath, tx: mintTransaction() };
+  }
+  const lagRpc = (tx: ReturnType<typeof mintTransaction>, indexerTips: Array<string | null>, calls: string[]) =>
+    async (_url: string, method: string, params?: unknown[]) => {
+      calls.push(method);
+      if (method === "test_tx_pool_accept") return { cycles: "0x64", fee: "0xa" };
+      if (method === "send_transaction") return transactionHash(tx);
+      if (method === "get_transaction") return { tx_status: { status: "committed" } };
+      if (method === "get_live_cell") return liveResponse(tx);
+      if (method === "get_tip_block_number") return "0x5";
+      if (method === "get_indexer_tip") {
+        const next = indexerTips.length > 1 ? indexerTips.shift()! : indexerTips[0]!;
+        return next === null ? null : { block_hash: `0x${"55".repeat(32)}`, block_number: next };
+      }
+      if (method === "get_cells") {
+        const key = (params as [{ script: { args: string }; with_data: boolean }])[0];
+        if (key.script.args === accounts3[1]!.lock.args) return { objects: [{ output: { capacity: "0x2540be400", lock: { code_hash: accounts3[1]!.lock.codeHash, hash_type: "type", args: accounts3[1]!.lock.args }, type: null }, output_data: null, out_point: { tx_hash: `0x${"61".repeat(32)}`, index: "0x0" }, block_number: "0x1", tx_index: "0x0" }], last_cursor: "0x02" };
+        return { objects: [indexerCell(tx, 0, key.with_data)], last_cursor: "0x01" };
+      }
+      throw new Error(`unexpected RPC ${method}`);
+    };
+  const commit = (tx: ReturnType<typeof mintTransaction>) => async (_command: string, options: { env?: Record<string, string | undefined> }) => {
+    await writeFile(options.env!.CKB_VERIFY_RESULT!, JSON.stringify({ protocol: 1, transaction: tx }));
+    return { stdout: "", stderr: "", exitCode: 0, signal: null, timedOut: false, durationMs: 3 };
+  };
+
+  test("waits for a lagging node indexer to reach the chain tip before reading any page", async () => {
+    const { project, manifestPath, tx } = await lagProject();
+    const calls: string[] = [];
+    const result = await runManifest({ manifestPath, projectRoot: project, outputDir: join(project, "evidence"), devnet: devnet(project),
+      runStep: commit(tx), rpc: lagRpc(tx, [null, "0x3", "0x4", "0x5"], calls), indexerSync: { pollMs: 1 } });
+    expect(result.verdict).toBe("PASS");
+    const firstPage = calls.indexOf("get_cells");
+    expect(calls.slice(0, firstPage).filter((m) => m === "get_indexer_tip")).toHaveLength(4);
+    expect(calls.lastIndexOf("get_tip_block_number")).toBeLessThan(firstPage);
+  });
+
+  test("an indexer that never reaches the tip is an execution error with no report, not an empty selection", async () => {
+    const { project, manifestPath, tx } = await lagProject();
+    const calls: string[] = [];
+    await expect(runManifest({ manifestPath, projectRoot: project, outputDir: join(project, "evidence"), devnet: devnet(project),
+      runStep: commit(tx), rpc: lagRpc(tx, ["0x4"], calls), indexerSync: { timeoutMs: 30, pollMs: 5 } }))
+      .rejects.toThrow("node indexer did not reach chain tip 5 within 30 ms (indexed: 4)");
+    expect(calls).not.toContain("get_cells");
     expect(await Bun.file(join(project, "evidence", "report.json")).exists()).toBe(false);
   });
 });
@@ -125,6 +184,8 @@ describe("draft.5 tool-version drift", () => {
     if (method === "send_transaction") return transactionHash(tx);
     if (method === "get_transaction") return { tx_status: { status: "committed" } };
     if (method === "get_live_cell") return liveResponse(tx);
+    if (method === "get_tip_block_number") return "0x5";
+    if (method === "get_indexer_tip") return { block_hash: `0x${"55".repeat(32)}`, block_number: "0x5" };
     if (method === "get_cells") {
       const key = (params as [{ script: { args: string }; with_data: boolean }])[0];
       if (key.script.args === accounts3[1]!.lock.args) return { objects: [{ output: { capacity: "0x2540be400", lock: { code_hash: accounts3[1]!.lock.codeHash, hash_type: "type", args: accounts3[1]!.lock.args }, type: null }, output_data: null, out_point: { tx_hash: `0x${"61".repeat(32)}`, index: "0x0" }, block_number: "0x1", tx_index: "0x0" }], last_cursor: "0x02" };

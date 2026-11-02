@@ -103,6 +103,13 @@ the private `version` field of `package.json`, not published packages. Dates are
 
 ### Fixed
 
+- `check-bundle` and bundle verification failed every valid bundle on Windows: the directory walk produced
+  `\`-separated paths that never matched the `/`-separated names in `bundle.json` and `SHA256SUMS`. Paths
+  are now normalized from the platform separator only; found by the first Windows boundary run (#20).
+- Indexer-backed claims (script-filtered Cells and balances) wait, up to 30 s, for the node indexer to reach
+  the chain tip before the first `get_cells` page. They read the index right after commit, so a lagging
+  indexer could record a self-consistent but wrong empty selection; a hosted vocabulary run on PR #37
+  hit it. An indexer that never catches up is now an execution error with no report (#20).
 - `scripts/acceptance-matrix.sh` waits for the OffCKB proxy (`28114`) before checking listener scope. The
   check raced the proxy's startup, which failed the 2026-11-02 consumer rehearsal on `ed41b28`, and could
   probe the routable address before the proxy existed (#21).

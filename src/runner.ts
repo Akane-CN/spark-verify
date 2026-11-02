@@ -95,7 +95,12 @@ export interface RunManifestOptions {
   signal?: AbortSignal;
   /** 0.1.0 and draft.5 only: run on the pinned CKB when the manifest requests another exact version; recorded and tainting. */
   allowVersionDrift?: boolean;
+  /** How long indexer-backed claims wait for the node indexer to reach the chain tip (defaults: 30 s, polled every 200 ms). */
+  indexerSync?: Partial<IndexerSyncPolicy>;
 }
+
+export interface IndexerSyncPolicy { timeoutMs: number; pollMs: number }
+const DEFAULT_INDEXER_SYNC: IndexerSyncPolicy = { timeoutMs: 30_000, pollMs: 200 };
 
 export interface RunManifestResult {
   verdict: Verdict;
@@ -257,6 +262,33 @@ async function environmentEvidence(
   return { schema: "ckb-verify-environment/3", ...base, provenance };
 }
 
+function blockNumber(value: unknown, path: string): bigint {
+  if (typeof value !== "string" || !/^0x(?:0|[1-9a-f][0-9a-f]*)$/.test(value)) throw new Error(`${path} must be a canonical hex block number`);
+  return BigInt(value);
+}
+
+/**
+ * The node indexer follows the chain asynchronously, so a `get_cells` page read right after a commit can
+ * miss the committing block and record a self-consistent but wrong selection that no offline check can
+ * detect. Before a phase's indexer queries, wait (bounded) until the indexer has reached the chain tip
+ * observed now, which is at or above every block committed so far; otherwise fail without a verdict.
+ */
+export async function awaitIndexerSync(rpcUrl: string, rpc: RunnerRpcCaller, policy: IndexerSyncPolicy, signal?: AbortSignal): Promise<void> {
+  const tip = blockNumber(await rpc(rpcUrl, "get_tip_block_number", [], signal), "get_tip_block_number result");
+  const deadline = Date.now() + policy.timeoutMs;
+  let indexed: bigint | undefined;
+  for (;;) {
+    throwIfAborted(signal);
+    const result = await rpc(rpcUrl, "get_indexer_tip", [], signal);
+    if (result !== null) indexed = blockNumber(requireRecord(result, "get_indexer_tip result").block_number, "get_indexer_tip result.block_number");
+    if (indexed !== undefined && indexed >= tip) return;
+    if (Date.now() >= deadline) {
+      throw new Error(`node indexer did not reach chain tip ${tip} within ${policy.timeoutMs} ms (indexed: ${indexed ?? "none"}); no indexer-backed claim was evaluated`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, policy.pollMs));
+  }
+}
+
 /** Pages an indexer `get_cells` query with the fixed page size; refuses more than MAX_SELECTED_CELLS. */
 async function queryIndexer(searchKey: IndexerSearchKey, rpcUrl: string, rpc: RunnerRpcCaller, signal?: AbortSignal): Promise<IndexerInput> {
   const pages: IndexerPage[] = [];
@@ -276,9 +308,10 @@ async function queryIndexer(searchKey: IndexerSearchKey, rpcUrl: string, rpc: Ru
 
 async function collectClaimsV3(
   claims: ClaimV5[], transactions: ReadonlyMap<string, CkbJsonRpcTransaction>, hashes: ReadonlyMap<string, string>,
-  environment: EnvironmentEvidenceV4, rpcUrl: string, rpc: RunnerRpcCaller, signal?: AbortSignal,
+  environment: EnvironmentEvidenceV4, rpcUrl: string, rpc: RunnerRpcCaller, sync: IndexerSyncPolicy, signal?: AbortSignal,
 ): Promise<ClaimInputV3[]> {
   const context = resolutionContextFromEnvironment(environment);
+  let synced = false;
   const snapshots = new Map<string, CellInputV3 | IndexerInput>();
   const collected: ClaimInputV3[] = [];
   for (const claim of claims) {
@@ -303,7 +336,10 @@ async function collectClaimsV3(
     const searchKey = expectedSearchKey(definition, context);
     const key = JSON.stringify(searchKey);
     let input = snapshots.get(key) as IndexerInput | undefined;
-    if (input === undefined) { input = await queryIndexer(searchKey, rpcUrl, rpc, signal); snapshots.set(key, input); }
+    if (input === undefined) {
+      if (!synced) { await awaitIndexerSync(rpcUrl, rpc, sync, signal); synced = true; }
+      input = await queryIndexer(searchKey, rpcUrl, rpc, signal); snapshots.set(key, input);
+    }
     collected.push(definition.kind === "cell" ? { ...definition, input } : { ...definition, input });
   }
   return collected;
@@ -504,6 +540,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   const reportPath = join(outputDir, "report.json");
   const pendingReportPath = join(outputDir, ".report.json.pending");
   const runStep = options.runStep ?? runCommand;
+  const indexerSync: IndexerSyncPolicy = { ...DEFAULT_INDEXER_SYNC, ...options.indexerSync };
   const rpc: RunnerRpcCaller =
     options.rpc ??
     ((url, method, params = [], signal) => rpcCall(url, method, params, fetch, 30_000, signal));
@@ -675,7 +712,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       };
       if (v5Manifest !== undefined && v5Environment !== undefined) {
         v5Steps.push({ ...stepEvidence, transaction: tx,
-          claims: await collectClaimsV3(v5Manifest.steps[index]!.assertions, transactions, transactionHashes, v5Environment, context.rpcUrl, rpc, options.signal) });
+          claims: await collectClaimsV3(v5Manifest.steps[index]!.assertions, transactions, transactionHashes, v5Environment, context.rpcUrl, rpc, indexerSync, options.signal) });
       } else if (modernManifest !== undefined) {
         modernSteps.push({ ...stepEvidence, transaction: tx,
           claims: await collectClaimsV2(modernManifest.steps[index]!.assertions, transactions, transactionHashes, context.rpcUrl, rpc, options.signal) });
@@ -699,7 +736,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       assertions,
     };
     const modernAssertions = modernManifest === undefined ? [] : await collectClaimsV2(modernManifest.assertions, transactions, transactionHashes, context.rpcUrl, rpc, options.signal);
-    const v5Assertions = v5Manifest === undefined || v5Environment === undefined ? [] : await collectClaimsV3(v5Manifest.assertions, transactions, transactionHashes, v5Environment, context.rpcUrl, rpc, options.signal);
+    const v5Assertions = v5Manifest === undefined || v5Environment === undefined ? [] : await collectClaimsV3(v5Manifest.assertions, transactions, transactionHashes, v5Environment, context.rpcUrl, rpc, indexerSync, options.signal);
     throwIfAborted(options.signal);
     const finalSourceRevision = await collectSourceRevision(projectRoot);
     if (!sameSourceRevision(sourceRevision, finalSourceRevision)) {
