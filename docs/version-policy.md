@@ -12,7 +12,7 @@
 | Environment | `environment.schema` | `ckb-verify-environment/3`, `ckb-verify-environment/4` (`0.1.0` and draft.5: adds the exported accounts) (historical `/2`) | the object whose hash is the environment fingerprint |
 | Provenance | `environment.provenance.schema` | `ckb-verify-provenance/2`, `ckb-verify-provenance/3` (`0.1.0` and draft.5: adds the tool-version drift record) (historical `/1`) | source, runtime, lockfile, binary, and replay provenance inside the environment |
 | Evidence bundle | `bundle.json` `schema` | `ckb-verify-evidence-bundle/1` | the CI bundle layout and its checksum manifest |
-| Runner | `ckb-verify --version`, `environment.runner.version`, `package.json` | `0.0.2` (unreleased, private) | the code that produced or verified an artifact |
+| Runner | `ckb-verify --version`, `environment.runner.version`, `package.json` | `0.1.0` (frozen release candidate; unpublished, private) | the code that produced or verified an artifact |
 | Producer result | `protocol` in the file written to `CKB_VERIFY_RESULT` | `1` | the envelope a step command hands to the runner |
 
 The manifest spec is chosen by the author; every other identifier is written by the runner and read back by the verifier. The runner version is never a substitute for a schema identifier: two runner versions may write the same schemas, and one runner version reads several.

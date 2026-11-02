@@ -48,7 +48,7 @@ It runs validator regression tests, parses every TOML and JSON fence, applies se
 
 ## Draft.4 fixture and evidence
 
-The private `0.0.2` runner retains draft.3 and adds [bounded draft.4 Cell-property claims](docs/cell-claims-draft.4.md). Keep the generic DAO fixture repository-owned, not NervDAO adoption. Preserve historical grant/RFC/example bytes and never convert legacy evidence in place.
+The private `0.1.0` runner retains draft.3 and adds [bounded draft.4 Cell-property claims](docs/cell-claims-draft.4.md). Keep the generic DAO fixture repository-owned, not NervDAO adoption. Preserve historical grant/RFC/example bytes and never convert legacy evidence in place.
 
 Use `bun run showcase:cell-properties` for the six-case matrix plus fresh committed repeat after static checks. Its initial implementation has offline coverage only; real clean-checkpoint acceptance and independent reviews remain gates. Verify every complete saved PASS/FAIL artifact with `verifyReport`, not the v1-only component helper `verifyEvidenceDigests`. Check actual failure predicates and run file/account/pending/port checks independently of secondary audits. Compare outcomes, require environment equality where raw provenance repeats, and preserve differing deployment/genesis bindings. Presence/membership/length is not script-execution proof; verifier consistency is not authenticity.
 

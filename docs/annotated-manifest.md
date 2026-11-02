@@ -107,7 +107,7 @@ A matching rejection is a passing declared claim. The report records the RPC err
 
 ## Current accepted subset
 
-The private `0.0.2` feasibility implementation accepts:
+The private `0.1.0` runner accepts:
 
 - legacy manifest spec `0.1.0-draft.3` and new `0.1.0-draft.4`;
 - exact CKB and OffCKB versions supported by the adapter;

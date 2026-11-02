@@ -42,7 +42,7 @@ The rules are in [version policy](version-policy.md); unsupported tuples are rej
 
 ## What was not run
 
-- No platform other than Linux x64 / Bun 1.2.19.
+- No devnet execution on any platform other than Linux x64 / Bun 1.2.19. macOS 14 and Windows Server 2022 ran the install, the platform-independent tests, and the offline commands only ([platform boundary record](acceptance/2026-11-02-platform-boundary.md)).
 - No external pilot: no project maintainer was asked for or gave consent, and no OffCKB maintainer feedback exists ([external checkpoints](external-checkpoints.md)). The CKB-UGMP showcase is a feasibility adaptation, not adoption.
 - No install from the npm registry (`TBD`: repeat the consumer matrix against the published package if registry publication is chosen).
 
@@ -58,4 +58,4 @@ See [maintenance](maintenance.md#upgrade-deprecation-and-rollback-for-consumers)
 
 ## Changes since 0.0.2
 
-Moved from `CHANGELOG.md` `Unreleased` at freeze (`TBD`).
+The [`0.1.0` section of `CHANGELOG.md`](../CHANGELOG.md), moved from `Unreleased` in the release commit.

@@ -47,7 +47,7 @@ These APIs provide version and semantic checks, **not a complete deep structural
 
 ## Draft.4 core semantic inputs
 
-The private `0.0.2` core adds output type identity plus args byte length, decoded data minimum byte length, and separate transaction CellDep membership. Builtin names are exactly `dao` and `spore`. Properties require count 1; draft.4 count is 0 or 1 and the output index is u32. Args/data sizes are bounded by `MAX_BYTES = 1048576`, a runner resource policy, not consensus. There are no raw pins, custom aliases, exact-content predicates, decoders, or plugins.
+The private `0.1.0` core adds output type identity plus args byte length, decoded data minimum byte length, and separate transaction CellDep membership. Builtin names are exactly `dao` and `spore`. Properties require count 1; draft.4 count is 0 or 1 and the output index is u32. Args/data sizes are bounded by `MAX_BYTES = 1048576`, a runner resource policy, not consensus. There are no raw pins, custom aliases, exact-content predicates, decoders, or plugins.
 
 Report `/2` retains exact UTF-8 `evidence.manifestText` and every full signed producer `evidence.steps[].transaction`, including witnesses and steps without claims. Cell claims retain either `{kind:"missing-output"}` or `{kind:"query",outPoint:{tx_hash,index},response:...}` in `input`. CellDep claims derive from the retained transaction and referenced environment binding without a duplicate dependency list. Verification does not read sibling files.
 

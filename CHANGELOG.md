@@ -3,7 +3,7 @@
 All notable changes to `ckb-verify` are recorded here. The project is unreleased: versions below are
 the private `version` field of `package.json`, not published packages. Dates are UTC.
 
-## Unreleased
+## 0.1.0 — 2026-11-02
 
 ### Added
 
