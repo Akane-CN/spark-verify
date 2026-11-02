@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-report.schema.json",
  "title": "CKB Verify evidence report (complete artifact)",
- "description": "Structural validation of a complete report.json: ckb-verify-report/1 (manifest spec 0.1.0-draft.3) and ckb-verify-report/2 (0.1.0-draft.4). Historical report/1 artifacts with environment/2 + provenance/1 validate structurally but are accepted by the verifier only with --allow-legacy. Shape validation never replaces the semantic verifier, which re-derives claims, verdict and both digests.",
+ "description": "Structural validation of a complete report.json: ckb-verify-report/1 (manifest spec 0.1.0-draft.3), ckb-verify-report/2 (0.1.0-draft.4), and ckb-verify-report/3 (0.1.0 and 0.1.0-draft.5). Historical report/1 artifacts with environment/2 + provenance/1 validate structurally but are accepted by the verifier only with --allow-legacy. Shape validation never replaces the semantic verifier, which re-derives claims, verdict and both digests.",
  "$comment": "Unknown fields are rejected at every level except claim.evidence (retained RPC diagnostics). Digest, hash and cross-field agreement are semantic checks. The discriminator keyword is an OpenAPI extension Ajv understands; validators without it fall back to plain oneOf.",
  "type": "object",
  "additionalProperties": false,

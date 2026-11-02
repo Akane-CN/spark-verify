@@ -33,6 +33,22 @@ describe("ckb-verify CLI", () => {
     expect(result.stderr.toString()).toBe("");
   });
 
+  test.each([["an unknown flag", ["run", "--foo"]], ["two manifest paths", ["run", "a.toml", "b.toml"]]])(
+    "a run usage error (%s) exits 2 with no verdict, never 1", async (_label, args) => {
+      // Review finding (2026-11-02): run usage errors escaped as an uncaught exception with exit 1, which
+      // a script would read as a failed claim.
+      const stderr: string[] = [];
+      let ran = false;
+      const exitCode = await main(args, {
+        runManifest: async () => { ran = true; throw new Error("must not run"); },
+        stdout: () => undefined,
+        stderr: (text) => stderr.push(text),
+      });
+      expect(exitCode).toBe(2);
+      expect(ran).toBe(false);
+      expect(stderr.join("")).toStartWith("ckb-verify run: ");
+    });
+
   test("defines PASS as all recorded-environment claims passing", async () => {
     const stdout: string[] = [];
     const exitCode = await main(["run", "verify.toml"], {

@@ -2,7 +2,7 @@
 
 **Executable acceptance claims for CKB projects.**
 
-> **Status: unreleased feasibility implementation.** This repository now contains a working vertical slice, not only an RFC. The implemented manifest vocabulary is intentionally smaller than the draft RFC and is not a stable public interface yet.
+> **Status: unreleased feasibility implementation.** This repository now contains a working vertical slice, not only an RFC. The implemented manifest vocabulary is intentionally smaller than the draft RFC. Manifest spec `0.1.0` is the frozen v0.1 contract ([version policy](docs/version-policy.md#the-frozen-v01-contract)); the package itself is not published yet.
 
 Start with the [line-by-line annotated manifest](docs/annotated-manifest.md), then inspect the [evidence report anatomy and checked fresh-devnet example](docs/evidence-report.md). The [Spark Program application](docs/spark-proposal.md) records the exact pre-funding implementation and remaining requested scope.
 
@@ -65,7 +65,7 @@ The first devnet run may download the pinned CKB binary and debugger.
 
 ## Draft.4 Cell-property fixture
 
-The private `0.1.0` runner also accepts [draft.4 type/args-length/data-length and CellDep claims](docs/cell-claims-draft.4.md). The repository-owned [generic DAO-deposit fixture](showcases/cell-properties/README.md) adds six declared cases plus a fresh positive repeat through `bun run showcase:cell-properties`. It is not NervDAO adoption. Its initial Phase B implementation is offline-tested; native acceptance is **NOT_RUN**, and no new real report is bundled. The existing secp historical evidence does not establish DAO acceptance.
+The private `0.1.0` runner also accepts [draft.4 type/args-length/data-length and CellDep claims](docs/cell-claims-draft.4.md). The repository-owned [generic DAO-deposit fixture](showcases/cell-properties/README.md) adds six declared cases plus a fresh positive repeat through `bun run showcase:cell-properties`. It is not NervDAO adoption. It passes on fresh devnets in CI, whose evidence bundle carries its reports, and in the v0.1.0 candidate gates ([record](docs/acceptance/2026-11-02-candidate-d99117b.md)).
 
 The new wrapper verifies each complete PASS/FAIL report with `verifyReport`, checks the intended failing predicates, and independently checks account/pending-report absence and ports even if report readback fails. Repeats require equal outcomes; repeated raw provenance requires equal environments. Differing real genesis/deployment bindings remain visible, not scrubbed to force equality. Each showcase job then packages its canonical reports into a sanitized, checksummed [evidence bundle](docs/offline-verification.md#evidence-bundles) that a later job downloads through the API and re-verifies offline (#19).
 
@@ -86,6 +86,7 @@ ckb-verify run [manifest] [--allow-version-drift]
 ckb-verify validate [manifest] [--json]
 ckb-verify digest <report.json> [--json] [--allow-legacy]
 ckb-verify check-digest <report.json> [--outcome sha256:...] [--environment sha256:...] [--json] [--allow-legacy]
+ckb-verify check-bundle <bundle-dir> [--source-sha <commit>] [--repository owner/repo] [--allow-dirty] [--json]
 ckb-verify --help
 ckb-verify --version
 ```
@@ -101,9 +102,9 @@ A completed run uses these exit codes:
 
 - `0`: all declared claims passed;
 - `1`: execution completed but at least one declared claim failed;
-- `2`: manifest, setup, producer, RPC, debugger, or evidence error; no valid verdict.
+- `2`: usage, manifest, setup, producer, RPC, debugger, or evidence error; no valid verdict.
 
-`validate`, `digest`, and `check-digest` are [offline commands](docs/offline-verification.md): they parse a manifest or re-derive a report's claims, verdict, and digests with the runner's own strict verifier, without starting OffCKB, executing manifest commands, or touching the network. Exit `0` means the input is valid (and, for `check-digest`, every expected digest matched); `1` means invalid evidence or a mismatch; `2` means a usage or I/O error. A valid report may still record `verdict: FAIL`: validity is internal consistency, not claim success. Add `--json` for machine-readable output.
+`validate`, `digest`, `check-digest`, and `check-bundle` are [offline commands](docs/offline-verification.md): they parse a manifest or re-derive a report's claims, verdict, and digests with the runner's own strict verifier, without starting OffCKB, executing manifest commands, or touching the network. Exit `0` means the input is valid (and, for `check-digest`, every expected digest matched); `1` means invalid evidence or a mismatch; `2` means a usage or I/O error. A valid report may still record `verdict: FAIL`: validity is internal consistency, not claim success. Add `--json` for machine-readable output.
 
 The intentionally failing fixture therefore returns `1`. Use `bun run showcase:secp-transfer` (or its `test:devnet` compatibility alias) for the transfer fixtures and `bun run showcase:ckb-ugmp` for the Spore fixtures; each harness checks all three verdict paths, repeatability, recorded script identity and deps, report digests, and post-run cleanup explicitly.
 
@@ -121,7 +122,7 @@ Declared rejected transactions require `ckb-debugger = "1.1.1"`; runs that do no
 
 After startup succeeds, the adapter prepares one private execution snapshot from archive and executable bytes checked against source-controlled size/SHA-256 pins. It verifies the snapshot before `--version` and every debug call, requires exactly `ckb-debugger 1.1.1`, and sets `OFFCKB_DEBUGGER_GUARD=1` with run-owned settings to prevent an ambient PATH probe. Concurrent preparation coalesces; debug is refused until preparation completes. Shutdown drains entire preparation/validation/process operations before removing snapshots and releasing ownership. Verified cache bytes remain for later reuse; an existing incomplete or tampered cache fails without repair or fallback.
 
-New reports use environment `/3` and provenance `/2`, including explicit debugger identity or `null`. Historical environment `/2` + provenance `/1` reports require explicit legacy verification and gain no debugger-integrity guarantee. Hash consistency is not execution authenticity or protection against an actively hostile same-UID writer. See the [report contract](docs/evidence-report.md) and [supply-chain boundary](SECURITY.md#debugger-integrity).
+New reports use environment `/4` and provenance `/3` for spec `0.1.0` and draft.5, and environment `/3` and provenance `/2` for draft.3 and draft.4, including explicit debugger identity or `null`. Historical environment `/2` + provenance `/1` reports require explicit legacy verification and gain no debugger-integrity guarantee. Hash consistency is not execution authenticity or protection against an actively hostile same-UID writer. See the [report contract](docs/evidence-report.md) and [supply-chain boundary](SECURITY.md#debugger-integrity).
 
 ## Implemented manifest subset
 
@@ -165,7 +166,7 @@ The feasibility implementation supports only:
 - draft.4 only: count 0/1, type builtin `dao`/`spore` plus `args_bytes`, data `min_bytes`, and separate `cell_deps.contains` **table** membership. Properties require count 1. See [bounds and semantics](docs/cell-claims-draft.4.md).
 - `0.1.0` and draft.5 only: `expect.cycles` comparators; Cell selection by `out_point`, `lock`, and `type` script filters (explicit, any OffCKB built-in with optional wildcard args, or an exported account) with `count` comparators, `data.eq`/`len`/`min_bytes`, and `capacity` comparators; `balance` claims by account, full-format address, or lock, with or without a 16-byte little-endian UDT; and `run --allow-version-drift`. See the [v0.1 vocabulary](docs/vocabulary-v0.1.md) and the [vocabulary fixture](showcases/vocabulary/README.md).
 
-Unknown keys fail closed. A non-empty replay dependency list is accepted but makes the report explicitly `tainted`; it never silently claims stable replay. Script deployment declarations, balance/UDT assertions, script filters, cycle comparators, and multi-transaction steps remain RFC targets and are not silently accepted.
+Unknown keys fail closed. A non-empty replay dependency list is accepted but makes the report explicitly `tainted`; it never silently claims stable replay. Script deployment declarations, named setup-script references, pure steps, `expect.error.group`, and multi-transaction steps remain RFC targets and are not silently accepted; balance/UDT assertions, script filters, and cycle comparators are implemented under spec `0.1.0`.
 
 See [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) for the broader design. Its unimplemented sections are proposals, not current CLI behavior.
 
@@ -242,7 +243,7 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 
 - [`src/`](src/) — CLI, strict manifest parser, OffCKB adapter, runner, RPC boundary, and report canonicalization
 - [`showcases/`](showcases/) — bounded, executable integrations built on the runner
-- [`showcases/cell-properties/`](showcases/cell-properties/) — generic DAO/plain draft.4 matrix; native acceptance pending
+- [`showcases/cell-properties/`](showcases/cell-properties/) — generic DAO/plain draft.4 matrix; passes on fresh devnets in CI and in the candidate gates
 - [`showcases/secp-transfer/`](showcases/secp-transfer/) — the first showcase: committed, rejected, and assertion-failure secp transfer paths
 - [`showcases/ckb-ugmp/`](showcases/ckb-ugmp/) — a bounded CKB-UGMP Spore mint with fresh local script injection
 - [`tests/`](tests/) — unit and orchestration tests
@@ -255,7 +256,7 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 - [`docs/offline-verification.md`](docs/offline-verification.md) — offline commands, exit codes, published schemas, evidence bundles
 - [`docs/annotated-manifest.md`](docs/annotated-manifest.md) — legacy manifest walkthrough and the link to new draft.4 predicates
 - [`docs/evidence-report.md`](docs/evidence-report.md) — current report contract, digest boundaries, and checked real output
-- [`schemas/ckb-verify-provenance-v2.schema.json`](schemas/ckb-verify-provenance-v2.schema.json) — current provenance schema; cross-field replay and debugger consistency are enforced by the runtime verifier
+- [`schemas/ckb-verify-provenance-v2.schema.json`](schemas/ckb-verify-provenance-v2.schema.json) and [`-v3`](schemas/ckb-verify-provenance-v3.schema.json) — current provenance schemas (draft.3/draft.4 and `0.1.0`/draft.5); cross-field replay, drift, and debugger consistency are enforced by the runtime verifier
 - [`schemas/ckb-verify-provenance-v1.schema.json`](schemas/ckb-verify-provenance-v1.schema.json) — unchanged historical provenance schema
 - [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material
 - [`docs/design-review.md`](docs/design-review.md) — prior design review and gates

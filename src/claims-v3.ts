@@ -16,6 +16,7 @@ import type { ResolvedSystemScript } from "./offckb";
 import type { CkbJsonRpcTransaction } from "./rpc";
 import type { RejectionEvidence, StepEvidence } from "./report";
 import { transactionHash } from "./transaction";
+import { assertRejectionEvidence, errorCodeSatisfied } from "./rejection";
 import {
   isManifestV5, type V01Spec, type BalanceAssertionV5, type BalanceTarget, type CellAssertionV5, type ClaimV5, type CountRange,
   type CyclesCheck, type ManifestV5, type QuantityRange, type ScriptRef, type ScriptHashType,
@@ -319,12 +320,16 @@ export function resolutionContextFromEnvironment(environment: unknown): Resoluti
 export function deriveOutcomeV3(evidence: unknown, environment: unknown): OutcomeV3 {
   const m = bindManifestV3(evidence, environment), e = object(evidence, "evidence");
   const context = resolutionContextFromEnvironment(environment);
+  // The runner exports exactly setup.accounts accounts; more or fewer would be accounts it never funded.
+  const exported = list(object(object(environment, "environment").devnet, "environment.devnet").accounts, "environment.devnet.accounts").length;
+  if (exported !== m.setup.accounts) fail("environment.devnet.accounts", `records ${exported} accounts; the manifest declares ${m.setup.accounts}`);
   const rawSteps = list(e.steps, "evidence.steps").map((s, i) => object(s, `evidence.steps[${i}]`));
   const transactions = rawSteps.map((s, i) => {
     retainedMembers(s, ["transaction", "transactionHash", "observedStatus"], `evidence.steps[${i}]`);
     const tx = validateTransaction(s.transaction, `evidence.steps[${i}].transaction`);
     equalSemantic(transactionHash(tx), hash32(s.transactionHash, `evidence.steps[${i}].transactionHash`), `evidence.steps[${i}].transactionHash`);
     if (s.observedStatus !== "committed" && s.observedStatus !== "rejected") fail(`evidence.steps[${i}].observedStatus`, "terminal status required");
+    assertRejectionEvidence({ observedStatus: s.observedStatus, rejection: s.rejection, transaction: s.transaction }, `evidence.steps[${i}]`);
     return tx;
   });
   const stepIndex = (name: string): number => m.steps.findIndex((s) => s.name === name);
@@ -443,7 +448,7 @@ export function deriveOutcomeV3(evidence: unknown, environment: unknown): Outcom
 
 export function verdictForOutcomeV3(outcome: OutcomeV3): "PASS" | "FAIL" {
   return outcome.steps.every((s) => (s.expectedStatus === undefined || s.expectedStatus === s.observedStatus) &&
-    (s.expectedErrorCode === undefined || s.expectedErrorCode === s.rejection?.code) &&
+    errorCodeSatisfied(s.expectedErrorCode, s.rejection) &&
     (s.expectedCycles === undefined || cyclesSatisfy(s.expectedCycles, s.cycles)) && s.claims.every((c) => c.ok)) &&
     outcome.assertions.every((c) => c.ok) ? "PASS" : "FAIL";
 }

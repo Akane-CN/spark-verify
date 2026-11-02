@@ -18,7 +18,7 @@ verify.toml + trusted producer
        terminal / CI summary
 ```
 
-> **Current contract:** the unreleased runner emits `ckb-verify-report/1` for draft.3 and `ckb-verify-report/2` for draft.4, both with `ckb-verify-environment/3` environment fields. The nested [`ckb-verify-provenance/2` JSON Schema](../schemas/ckb-verify-provenance-v2.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. Bounded claims-v2 compatibility fixtures exist; the [offline `validate`/`digest`/`check-digest` commands](offline-verification.md) expose this verifier publicly together with the [published whole-manifest and whole-report schemas](offline-verification.md#published-schemas). See the [draft.4 grammar and scope](cell-claims-draft.4.md).
+> **Current contract:** the unreleased runner emits `ckb-verify-report/3` with `ckb-verify-environment/4` and `ckb-verify-provenance/3` for spec `0.1.0` and draft.5 ([v0.1 vocabulary](vocabulary-v0.1.md)), `ckb-verify-report/2` for draft.4, and `ckb-verify-report/1` for draft.3, the latter two with `ckb-verify-environment/3`. This page details the draft.3/draft.4 fields; report `/3` adds the raw indexer pages, the exported accounts, and the drift record described in the vocabulary page. The nested [`ckb-verify-provenance/2` JSON Schema](../schemas/ckb-verify-provenance-v2.schema.json) validates structure; the runner's semantic verifier enforces cross-field replay status, reason, runtime, lockfile, source, and binary invariants. Both checks are required before trusting replay qualification. Bounded claims-v2 compatibility fixtures exist; the [offline `validate`/`digest`/`check-digest` commands](offline-verification.md) expose this verifier publicly together with the [published whole-manifest and whole-report schemas](offline-verification.md#published-schemas). See the [draft.4 grammar and scope](cell-claims-draft.4.md).
 
 ## Verifier entrypoints and compatibility
 
@@ -99,7 +99,7 @@ digests.environment
 
 ### `schema`
 
-`ckb-verify-report/1` identifies the draft.3 envelope; `ckb-verify-report/2` identifies the draft.4 envelope. It is versioned separately from the selected `verify.toml` spec and the nested outcome/environment objects.
+`ckb-verify-report/1` identifies the draft.3 envelope, `ckb-verify-report/2` the draft.4 envelope, and `ckb-verify-report/3` the `0.1.0`/draft.5 envelope. It is versioned separately from the selected `verify.toml` spec and the nested outcome/environment objects.
 
 ### `verdict`
 
@@ -129,13 +129,13 @@ Raw transaction identity, duration, and full RPC observations remain inspectable
 
 ### `outcomeClaims`
 
-The normalized claim/result layer is identified by `ckb-verify-outcome/1` for draft.3 and `ckb-verify-outcome/2` for draft.4. It keeps only the declared expectations and normalized observations used to derive the verdict, including observed cycles and structured rejection data. A transaction that is accepted and later reaches terminal `rejected` status records `kind: "node"` and the node-provided `reason`; an immediate script rejection records its normalized script group and code when available.
+The normalized claim/result layer is identified by `ckb-verify-outcome/1` for draft.3, `ckb-verify-outcome/2` for draft.4, and `ckb-verify-outcome/3` for `0.1.0` and draft.5. It keeps only the declared expectations and normalized observations used to derive the verdict, including observed cycles and structured rejection data. A transaction that is accepted and later reaches terminal `rejected` status records `kind: "node"` and the node-provided `reason`; an immediate script rejection records its normalized script group and code when available.
 
 For a v1 Cell claim, the runner independently derives `observationValid` and verifies that `ok` agrees with the expected and observed count. The v2 branch uses the raw-input and property/dependency derivation described above. It then derives the top-level verdict from all normalized claims rather than trusting a stored boolean.
 
 ### `environment`
 
-The current replay-comparison layer is identified by `ckb-verify-environment/3`. It has six fixed top-level fields and no free-form extension keys:
+The replay-comparison layer for draft.3 and draft.4 is identified by `ckb-verify-environment/3`; `ckb-verify-environment/4` (`0.1.0`, draft.5) adds `devnet.accounts`. It has six fixed top-level fields and no free-form extension keys:
 
 - `runner`: the `ckb-verify` name and runner version;
 - `toolchain`: requested and observed CKB, OffCKB, and optional ckb-debugger versions;
@@ -187,7 +187,7 @@ outcome: sha256:<64 lowercase hex characters>
 environment: sha256:<64 lowercase hex characters>
 ```
 
-This is intentionally not the authority. The report is the reviewable artifact; the terminal line is a concise index into it. The added named CI job executes the matrix without artifact upload. Publishing selected evidence and downloading/verifying the exact hosted artifact remains separate #19 work; a green job is not preserved evidence.
+This is intentionally not the authority. The report is the reviewable artifact; the terminal line is a concise index into it. CI packages the reports of every showcase into a sanitized evidence bundle, uploads it, and a separate job downloads and re-verifies it ([offline verification](offline-verification.md)); a green job alone is not preserved evidence.
 
 ## What a reviewer should check
 
@@ -196,7 +196,7 @@ This is intentionally not the authority. The report is the reviewable artifact; 
 3. Confirm the requested and observed tools, runtime and lockfile hashes, CKB binary digests, platform, genesis, and system scripts.
 4. Inspect each manifest claim and its corresponding normalized outcome.
 5. Inspect raw rejection or Cell evidence where a result is security-sensitive.
-6. Recompute the digests with the version of `ckb-verify` named by the report once the v0.1 verification command is released.
+6. Recompute the digests offline with `ckb-verify digest` or `check-digest`, using the version named by the report.
 7. Treat a passing report as bounded acceptance evidence, never as an audit or proof that omitted properties are correct.
 
 For the input side of the contract, continue with the [line-by-line annotated manifest](annotated-manifest.md).

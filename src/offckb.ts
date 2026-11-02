@@ -133,6 +133,20 @@ export function parseOffckbResult(stdout: string, expectedCommand: string): Json
   return matched;
 }
 
+/**
+ * Every development private key OffCKB reported, including accounts beyond `setup.accounts`. These keys
+ * are public knowledge for any OffCKB devnet, but a producer that signs with or prints one must not leave
+ * it in evidence, so all of them are redacted, not only the exported ones.
+ */
+export function allAccountPrivateKeys(result: unknown): string[] {
+  const root = requiredObject(result, "accounts result");
+  if (!Array.isArray(root.accounts)) throw new OffckbProtocolError("accounts result is malformed");
+  return root.accounts.flatMap((raw) => {
+    const privkey = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>).privkey : undefined;
+    return typeof privkey === "string" && /^0x[0-9a-fA-F]{64}$/.test(privkey) ? [privkey] : [];
+  });
+}
+
 export function parseAccountsResult(result: unknown, requested: number): DevAccount[] {
   const root = requiredObject(result, "accounts result");
   if (root.ok !== true || root.command !== "accounts" || !Array.isArray(root.accounts)) {
@@ -342,6 +356,7 @@ export class OffckbDevnet {
   private readonly timeoutMs: number;
   private started = false;
   private ownership: RuntimeOwnership | undefined;
+  private reportedPrivateKeys: string[] = [];
   private prepared = false;
   private ready = false;
   private starting: Promise<OffckbRunContext> | undefined;
@@ -522,6 +537,11 @@ export class OffckbDevnet {
     }
   }
 
+  /** Every development key OffCKB reported for this devnet; held in memory only, never written. */
+  redactionSecrets(): readonly string[] {
+    return this.reportedPrivateKeys;
+  }
+
   async start(signal?: AbortSignal): Promise<OffckbRunContext> {
     if (this.starting !== undefined || this.stopping !== undefined || this.ownership !== undefined) {
       throw new OffckbProtocolError("OffCKB devnet is already started by this runner");
@@ -593,7 +613,9 @@ export class OffckbDevnet {
       this.activeEndpoints = [rpcUrl, proxyUrl];
 
       const accountOutput = await this.command(["accounts", "--show-private-keys"], { sensitive: true });
-      const accounts = parseAccountsResult(parseOffckbResult(accountOutput.stdout, "accounts"), this.accountCount);
+      const accountsResult = parseOffckbResult(accountOutput.stdout, "accounts");
+      const accounts = parseAccountsResult(accountsResult, this.accountCount);
+      this.reportedPrivateKeys = allAccountPrivateKeys(accountsResult);
       await writeFile(this.paths.accountsPath, `${JSON.stringify({ accounts }, null, 2)}\n`, { mode: 0o600 });
       await chmod(this.paths.accountsPath, 0o600);
 

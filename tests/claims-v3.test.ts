@@ -82,8 +82,14 @@ describe("draft.5 derivation", () => {
     ["a stored total that contradicts the pages", (r: ReturnType<typeof syntheticReportV3>) => { (r.evidence.assertions[2] as { observed: { total: string } }).observed.total = "1"; }, "stored derivation"],
     ["a flipped ok on a FAIL claim", (r: ReturnType<typeof syntheticReportV3>) => { (r.outcomeClaims.assertions[2] as { ok: boolean }).ok = false; }, "outcomeClaims"],
     ["an account whose address contradicts its lock", (r: ReturnType<typeof syntheticReportV3>) => { r.environment.devnet.accounts[0]!.lock.args = "0x00"; }, "accounts[0].address"],
-    ["a missing exported account", (r: ReturnType<typeof syntheticReportV3>) => { r.environment.devnet.accounts.pop(); }, "accounts[1]"],
+    ["a missing exported account", (r: ReturnType<typeof syntheticReportV3>) => { r.environment.devnet.accounts.pop(); }, "records 1 accounts; the manifest declares 2"],
     ["a report/3 that claims environment/3", (r: ReturnType<typeof syntheticReportV3>) => { (r.environment as { schema: string }).schema = "ckb-verify-environment/3"; }, "version tuple"],
+    // Review findings (2026-11-02): fields that must agree with the executed CKB binary or the manifest.
+    ["CKB drift hidden by editing the observed version and binary", (r: ReturnType<typeof syntheticReportV3>) => { r.environment.toolchain.observed.ckb = "0.200.0"; r.environment.provenance.binaries.ckb.version = "0.200.0"; }, "tool-version record contradicts"],
+    ["a drift record that contradicts the requested toolchain", (r: ReturnType<typeof syntheticReportV3>) => { r.environment.provenance.toolchain.ckb.requested = "0.111.0"; }, "tool-version"],
+    ["an observed CKB version that is not the executed binary", (r: ReturnType<typeof syntheticReportV3>) => { r.environment.toolchain.observed.ckb = "0.200.0"; }, "observed CKB version contradicts"],
+    ["a platform that contradicts the CKB binary", (r: ReturnType<typeof syntheticReportV3>) => { r.environment.platform = { os: "darwin", arch: "arm64" }; }, "recorded platform contradicts"],
+    ["an exported account the manifest did not request", (r: ReturnType<typeof syntheticReportV3>) => { r.environment.devnet.accounts.push({ ...structuredClone(r.environment.devnet.accounts[1]!), index: 2 }); }, "records 3 accounts; the manifest declares 2"],
     ["an expectedCycles field the manifest did not declare", (r: ReturnType<typeof syntheticReportV3>) => { delete (r.evidence.steps[0] as { expectedCycles?: unknown }).expectedCycles; }, "presence mismatch"],
   ])("rejects %s even after rehashing", (_label, damage, message) => {
     const report = syntheticReportV3();

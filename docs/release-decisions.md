@@ -81,6 +81,14 @@ Reopening a decision is a dated entry here, not an edit of the original text abo
 
 **Consequences.** Implemented: the parser, the report/3 tuple check (evidence and outcome must name the same identifier), the manifest and report schemas, the golden report and lock, the `0.1.0` conformance twin with the whole draft.5 corpus re-run under `0.1.0`, and the version policy, vocabulary page, matrix, RFC status lines, and release notes draft. The `unsupported-spec` conformance fixture, which used `0.1.0` as its example of an unknown spec, now uses `0.2.0`.
 
+### 2026-11-02: decision 6 amended, the verifier may refuse more before the contract is published
+
+**Why.** A pre-release review of the frozen candidate `d99117b` found reports that verified VALID although no runner can write them. Examples: CKB drift hidden by editing the observed version, impossible rejection evidence, an exported-account count that differs from the manifest, and duplicate JSON keys. The [version policy](version-policy.md#the-frozen-v01-contract) said a frozen identifier never accepts or rejects anything differently. Read literally, that would ship those holes forever, under a contract that was frozen the same day and is not yet published.
+
+**New decision.** Until `v0.1.0` is first published, a verifier fix may refuse an artifact that no released or candidate runner can write, provided it changes neither the schemas, nor the lock, nor the golden report's digests. Each such fix is listed in the changelog and in the [candidate review record](acceptance/2026-11-02-candidate-review.md). From first publication on, the original rule applies without exception: any change to what a frozen identifier accepts needs a new identifier.
+
+**Consequences.** The review's verifier fixes ship in `0.1.0`. `tests/frozen-contract.test.ts` and `lock.json` are unchanged and still pass. The candidate is re-frozen and re-gated with the fixes.
+
 ## What this record does not do
 
 It does not freeze the RFC (only the v0.1 contract above), publish anything, or close #20's remaining gates (package identity, candidate freeze, independent review, publication approval). Reopening any decision is a new entry here with a date and a reason, not an edit of the old one.

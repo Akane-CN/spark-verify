@@ -1,4 +1,5 @@
 import { hashCkb } from "@ckb-ccc/core";
+import { assertRejectionEvidence, errorCodeSatisfied } from "./rejection";
 import { canonicalize } from "json-canonicalize";
 import { sha256Bytes } from "./canonical";
 import { MAX_BYTES, parseManifestText } from "./manifest";
@@ -303,6 +304,7 @@ export function deriveOutcomeV2(evidence: unknown, environment: unknown): Outcom
     const tx = validateTransaction(s.transaction, `evidence.steps[${i}].transaction`);
     equalSemantic(transactionHash(tx), hash32(s.transactionHash, `evidence.steps[${i}].transactionHash`), `evidence.steps[${i}].transactionHash`);
     if (s.observedStatus !== "committed" && s.observedStatus !== "rejected") fail(`evidence.steps[${i}].observedStatus`, "terminal status required");
+    assertRejectionEvidence({ observedStatus: s.observedStatus, rejection: s.rejection, transaction: s.transaction }, `evidence.steps[${i}]`);
     return tx;
   });
   function phase(definitions: ClaimV4[], raw: unknown, path: string): ClaimOutcomeV2[] {
@@ -369,7 +371,7 @@ export function deriveOutcomeV2(evidence: unknown, environment: unknown): Outcom
 }
 export function verdictForOutcomeV2(outcome: OutcomeV2): "PASS" | "FAIL" {
   return outcome.steps.every(s => (s.expectedStatus === undefined || s.expectedStatus === s.observedStatus) &&
-    (s.expectedErrorCode === undefined || s.expectedErrorCode === s.rejection?.code) && s.claims.every(c => c.ok)) && outcome.assertions.every(c => c.ok) ? "PASS" : "FAIL";
+    errorCodeSatisfied(s.expectedErrorCode, s.rejection) && s.claims.every(c => c.ok)) && outcome.assertions.every(c => c.ok) ? "PASS" : "FAIL";
 }
 export function populateEvidenceV2(input: RunInputV2, outcome: OutcomeV2): RunEvidenceV2 {
   const claims = (raw: ClaimInputV2[], derived: ClaimOutcomeV2[]): ClaimEvidenceV2[] => list(raw, "claims").map((c, i) => {

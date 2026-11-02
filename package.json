@@ -5,6 +5,11 @@
   "type": "module",
   "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Akane-CN/spark-verify.git"
+  },
+  "homepage": "https://github.com/Akane-CN/spark-verify#readme",
   "bin": {
     "ckb-verify": "./src/cli.ts"
   },

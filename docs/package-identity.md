@@ -25,7 +25,7 @@ None of this is verifiable from the repository and none of it is assumed:
 | Requirement | Value | Where enforced |
 | --- | --- | --- |
 | Bun | `1.2.19` exercised; `engines.bun >= 1.2.19`; `packageManager: bun@1.2.19` | `package.json`, `bun run check` fails on another version |
-| Node.js | `>= 20` (the OffCKB CLI is a Node program); 22 exercised | `package.json` `engines.node` |
+| Node.js | `>= 20` declared (the OffCKB CLI is a Node program); only 22 exercised | declared in `package.json` `engines.node`; not checked at runtime |
 | OS / architecture | Linux x64 for `run`; offline commands also on macOS and Windows | `run` refuses other platforms before writing anything; the platform boundary workflow verifies the offline commands on macOS 14 and Windows Server 2022 |
 
 Other platforms are not supported because binary pins exist for them; see [supported combinations](maintenance.md#supported-combinations).
@@ -40,7 +40,7 @@ An install from the npm registry is **not exercised**. If registry publication i
 
 Checked by `tests/package-layout.test.ts` on every `bun run check`, by packing the tree and listing the tarball:
 
-- the tarball is exactly the `files` allowlist plus `package.json`, `LICENSE`, and `README.md`: `src/` (every module), `schemas/` (every file `src/schemas.ts` reads), `patches/` (the file named by `patchedDependencies`), the five user documents, and `SECURITY.md`; nothing from `tests/`, `showcases/`, `scripts/`, `.github/`, `docs/media/`, `docs/acceptance/`, `docs/plans/`, and no `bun.lock` or `tsconfig.json`;
+- the tarball is exactly the `files` allowlist plus `package.json`, `LICENSE`, and `README.md`: `src/` (every module), `schemas/` (every file `src/schemas.ts` reads), `patches/` (the file named by `patchedDependencies`), the seven user documents, and `SECURITY.md`; nothing from `tests/`, `showcases/`, `scripts/`, `.github/`, `docs/media/`, `docs/acceptance/`, `docs/plans/`, and no `bun.lock` or `tsconfig.json`;
 - the `bin` entry is `./src/cli.ts`, starts with `#!/usr/bin/env bun`, and is executable (`0755`) inside the tarball;
 - every relative import inside `src/` resolves to a shipped module, and every bare import resolves to a package in `dependencies`, never `devDependencies`;
 - `package.json` `version`, `src/version.ts`, and the changelog heading agree (`tests/cli.test.ts` also pins the printed version).
@@ -49,7 +49,7 @@ Checked by `tests/package-layout.test.ts` on every `bun run check`, by packing t
 
 ## The release commit
 
-A release changes exactly: `version` in `package.json`, `VERSION` in `src/version.ts`, the pinned string in `tests/cli.test.ts`, the `Unreleased` heading in `CHANGELOG.md`, and (registry publication only) `private`. Everything else was already on `main` at the frozen candidate. The tag is `v<version>`, annotated, on that commit, created only under step 8.
+A release changes exactly: `version` in `package.json`, `VERSION` in `src/version.ts`, the pinned string in `tests/cli.test.ts`, the `Unreleased` heading in `CHANGELOG.md` (for `0.1.0`: #40), and (registry publication only) `private`. Everything else was already on `main` at the frozen candidate. The tag is `v<version>`, annotated, on that commit, created only under step 8.
 
 ## Checklist for the maintainer before step 8
 
@@ -57,4 +57,4 @@ A release changes exactly: `version` in `package.json`, `VERSION` in `src/versio
 - [ ] `curl` check above repeated on the day; result recorded on #20;
 - [x] the six release-blocking decisions on #18 recorded in [release decisions](release-decisions.md);
 - [ ] independent review of the candidate SHA recorded on #20;
-- [x] the [release notes draft](release-notes-draft.md) completed with the candidate SHA, run id, artifact ids, and checksums (candidate `d99117b`, [record](acceptance/2026-11-02-candidate-d99117b.md)).
+- [ ] the [release notes draft](release-notes-draft.md) completed with the candidate SHA, run id, artifact ids, and checksums (done for `d99117b`, which the review superseded; redone for the re-frozen candidate).

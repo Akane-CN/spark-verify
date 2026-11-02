@@ -44,6 +44,7 @@ replay dependencies: none
 step: deposit (committed; 2 claims; timeout 60000ms)
 final claims: 0
 claims: 3
+schema: https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-manifest-v1.schema.json ok
 executed: nothing (no commands, listeners, installs, or network)
 ```
 
@@ -61,6 +62,7 @@ environment: sha256:c3c579306a6bfefd42a123dd92b4e3760dc04e6cfdf764913cdd6b1e3215
 replay: stable
 source: 53fa758e64e5d011257d1f30a26b9d0def6e28bb (clean)
 runner: ckb-verify 0.0.2
+schema check: ok (https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-report.schema.json)
 expected outcome: match
 ```
 
@@ -117,12 +119,12 @@ Manifest specs `0.1.0` (frozen), `0.1.0-draft.5`, `0.1.0-draft.4`, and `0.1.0-dr
 
 ## Published schemas
 
-Two whole-document JSON Schemas (Draft 2020-12) ship in `schemas/` and inside the package, next to the [provenance `/1`](../schemas/ckb-verify-provenance-v1.schema.json), [provenance `/2`](../schemas/ckb-verify-provenance-v2.schema.json), and [claims-v2](../schemas/ckb-verify-claims-v2.schema.json) definitions they reference:
+Two whole-document JSON Schemas (Draft 2020-12) ship in `schemas/` and inside the package, next to the [provenance `/1`](../schemas/ckb-verify-provenance-v1.schema.json), [`/2`](../schemas/ckb-verify-provenance-v2.schema.json), and [`/3`](../schemas/ckb-verify-provenance-v3.schema.json), [claims-v2](../schemas/ckb-verify-claims-v2.schema.json), and [claims-v3](../schemas/ckb-verify-claims-v3.schema.json) definitions they reference:
 
 | Schema | `$id` | Validates |
 | --- | --- | --- |
-| [`ckb-verify-manifest-v1.schema.json`](../schemas/ckb-verify-manifest-v1.schema.json) | `https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-manifest-v1.schema.json` | the parsed `verify.toml` object for specs `0.1.0-draft.3` and `0.1.0-draft.4`; unknown keys are rejected at every level |
-| [`ckb-verify-report.schema.json`](../schemas/ckb-verify-report.schema.json) | `https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-report.schema.json` | a complete `report.json` for report `/1` (current and historical environment) and report `/2` |
+| [`ckb-verify-manifest-v1.schema.json`](../schemas/ckb-verify-manifest-v1.schema.json) | `https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-manifest-v1.schema.json` | the parsed `verify.toml` object for specs `0.1.0`, `0.1.0-draft.5`, `0.1.0-draft.4`, and `0.1.0-draft.3`; unknown keys are rejected at every level |
+| [`ckb-verify-report.schema.json`](../schemas/ckb-verify-report.schema.json) | `https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-report.schema.json` | a complete `report.json` for report `/1` (current and historical environment), report `/2`, and report `/3` |
 
 `validate` runs the manifest schema on the parsed TOML **and** the strict parser; `digest`, `check-digest`, and `check-bundle` run the report schema **and** the semantic verifier. The two layers must agree: a manifest the parser accepts but the schema rejects (or the reverse) is reported as invalid with both diagnostics, never hidden. Schema violations are listed as `problem: schema <json-pointer> <message>`, for example `schema /step/0/expect/tx must be equal to one of the allowed values (["committed","rejected"])`, and `--json` carries them under `schema` (manifest) or `schemaCheck` (report) with the schema `$id`.
 
@@ -173,7 +175,7 @@ To inspect a bundle yourself, download it from the run's **Artifacts** list (or 
 
 ### Release-evidence archive
 
-Workflow artifacts expire, so the `verify-evidence` job also assembles the three verified bundles of a run into one archive, `release-evidence-<commit>.tar.gz`, with `scripts/release-evidence.ts assemble`. The archive is the unit that outlives CI storage: it is uploaded as the `release-evidence-<commit>` artifact (90-day retention), read back through the API, and at release time attached unchanged to the GitHub release.
+Workflow artifacts expire, so the `verify-evidence` job also assembles the four verified bundles of a run into one archive, `release-evidence-<commit>.tar.gz`, with `scripts/release-evidence.ts assemble`. The archive is the unit that outlives CI storage: it is uploaded as the `release-evidence-<commit>` artifact (90-day retention), read back through the API, and at release time attached unchanged to the GitHub release.
 
 ```text
 release-evidence-<commit>.tar.gz          one gzip tarball; every entry lives under release-evidence/
@@ -204,6 +206,6 @@ From a source checkout, `bun run scripts/release-evidence.ts verify release-evid
 | --- | --- | --- | --- |
 | Workflow artifact `evidence-<job>-<commit>` | one bundle per showcase job | 30 days after the run | run's **Artifacts** list, `gh run download <run-id> -n <name>`, or the artifacts API |
 | Workflow artifact `release-evidence-<commit>` | the assembled archive and its `.sha256` | 90 days after the run | same as above; the artifact id and archive checksum are printed in the run's step summary |
-| GitHub release asset | the same archive, attached at release time (step 6 of the [release checklist](release-checklist.md)) | with the release | the release page; the archive checksum is listed in the release notes |
+| GitHub release asset | the same archive, attached at release time (step 8 of the [release checklist](release-checklist.md)) | with the release | the release page; the archive checksum is listed in the release notes |
 
 Only the release asset is durable. Evidence cited from a workflow artifact is a pointer that stops resolving at expiry; a release must cite the asset and its checksum, never the run.

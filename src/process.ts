@@ -16,6 +16,9 @@ export interface CommandResult {
   durationMs: number;
 }
 
+/** How long after the forced kill an escaped descendant may keep the pipes before they are released. */
+export const PIPE_RELEASE_GRACE_MS = 1_000;
+
 function killProcessGroup(pid: number, signal: NodeJS.Signals): void {
   try {
     process.kill(-pid, signal);
@@ -48,8 +51,13 @@ export async function runProcess(argv: readonly string[], options: RunCommandOpt
   let timedOut = false;
   // A background descendant can keep the pipes (and so "close") open after the
   // shell exits, so termination targets the group until close, not until exit.
+  // A descendant that left the group (setsid, a detached spawn) is out of reach of
+  // the group signal and can hold the pipes forever; after the forced kill, the
+  // runner's own ends of the pipes are destroyed so the call still settles. That
+  // descendant keeps running: manifests are trusted code and there is no sandbox.
   let closed = false;
   let forceKillTimer: ReturnType<typeof setTimeout> | undefined;
+  let releasePipesTimer: ReturnType<typeof setTimeout> | undefined;
   const terminate = (): void => {
     if (closed || child.pid === undefined) return;
     if (process.platform === "win32") child.kill("SIGTERM");
@@ -59,6 +67,12 @@ export async function runProcess(argv: readonly string[], options: RunCommandOpt
       if (closed || child.pid === undefined) return;
       if (process.platform === "win32") child.kill("SIGKILL");
       else killProcessGroup(child.pid, "SIGKILL");
+      releasePipesTimer = setTimeout(() => {
+        if (closed) return;
+        child.stdout.destroy();
+        child.stderr.destroy();
+      }, PIPE_RELEASE_GRACE_MS);
+      releasePipesTimer.unref();
     }, 200);
     forceKillTimer.unref();
   };
@@ -92,6 +106,7 @@ export async function runProcess(argv: readonly string[], options: RunCommandOpt
   } finally {
     clearTimeout(timeout);
     if (forceKillTimer !== undefined) clearTimeout(forceKillTimer);
+    if (releasePipesTimer !== undefined) clearTimeout(releasePipesTimer);
     options.signal?.removeEventListener("abort", onAbort);
   }
 }

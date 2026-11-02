@@ -1,16 +1,16 @@
 # Release notes draft: `ckb-verify` v0.1.0 candidate
 
-> **Draft.** No tag, release, or package exists. The candidate fields below are filled from the frozen candidate, on which [release checklist](release-checklist.md) steps 1–6 passed; the document is published only under step 8 with explicit authorization on #20. The `elliptic` waiver expires 2026-11-25, so publication from this candidate must happen by 2026-11-24.
+> **Draft.** No tag, release, or package exists. The candidate fields below are filled when the candidate re-frozen after the review passes [release checklist](release-checklist.md) steps 1–6; the document is published only under step 8 with explicit authorization on #20. The `elliptic` waiver expires 2026-11-25, so publication from this candidate must happen by 2026-11-24.
 
 ## Candidate
 
 | Field | Value |
 | --- | --- |
-| Candidate commit | `d99117b4fba025bd08b4d7210dfd33e74b332c5c` (frozen 2026-11-02, #40) |
-| Hosted CI run | Verify run 41424824265, every job green including `verify-evidence`; Platform boundary run 41413914895 on the tree-identical #40 head |
-| Package tarball | `ckb-verify-0.1.0.tgz`, sha256 `7fc8d6838bcd1b913edb8412a5b0e8e37a995049372e43b8fd2e85a9636f0886` (reproducible from the candidate tree) |
-| Release evidence | CI artifact 13131607029: `release-evidence-d99117b4fba025bd08b4d7210dfd33e74b332c5c.tar.gz`, sha256 `564960adaba387609e0e65095e5e5b59feaa957b2669240aeaa3b441247c3e4b`; the archive attached at step 8 is re-assembled from it with the records below, and its checksum is recorded then |
-| Acceptance records | [`2026-11-02-candidate-d99117b.md`](acceptance/2026-11-02-candidate-d99117b.md) (steps 1–6), with the source matrix, the release rehearsal including the consumer matrix, and the release surface beside it |
+| Candidate commit | `TBD`: re-frozen after the [2026-11-02 review](acceptance/2026-11-02-candidate-review.md); the earlier candidate `d99117b` is superseded |
+| Hosted CI run | `TBD` (the re-frozen candidate's push run and platform boundary run) |
+| Package tarball | `ckb-verify-0.1.0.tgz`, sha256 `TBD` |
+| Release evidence | `release-evidence-<sha>.tar.gz`, sha256 `TBD`, from artifact id `TBD` |
+| Acceptance records | `TBD` for the re-frozen candidate; the superseded candidate's are [`2026-11-02-candidate-d99117b.md`](acceptance/2026-11-02-candidate-d99117b.md) and the [review](acceptance/2026-11-02-candidate-review.md) |
 
 ## What this release is
 
@@ -18,7 +18,7 @@
 
 ## Supported
 
-Exactly one combination was exercised end to end and is claimed: **Linux x64, Bun 1.2.19, Node.js 22 (any ≥ 20)**, installed from the packed tarball into a separate project per [`docs/install.md`](install.md). Toolchain pins: OffCKB `0.4.13` with the shipped patch, CKB `0.209.0`, `ckb-debugger 1.1.1`, `@ckb-ccc/core 1.14.0`. See [supported combinations](maintenance.md#supported-combinations).
+Exactly one combination was exercised end to end and is claimed: **Linux x64, Bun 1.2.19, Node.js 22** (OffCKB declares Node 20 or newer; 20 was not exercised), installed from the packed tarball into a separate project per [`docs/install.md`](install.md). Toolchain pins: OffCKB `0.4.13` with the shipped patch, CKB `0.209.0`, `ckb-debugger 1.1.1`, `@ckb-ccc/core 1.14.0`. See [supported combinations](maintenance.md#supported-combinations).
 
 Not supported: devnet execution (`run`) anywhere but Linux x64, other architectures, Node-only execution, other Bun versions, testnet or mainnet execution. On macOS 14 and Windows Server 2022 the offline commands (`validate`, `digest`, `check-digest`, `check-bundle`) are verified by the platform boundary workflow, and `run` is refused before it writes anything.
 
@@ -33,7 +33,9 @@ The rules are in [version policy](version-policy.md); unsupported tuples are rej
 ## Known limitations
 
 - The RFC v0.2 vocabulary is only partly implemented; the [implementation matrix](rfc-implementation-matrix.md) marks every item supported, partial, or deferred; the six release decisions are recorded in [release decisions](release-decisions.md): decision 1 was reopened on 2026-11-02 and the promised vocabulary (`expect.cycles`, script-filtered Cells with `count`/`data`/`capacity`, CKB and UDT `balance`, script references) ships as the frozen spec `0.1.0` (first published as `0.1.0-draft.5`); `[setup.scripts]` deployment, named setup-script references, pure steps, `accounts = 0`, and `expect.error.group` remain v0.3 proposals.
-- Trusted repositories only: `verify.toml` is executable code and there is no sandbox ([`SECURITY.md`](../SECURITY.md)).
+- Trusted repositories only: `verify.toml` is executable code and there is no sandbox ([`SECURITY.md`](../SECURITY.md)). A step that detaches a background process (redirected output, or `setsid`) is not tracked after the step returns or is killed; that process keeps running.
+- The source guard needs a git repository with at least one commit. Outside one there is nothing to compare, and reports are marked `tainted` (`source_revision_unavailable`). Inside one, any snapshot failure, such as an untracked nested repository, refuses the run.
+- Offline verification checks the recorded CKB binary against its own archive checksum, not against the runner's pin table. It checks a script rejection's group against the transaction for outputs; for an input it checks only the bounds, because the consumed Cell is not retained.
 - Listener scope is loopback for RPC `8114` and proxy `28114`; the peer-to-peer port follows OffCKB's configuration. Network isolation beyond that is the host's job.
 - The source guard compares Git-visible snapshots before and after a run; it does not monitor execution continuously.
 - Offline validity is internal consistency, not authenticity: there is no signature.
@@ -52,7 +54,7 @@ See [maintenance](maintenance.md#upgrade-deprecation-and-rollback-for-consumers)
 
 ## Verify this release yourself
 
-1. `sha256sum -c SHA256SUMS` on the downloaded tarball and `sha256sum -c release-evidence-<sha>.tar.gz.sha256` on the evidence archive.
+1. `sha256sum -c SHA256SUMS` on the downloaded tarball and `sha256sum -c release-evidence-0.1.0-<sha>.tar.gz.sha256` on the evidence archive (the archive re-assembled at step 6 with the acceptance records; the CI artifact is `release-evidence-<sha>.tar.gz`).
 2. Extract the archive, `sha256sum -c --strict SHA256SUMS` inside it, then `ckb-verify check-bundle <bundle> --source-sha <sha> --repository Akane-CN/spark-verify` for each bundle ([offline verification](offline-verification.md#release-evidence-archive)).
 3. Install per [`docs/install.md`](install.md) and run your own manifest; compare `environment.runner.version` with `ckb-verify --version`.
 

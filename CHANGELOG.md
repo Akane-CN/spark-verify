@@ -62,18 +62,16 @@ the private `version` field of `package.json`, not published packages. Dates are
   the offline commands, and proves that `run` is refused with exit 2 before anything is written. It runs
   on demand and on pull requests that change the platform gate (#20).
 - `run` prints a field-level expected/observed diff for every failed expectation and claim on FAIL.
-- `docs/release-decisions.md` records the six release decisions for `v0.1.0` (decisions 1 and 6
-  reopened on 2026-11-02: the promised vocabulary is implemented, and the v0.1 contract is frozen as spec
-  `0.1.0`): the implemented
-  draft.3/draft.4 subset ships; `balance`, script-filter selectors and comparators, `expect.cycles`,
-  `[setup.scripts]` deployment, pure steps, `accounts = 0`, and `expect.error.group` are v0.3
-  proposals; RFC §7 is rewritten to the shipped report and CLI contract; the spec identifiers stay
-  `0.1.0-draft.3`/`0.1.0-draft.4` at release. The matrix, the version policy, and the RFC section
-  status lines point at the record (#18).
+- `docs/release-decisions.md` records the six release decisions for `v0.1.0` (#18), two of them reopened
+  on 2026-11-02. As they stand: the promised vocabulary (`balance`, script-filter selectors and
+  comparators, `expect.cycles`) ships, and the v0.1 contract is frozen as spec `0.1.0` (decisions 1 and
+  6, reopened); `[setup.scripts]` deployment, pure steps, `accounts = 0`, and `expect.error.group` are
+  v0.3 proposals (decisions 2–4); RFC §7 is rewritten to the shipped report and CLI contract (decision
+  5). The matrix, the version policy, and the RFC section status lines point at the record.
 - `tests/package-layout.test.ts` packs the tree on every `bun run check` and proves the tarball carries the
   bin, every runtime import, schema, and patch, and nothing from the checkout; `docs/package-identity.md`
   records the registry-name check, the credential and installation-path decisions, and the release
-  commit's exact contents; `docs/release-notes-draft.md` is the v0.1.0 candidate notes with `TBD` fields (#20).
+  commit's exact contents; `docs/release-notes-draft.md` is the v0.1.0 candidate notes, filled from the frozen candidate (#20).
 - `docs/external-checkpoints.md`: the week-3 and week-8 upstream/pilot checkpoint record with its
   vocabulary (consented, no response, no outreach sent, no-go) and the unpublished draft upstream
   question for #2 (#21).
@@ -103,6 +101,20 @@ the private `version` field of `package.json`, not published packages. Dates are
 
 ### Fixed
 
+- Pre-release review of the candidate (2026-11-02), runner: the source guard failed open when an untracked
+  nested repository or unreadable entry was present (a step could edit tracked files and still get a
+  verdict); it now refuses the run. Untracked files are snapshotted repository-wide (monorepos), the
+  runner's own `.ckb-verify/` output is excluded, step timeouts and SIGINT settle even when a descendant
+  escaped the process group, every OffCKB development key is redacted, and `run` usage errors exit 2.
+- Pre-release review, verifier: reports no runner can write no longer verify. These cover CKB drift
+  hidden by editing the observed version, a platform that contradicts the executed binary, unchecked or
+  impossible rejection evidence (only script evidence satisfies `expect.error.code`), exported accounts
+  that differ from `setup.accounts`, and duplicate JSON keys. `check-bundle` requires a complete
+  `SHA256SUMS` and reports a malformed `bundle.json` as INVALID instead of crashing.
+- Documentation found by the same review: the install guide adds the `.gitignore` and commit steps,
+  without which runs are tainted or refused; the release checklist's `SHA256SUMS` verifies beside the
+  download and covers all four showcases; and shipped pages describe report `/3`. Node 22 is stated as
+  the only exercised Node version.
 - Release-evidence extraction failed on Windows: node-tar opens small files there with `UV_FS_O_FILEMAP`,
   which Bun rejects with `EINVAL`. The archive is now listed into memory, every entry is validated, and only
   then are files written with exclusive create, so a refused archive (link, device, dot-dot path, entry

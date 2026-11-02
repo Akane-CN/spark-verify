@@ -580,6 +580,8 @@ describe("evidence report digests", () => {
 
     const tamperedEvidence = evidence();
     tamperedEvidence.steps[0]!.observedStatus = "rejected";
+    expect(() => verifyEvidenceDigests({ ...report, evidence: tamperedEvidence })).toThrow("a rejected step must carry rejection evidence");
+    tamperedEvidence.steps[0]!.rejection = { kind: "node" };
     expect(() => verifyEvidenceDigests({ ...report, evidence: tamperedEvidence })).toThrow("evidence outcome mismatch");
 
     const contradictoryEvidence = evidence();

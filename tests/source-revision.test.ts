@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
-import { collectSourceRevision } from "../src/runner";
+import { collectSourceRevision, SourceSnapshotError } from "../src/runner";
 import { runProcess } from "../src/process";
 
 const directories: string[] = [];
@@ -30,6 +30,39 @@ async function sourceProject(): Promise<string> {
 }
 
 describe("source revision evidence", () => {
+  test("refuses, instead of degrading to an all-null snapshot, when an untracked entry cannot be read", async () => {
+    // Review finding (2026-11-02): an untracked nested repository made the snapshot fall back to nulls on
+    // both sides of a run, so the guard compared equal while a step edited tracked files.
+    const project = await sourceProject();
+    await mkdir(join(project, "vendor-lib"));
+    await git(join(project, "vendor-lib"), "init", "-q");
+    await writeFile(join(project, "vendor-lib", "x.txt"), "nested\n");
+    await expect(collectSourceRevision(project)).rejects.toThrow(SourceSnapshotError);
+    await expect(collectSourceRevision(project)).rejects.toThrow("vendor-lib/");
+  });
+
+  test("covers untracked files anywhere in the repository when the project is a subdirectory", async () => {
+    const repository = await sourceProject();
+    const project = join(repository, "packages", "app");
+    await mkdir(project, { recursive: true });
+    await writeFile(join(repository, "other.txt"), "one\n");
+    const first = await collectSourceRevision(project);
+    await writeFile(join(repository, "other.txt"), "two\n");
+    const second = await collectSourceRevision(project);
+    expect(first.dirty).toBe(true);
+    expect(second.dirtyDigest).not.toBe(first.dirtyDigest);
+  });
+
+  test("ignores the runner's own .ckb-verify output under the project", async () => {
+    const project = await sourceProject();
+    const before = await collectSourceRevision(project);
+    await mkdir(join(project, ".ckb-verify", "runs", "x"), { recursive: true });
+    await writeFile(join(project, ".ckb-verify", "runs", "x", "report.json"), "{}\n");
+    const after = await collectSourceRevision(project);
+    expect(before).toMatchObject({ dirty: false });
+    expect(after).toEqual(before);
+  });
+
   test("fingerprints tracked contents rather than collapsing all changes to dirty=true", async () => {
     const project = await sourceProject();
 

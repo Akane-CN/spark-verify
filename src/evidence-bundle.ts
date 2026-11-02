@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import nodePath, { basename, join, relative, resolve, sep } from "node:path";
+import { parseJsonStrict } from "./json-strict";
 import { sha256Bytes } from "./canonical";
 import { inspectReport, type DigestPair } from "./offline";
 import { VERSION } from "./version";
@@ -157,7 +158,7 @@ export async function packageEvidence(options: PackageEvidenceOptions): Promise<
     const secrets = scanForSecrets(text, options.knownSecrets ?? []);
     if (secrets.length > 0) throw new EvidenceBundleError(`${basename(directory)}/report.json refused: ${secrets.join("; ")}`);
     let parsed: unknown;
-    try { parsed = JSON.parse(text); } catch { throw new EvidenceBundleError(`${basename(directory)}/report.json is not valid JSON`); }
+    try { parsed = parseJsonStrict(text); } catch (error) { throw new EvidenceBundleError(`${basename(directory)}/report.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`); }
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new EvidenceBundleError(`${basename(directory)}/report.json is not an object`);
     const keys = Object.keys(parsed as object).sort();
     if (keys.join(",") !== [...REPORT_TOP_LEVEL].sort().join(",")) {
@@ -241,7 +242,7 @@ export async function verifyBundle(bundleDir: string, options: VerifyBundleOptio
     return result;
   }
   let manifest: unknown;
-  try { manifest = JSON.parse(manifestBytes.toString("utf8")); } catch { problems.push("bundle.json is not valid JSON"); return result; }
+  try { manifest = parseJsonStrict(manifestBytes.toString("utf8")); } catch (error) { problems.push(`bundle.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`); return result; }
   if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest)) { problems.push("bundle.json is not an object"); return result; }
   const bundle = manifest as Record<string, unknown>;
   if (bundle.schema !== BUNDLE_SCHEMA) { problems.push(`unsupported bundle schema: ${String(bundle.schema)}`); return result; }
@@ -271,6 +272,10 @@ export async function verifyBundle(bundleDir: string, options: VerifyBundleOptio
   }
   const listed = new Set<string>(["bundle.json", "SHA256SUMS"]);
   for (const [index, raw] of bundle.reports.entries()) {
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+      problems.push(`bundle.json reports[${index}] is not an object`);
+      continue;
+    }
     const entry = raw as Record<string, unknown>;
     const path = typeof entry.path === "string" ? entry.path : `reports[${index}]`;
     const reportProblems: string[] = [];
@@ -284,13 +289,14 @@ export async function verifyBundle(bundleDir: string, options: VerifyBundleOptio
     let bytes: Buffer;
     try { bytes = await regularFile(join(root, entry.path), "listed report"); } catch (error) { reportProblems.push(error instanceof Error ? error.message : String(error)); continue; }
     if (sha256Bytes(bytes) !== entry.sha256) reportProblems.push(`file checksum differs from bundle.json (${sha256Bytes(bytes)})`);
-    const digests = entry.digests as Record<string, unknown> | undefined;
+    const digests = entry.digests !== null && typeof entry.digests === "object" && !Array.isArray(entry.digests)
+      ? entry.digests as Record<string, unknown> : undefined;
     const expected: { outcome?: string; environment?: string } = {};
     if (digests !== undefined && typeof digests.outcome === "string") expected.outcome = digests.outcome;
     if (digests !== undefined && typeof digests.environment === "string") expected.environment = digests.environment;
     if (expected.outcome === undefined || expected.environment === undefined) reportProblems.push("bundle entry lacks outcome/environment digests");
     let parsed: unknown;
-    try { parsed = JSON.parse(bytes.toString("utf8")); } catch { reportProblems.push("report is not valid JSON"); continue; }
+    try { parsed = parseJsonStrict(bytes.toString("utf8")); } catch (error) { reportProblems.push(`report is not valid JSON: ${error instanceof Error ? error.message : String(error)}`); continue; }
     const inspection = inspectReport(parsed, { command: "check-digest", expected, path: join(root, entry.path), sha256: sha256Bytes(bytes) });
     reportProblems.push(...inspection.problems);
     if (inspection.verdict !== entry.verdict) reportProblems.push(`recorded verdict ${inspection.verdict ?? "unknown"} differs from bundle entry ${String(entry.verdict)}`);
@@ -305,14 +311,25 @@ export async function verifyBundle(bundleDir: string, options: VerifyBundleOptio
   for (const file of files) {
     if (!listed.has(file)) problems.push(`file is not listed in bundle.json: ${file}`);
   }
-  for (const line of (await readFile(join(root, "SHA256SUMS"), "utf8").catch(() => "")).split("\n")) {
+  // SHA256SUMS must exist and cover every other file exactly once, so bundle.json is checksummed too.
+  let sumsText: string | undefined;
+  try { sumsText = (await regularFile(join(root, "SHA256SUMS"), "checksum list")).toString("utf8"); } catch (error) {
+    problems.push(error instanceof Error ? error.message : String(error));
+  }
+  const summed = new Set<string>();
+  for (const line of (sumsText ?? "").split("\n")) {
     if (line === "") continue;
     const match = /^([0-9a-f]{64})  (.+)$/.exec(line);
     if (match === null) { problems.push(`malformed SHA256SUMS line: ${line}`); continue; }
     const [, sum, file] = match;
-    if (!files.includes(file!)) { problems.push(`SHA256SUMS names an absent file: ${file}`); continue; }
+    if (summed.has(file!)) { problems.push(`SHA256SUMS lists a file twice: ${file}`); continue; }
+    summed.add(file!);
+    if (!files.includes(file!) || file === "SHA256SUMS") { problems.push(`SHA256SUMS names an absent file: ${file}`); continue; }
     const actual = createHash("sha256").update(await readFile(join(root, file!))).digest("hex");
     if (actual !== sum) problems.push(`SHA256SUMS mismatch for ${file}`);
+  }
+  if (sumsText !== undefined) {
+    for (const file of files) if (file !== "SHA256SUMS" && !summed.has(file)) problems.push(`SHA256SUMS does not cover ${file}`);
   }
   result.ok = problems.length === 0 && result.reports.every((report) => report.ok);
   return result;
