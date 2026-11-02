@@ -2,7 +2,7 @@
 
 Three AI agent reviewers read the frozen candidate `d99117b` independently. Each was given the code and a scope but none of the authors' conclusions. The scopes were offline verification soundness, runner execution safety, and documentation against behavior. **This is not the independent review that #20 requires**: that needs a reviewer outside the project, and it is still outstanding. It is recorded because it found real defects and changed the candidate.
 
-Every finding below was reproduced or traced by its reviewer and then checked again before being fixed. Fixes carry regression tests. Because they change code, the candidate is re-frozen and re-gated; the new candidate's record supersedes `2026-11-02-candidate-d99117b.md`.
+Every finding below was reproduced or traced by its reviewer and then checked again before being fixed. Fixes carry regression tests. Because they change code, the candidate was re-frozen at `e311ad3` (#42) and re-gated. Every gate passed again ([record](2026-11-02-candidate-e311ad3.md)); that record supersedes `2026-11-02-candidate-d99117b.md`.
 
 ## Offline verification
 
