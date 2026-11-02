@@ -1,16 +1,16 @@
 # Release notes draft: `ckb-verify` v0.1.0 candidate
 
-> **Draft.** No tag, release, or package exists. Fields marked `TBD` are filled from the frozen candidate when [release checklist](release-checklist.md) steps 1–7 pass; the whole document is published only under step 8 with explicit authorization on #20.
+> **Draft.** No tag, release, or package exists. The candidate fields below are filled from the frozen candidate, on which [release checklist](release-checklist.md) steps 1–6 passed; the document is published only under step 8 with explicit authorization on #20. The `elliptic` waiver expires 2026-11-25, so publication from this candidate must happen by 2026-11-24.
 
 ## Candidate
 
 | Field | Value |
 | --- | --- |
-| Candidate commit | `TBD` (immutable `main` SHA) |
-| Hosted CI run | `TBD` (run id; all jobs green including `verify-evidence`) |
-| Package tarball | `ckb-verify-0.1.0.tgz`, sha256 `TBD` |
-| Release evidence | `release-evidence-<sha>.tar.gz`, sha256 `TBD`, from artifact id `TBD` |
-| Acceptance records | `docs/acceptance/<date>-source-matrix.md`, `<date>-consumer-matrix.md`, `<date>-release-rehearsal.md` on the candidate |
+| Candidate commit | `d99117b4fba025bd08b4d7210dfd33e74b332c5c` (frozen 2026-11-02, #40) |
+| Hosted CI run | Verify run 41424824265, every job green including `verify-evidence`; Platform boundary run 41413914895 on the tree-identical #40 head |
+| Package tarball | `ckb-verify-0.1.0.tgz`, sha256 `7fc8d6838bcd1b913edb8412a5b0e8e37a995049372e43b8fd2e85a9636f0886` (reproducible from the candidate tree) |
+| Release evidence | CI artifact 13131607029: `release-evidence-d99117b4fba025bd08b4d7210dfd33e74b332c5c.tar.gz`, sha256 `564960adaba387609e0e65095e5e5b59feaa957b2669240aeaa3b441247c3e4b`; the archive attached at step 8 is re-assembled from it with the records below, and its checksum is recorded then |
+| Acceptance records | [`2026-11-02-candidate-d99117b.md`](acceptance/2026-11-02-candidate-d99117b.md) (steps 1–6), with the source matrix, the release rehearsal including the consumer matrix, and the release surface beside it |
 
 ## What this release is
 
