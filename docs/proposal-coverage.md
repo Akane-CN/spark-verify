@@ -48,8 +48,8 @@ Status words: **done** (shipped on `main` with executable evidence), **partial**
 | --- | --- | --- |
 | v0.1 reference, security, migration, and integration documentation | done | `README.md`, `SECURITY.md`, `docs/install.md`, `docs/maintenance.md`, `docs/version-policy.md`, `docs/offline-verification.md` |
 | Short demo | done | workflow video shared on the Spark thread on 2026-10-15 |
-| Exact-revision release verification log | partial | the first candidate `d99117b` passed release checklist steps 1–6 ([record](acceptance/2026-11-02-candidate-d99117b.md)) and was superseded by the [review](acceptance/2026-11-02-candidate-review.md) fixes; the log is re-produced on the re-frozen candidate |
-| Spark completion report and budget report | drafted; finalized at publication | [completion and budget report draft](completion-report.md) on the candidate `d99117b`; the grant status, funds, and costs are the maintainer's to fill; finalized with the tagged release under #20 |
+| Exact-revision release verification log | done for the candidate | [`2026-11-02-candidate-e311ad3.md`](acceptance/2026-11-02-candidate-e311ad3.md): release checklist steps 1–6 on the re-frozen `e311ad3`, every gate PASS, with the CI evidence downloaded and verified (the first candidate `d99117b` was superseded by the [review](acceptance/2026-11-02-candidate-review.md) fixes); step 8 adds the install-back of the published assets |
+| Spark completion report and budget report | drafted; finalized at publication | [completion and budget report draft](completion-report.md) on the candidate `e311ad3`; the grant status, funds, and costs are the maintainer's to fill; finalized with the tagged release under #20 |
 
 ## Beyond the proposal
 

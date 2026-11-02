@@ -1,16 +1,16 @@
 # Release notes draft: `ckb-verify` v0.1.0 candidate
 
-> **Draft.** No tag, release, or package exists. The candidate fields below are filled when the candidate re-frozen after the review passes [release checklist](release-checklist.md) steps 1–6; the document is published only under step 8 with explicit authorization on #20. The `elliptic` waiver expires 2026-11-25, so publication from this candidate must happen by 2026-11-24.
+> **Draft.** No tag, release, or package exists. The candidate fields below are filled from the re-frozen candidate, on which [release checklist](release-checklist.md) steps 1–6 passed; the document is published only under step 8 with explicit authorization on #20. The `elliptic` waiver expires 2026-11-25, so publication from this candidate must happen by 2026-11-24.
 
 ## Candidate
 
 | Field | Value |
 | --- | --- |
-| Candidate commit | `TBD`: re-frozen after the [2026-11-02 review](acceptance/2026-11-02-candidate-review.md); the earlier candidate `d99117b` is superseded |
-| Hosted CI run | `TBD` (the re-frozen candidate's push run and platform boundary run) |
-| Package tarball | `ckb-verify-0.1.0.tgz`, sha256 `TBD` |
-| Release evidence | `release-evidence-<sha>.tar.gz`, sha256 `TBD`, from artifact id `TBD` |
-| Acceptance records | `TBD` for the re-frozen candidate; the superseded candidate's are [`2026-11-02-candidate-d99117b.md`](acceptance/2026-11-02-candidate-d99117b.md) and the [review](acceptance/2026-11-02-candidate-review.md) |
+| Candidate commit | `e311ad3db8cc58f751928f01c881646da45f5a72` (re-frozen 2026-11-02, #42; supersedes `d99117b` after the [pre-release review](acceptance/2026-11-02-candidate-review.md)) |
+| Hosted CI run | Verify run 41507235776, every job green including `verify-evidence`; Platform boundary run 41507336019 on the same commit |
+| Package tarball | `ckb-verify-0.1.0.tgz`, sha256 `61fca14b5b00762021b13bd67049aed01da41e9b45053cdb08a554e2ee8eda0b` (reproducible from the candidate tree) |
+| Release evidence | CI artifact 13172620526: `release-evidence-e311ad3db8cc58f751928f01c881646da45f5a72.tar.gz`, sha256 `a11307e0e3aed8675c66cf3f5847244f2532b5666ead7f865e9462d7fb8ab40f`; the archive attached at step 8 is re-assembled from it with the records below, and its checksum is recorded then |
+| Acceptance records | [`2026-11-02-candidate-e311ad3.md`](acceptance/2026-11-02-candidate-e311ad3.md) (steps 1–6), with the source matrix, the release rehearsal including the consumer matrix, and the release surface beside it |
 
 ## What this release is
 
