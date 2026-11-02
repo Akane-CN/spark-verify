@@ -103,6 +103,10 @@ the private `version` field of `package.json`, not published packages. Dates are
 
 ### Fixed
 
+- Release-evidence extraction failed on Windows: node-tar opens small files there with `UV_FS_O_FILEMAP`,
+  which Bun rejects with `EINVAL`. The archive is now listed into memory, every entry is validated, and only
+  then are files written with exclusive create, so a refused archive (link, device, dot-dot path, entry
+  outside the root, or a new duplicate-entry check) leaves nothing behind (#20).
 - `check-bundle` and bundle verification failed every valid bundle on Windows: the directory walk produced
   `\`-separated paths that never matched the `/`-separated names in `bundle.json` and `SHA256SUMS`. Paths
   are now normalized from the platform separator only; found by the first Windows boundary run (#20).

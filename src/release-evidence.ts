@@ -175,30 +175,54 @@ export async function assembleReleaseEvidence(options: AssembleReleaseEvidenceOp
   }
 }
 
-/** Extracts an archive into `destination`, refusing links, devices, absolute or dot-dot paths, and entries outside the root directory. */
+/** Upper bound on the bytes an archive may expand to; release evidence is a few megabytes at most. */
+export const MAX_RELEASE_EVIDENCE_BYTES = 256 * 1024 * 1024;
+
+/**
+ * Extracts an archive into `destination`, refusing links, devices, absolute or dot-dot paths, duplicate
+ * entries, and entries outside the root directory. The archive is listed into memory and every entry is
+ * validated before anything is written, so a refused archive leaves nothing behind; files are then
+ * written with exclusive create. tar never writes to disk itself: on Windows it opens small files with
+ * UV_FS_O_FILEMAP, which Bun rejects with EINVAL.
+ */
 export async function extractReleaseEvidence(archivePath: string, destination: string): Promise<string> {
   await regularFileBytes(archivePath, "archive");
-  let unsafe: unknown;
-  await tar.x({
-    cwd: destination,
+  const entries: Array<{ path: string; type: string; chunks: Buffer[] }> = [];
+  let expanded = 0;
+  await tar.t({
     file: archivePath,
     strict: true,
-    preservePaths: false,
-    filter: (entryPath, entry) => {
-      try {
-        assertSafeArchiveEntry(entryPath, tarEntryKind(String((entry as { type?: unknown }).type)));
-        const normalized = entryPath.replaceAll("\\", "/").replace(/\/+$/, "");
-        if (normalized !== RELEASE_EVIDENCE_ROOT && !normalized.startsWith(`${RELEASE_EVIDENCE_ROOT}/`)) {
-          throw new Error(`entry outside ${RELEASE_EVIDENCE_ROOT}/: ${entryPath}`);
-        }
-        return unsafe === undefined;
-      } catch (error) {
-        unsafe ??= error;
-        return false;
-      }
+    onReadEntry: (entry) => {
+      const record = { path: entry.path, type: String(entry.type), chunks: [] as Buffer[] };
+      entries.push(record);
+      entry.on("data", (chunk: Buffer) => {
+        expanded += chunk.length;
+        if (expanded <= MAX_RELEASE_EVIDENCE_BYTES) record.chunks.push(chunk);
+      });
     },
   });
-  if (unsafe !== undefined) throw new ReleaseEvidenceError(unsafe instanceof Error ? unsafe.message : String(unsafe));
+  if (expanded > MAX_RELEASE_EVIDENCE_BYTES) throw new ReleaseEvidenceError(`archive expands beyond ${MAX_RELEASE_EVIDENCE_BYTES} bytes`);
+  const seen = new Set<string>();
+  const planned: Array<{ segments: string[]; directory: boolean; bytes: Buffer }> = [];
+  for (const entry of entries) {
+    const kind = tarEntryKind(entry.type);
+    try { assertSafeArchiveEntry(entry.path, kind); } catch (error) {
+      throw new ReleaseEvidenceError(error instanceof Error ? error.message : String(error));
+    }
+    const normalized = entry.path.replaceAll("\\", "/").replace(/\/+$/, "");
+    if (normalized !== RELEASE_EVIDENCE_ROOT && !normalized.startsWith(`${RELEASE_EVIDENCE_ROOT}/`)) {
+      throw new ReleaseEvidenceError(`entry outside ${RELEASE_EVIDENCE_ROOT}/: ${entry.path}`);
+    }
+    if (seen.has(normalized)) throw new ReleaseEvidenceError(`duplicate archive entry: ${entry.path}`);
+    seen.add(normalized);
+    planned.push({ segments: normalized.split("/"), directory: kind === "directory", bytes: Buffer.concat(entry.chunks) });
+  }
+  for (const entry of planned) {
+    const target = join(destination, ...entry.segments);
+    if (entry.directory) { await mkdir(target, { recursive: true }); continue; }
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, entry.bytes, { flag: "wx" });
+  }
   return join(destination, RELEASE_EVIDENCE_ROOT);
 }
 
