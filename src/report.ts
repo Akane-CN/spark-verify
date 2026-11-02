@@ -2,7 +2,7 @@ import { canonicalSha256 } from "./canonical";
 import { bindManifestV2, deriveOutcomeV2, equalSemantic, verdictForOutcomeV2, verifyStoredClaimsV2 } from "./cell-claims";
 import { bindManifestV3, deriveOutcomeV3, verdictForOutcomeV3, verifyStoredClaimsV3, type PublicAccount } from "./claims-v3";
 import type { ResolvedSystemScripts } from "./offckb";
-import { assertProvenanceConsistency, type ProvenanceEvidence, type LegacyProvenanceEvidence } from "./provenance";
+import { assertProvenanceConsistency, type ProvenanceEvidence, type ProvenanceEvidenceV3, type LegacyProvenanceEvidence } from "./provenance";
 import type { ManifestToolchain, TransactionExpectation } from "./types";
 
 export interface ClaimEvidence {
@@ -96,8 +96,9 @@ export interface EnvironmentEvidence extends Omit<LegacyEnvironmentEvidence, "sc
 }
 
 /** draft.5 reports: the exported devnet accounts join the environment so account references re-derive offline. */
-export interface EnvironmentEvidenceV4 extends Omit<EnvironmentEvidence, "schema" | "devnet"> {
+export interface EnvironmentEvidenceV4 extends Omit<EnvironmentEvidence, "schema" | "devnet" | "provenance"> {
   schema: "ckb-verify-environment/4";
+  provenance: ProvenanceEvidenceV3;
   devnet: EnvironmentEvidence["devnet"] & { accounts: PublicAccount[] };
 }
 
@@ -184,7 +185,8 @@ function verifyEnvironmentContract(value: unknown, evidence: { steps: Array<Pick
   if (!Object.hasOwn(environment, "schema") || !Object.hasOwn(provenance, "schema")) {
     throw new Error("explicit environment/provenance schemas required");
   }
-  const current = environment.schema === currentEnvironment && provenance.schema === "ckb-verify-provenance/2";
+  const currentProvenance = currentEnvironment === "ckb-verify-environment/4" ? "ckb-verify-provenance/3" : "ckb-verify-provenance/2";
+  const current = environment.schema === currentEnvironment && provenance.schema === currentProvenance;
   const historical = environment.schema === "ckb-verify-environment/2" && provenance.schema === "ckb-verify-provenance/1";
   if (!current && !(allowLegacy && historical)) throw new Error("unsupported environment/provenance pair (legacy requires allowLegacy)");
   assertProvenanceConsistency(provenance, { allowLegacy: historical && allowLegacy });
@@ -266,13 +268,13 @@ export function verifyReport(report: unknown, options: { allowLegacy?: boolean }
       retained(environment, ["schema"], "environment");
       retained(provenance, ["schema"], "provenance");
       const tuple = v3
-        ? { outcome: "ckb-verify-outcome/3", spec: "0.1.0-draft.5", environment: "ckb-verify-environment/4" }
-        : { outcome: "ckb-verify-outcome/2", spec: "0.1.0-draft.4", environment: "ckb-verify-environment/3" };
+        ? { outcome: "ckb-verify-outcome/3", spec: "0.1.0-draft.5", environment: "ckb-verify-environment/4", provenance: "ckb-verify-provenance/3" }
+        : { outcome: "ckb-verify-outcome/2", spec: "0.1.0-draft.4", environment: "ckb-verify-environment/3", provenance: "ckb-verify-provenance/2" };
       if (!Object.hasOwn(outcome, "schema") || outcome.schema !== tuple.outcome ||
           !Object.hasOwn(evidence, "spec") || evidence.spec !== tuple.spec ||
           !Object.hasOwn(outcome, "spec") || outcome.spec !== tuple.spec ||
           !Object.hasOwn(environment, "schema") || environment.schema !== tuple.environment ||
-          !Object.hasOwn(provenance, "schema") || provenance.schema !== "ckb-verify-provenance/2") {
+          !Object.hasOwn(provenance, "schema") || provenance.schema !== tuple.provenance) {
         throw new EvidenceIntegrityError(`unsupported report/${v3 ? 3 : 2} version tuple`);
       }
       if (v3) {

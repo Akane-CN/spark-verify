@@ -38,6 +38,9 @@ import {
   type CellInputV3, type ClaimInputV3, type IndexerInput, type IndexerPage, type IndexerSearchKey, type OutcomeV3, type RunEvidenceV3, type RunInputV3,
 } from "./claims-v3";
 import { INDEXER_PAGE_LIMIT, MAX_SELECTED_CELLS } from "./limits";
+import { resolvePinnedCkbAsset } from "./ckb-binary";
+/** The only CKB release with pinned archives; drift-allowed runs fall back to it. */
+export const PINNED_CKB_VERSION = "0.209.0";
 import { claimDefinition, deriveOutcomeV2, populateEvidenceV2, validateLiveCellResponse, validateTransaction,
   verdictForOutcomeV2, type CellInput, type ClaimInputV2, type RunInputV2, type RunEvidenceV2, type OutcomeV2 } from "./cell-claims";
 import { VERSION } from "./version";
@@ -89,6 +92,8 @@ export interface RunManifestOptions {
   runStep?: StepCommandRunner;
   rpc?: RunnerRpcCaller;
   signal?: AbortSignal;
+  /** draft.5 only: run on the pinned CKB when the manifest requests another exact version; recorded and tainting. */
+  allowVersionDrift?: boolean;
 }
 
 export interface RunManifestResult {
@@ -213,16 +218,20 @@ async function environmentEvidence(
   manifestBytes: Uint8Array,
   context: OffckbRunContext,
   sourceRevision: SourceRevision,
-  preparedDebugger?: PreparedDebugger,
+  preparedDebugger: PreparedDebugger | undefined,
+  driftAllowed: boolean,
 ): Promise<EnvironmentEvidence | EnvironmentEvidenceV4> {
-  const provenance = await collectProvenance({
+  const common = {
     projectRoot,
     manifestBytes,
     replayDependencies: manifest.replay.dependencies,
     sourceRevision,
     ckbBinary: context.ckbBinary,
     ckbDebuggerBinary: preparedDebugger?.binary ?? null,
-  });
+  };
+  const provenance = isManifestV5(manifest)
+    ? await collectProvenance({ ...common, toolchain: { ckb: { requested: manifest.toolchain.ckb, observed: context.ckbBinary.version, driftAllowed } } })
+    : await collectProvenance(common);
   const base = {
     runner: { name: "ckb-verify" as const, version: VERSION },
     toolchain: {
@@ -233,7 +242,6 @@ async function environmentEvidence(
         ...(preparedDebugger === undefined ? {} : { ckbDebugger: preparedDebugger.version }),
       },
     },
-    provenance,
     platform: { os: process.platform, arch: process.arch },
     devnet: {
       network: context.network,
@@ -241,10 +249,11 @@ async function environmentEvidence(
       systemScripts: context.systemScripts,
     },
   };
-  if (isManifestV5(manifest)) {
-    return { schema: "ckb-verify-environment/4", ...base, devnet: { ...base.devnet, accounts: context.accounts.slice(0, manifest.setup.accounts).map((a) => ({ index: a.index, address: a.address, lock: { ...a.lock } })) } };
+  if (isManifestV5(manifest) && provenance.schema === "ckb-verify-provenance/3") {
+    return { schema: "ckb-verify-environment/4", ...base, provenance, devnet: { ...base.devnet, accounts: context.accounts.slice(0, manifest.setup.accounts).map((a) => ({ index: a.index, address: a.address, lock: { ...a.lock } })) } };
   }
-  return { schema: "ckb-verify-environment/3", ...base };
+  if (provenance.schema !== "ckb-verify-provenance/2") throw new Error("provenance/2 required for draft.3 and draft.4 reports");
+  return { schema: "ckb-verify-environment/3", ...base, provenance };
 }
 
 /** Pages an indexer `get_cells` query with the fixed page size; refuses more than MAX_SELECTED_CELLS. */
@@ -474,6 +483,18 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     resolvePinnedDebuggerAsset(manifest.toolchain.ckbDebugger, process.platform, process.arch);
   }
   const sourceRevision = await collectSourceRevision(projectRoot);
+  // Tool-version drift: only draft.5 manifests may run on the pinned CKB when they request another exact
+  // version, and only when explicitly allowed; the drift is recorded in provenance/3 and taints replay.
+  let ckbVersion = manifest.toolchain.ckb;
+  let driftAllowed = false;
+  if (options.allowVersionDrift === true) {
+    if (!isManifestV5(manifest)) throw new Error("--allow-version-drift requires a 0.1.0-draft.5 manifest");
+    driftAllowed = true;
+    try { resolvePinnedCkbAsset(ckbVersion, process.platform, process.arch); }
+    catch { ckbVersion = PINNED_CKB_VERSION; }
+  } else {
+    resolvePinnedCkbAsset(ckbVersion, process.platform, process.arch); // fail before any runtime mutation
+  }
   const outputDir = resolve(options.outputDir ?? outputDirectory(projectRoot, manifest));
   const reportPath = join(outputDir, "report.json");
   const pendingReportPath = join(outputDir, ".report.json.pending");
@@ -485,7 +506,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     options.devnet ??
     new OffckbDevnet({
       repositoryRoot: projectRoot,
-      ckbVersion: manifest.toolchain.ckb,
+      ckbVersion,
       accountCount: manifest.setup.accounts,
     });
 
@@ -519,7 +540,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     const v5Manifest = isManifestV5(manifest) ? manifest : undefined;
     const v5Steps: RunInputV3["steps"] = [];
     // draft.5 claims resolve account and builtin references against the environment the report will carry.
-    const v5Environment = v5Manifest === undefined ? undefined : (await environmentEvidence(projectRoot, manifest, manifestBytes, context, sourceRevision, preparedDebugger)) as EnvironmentEvidenceV4;
+    const v5Environment = v5Manifest === undefined ? undefined : (await environmentEvidence(projectRoot, manifest, manifestBytes, context, sourceRevision, preparedDebugger, driftAllowed)) as EnvironmentEvidenceV4;
 
     for (const [index, step] of manifest.steps.entries()) {
       throwIfAborted(options.signal);
@@ -686,6 +707,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       context,
       finalSourceRevision,
       preparedDebugger,
+      driftAllowed,
     );
     let report: CkbVerifyReport;
     if (v5Manifest !== undefined) {

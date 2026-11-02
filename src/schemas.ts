@@ -8,6 +8,7 @@ export const REPORT_SCHEMA_ID = "https://github.com/Akane-CN/spark-verify/schema
 export const CLAIMS_V3_SCHEMA_ID = "https://spark-verify.invalid/schemas/ckb-verify-claims-v3.schema.json";
 export const CLAIMS_SCHEMA_ID = "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json";
 export const PROVENANCE_V1_SCHEMA_ID = "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-provenance-v1.schema.json";
+export const PROVENANCE_V3_SCHEMA_ID = "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-provenance-v3.schema.json";
 export const PROVENANCE_V2_SCHEMA_ID = "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-provenance-v2.schema.json";
 
 /** Every published schema file, keyed by `$id`; the files ship inside the package under `schemas/`. */
@@ -16,6 +17,7 @@ export const SCHEMA_FILES: Readonly<Record<string, string>> = {
   [CLAIMS_V3_SCHEMA_ID]: "ckb-verify-claims-v3.schema.json",
   [PROVENANCE_V1_SCHEMA_ID]: "ckb-verify-provenance-v1.schema.json",
   [PROVENANCE_V2_SCHEMA_ID]: "ckb-verify-provenance-v2.schema.json",
+  [PROVENANCE_V3_SCHEMA_ID]: "ckb-verify-provenance-v3.schema.json",
   [MANIFEST_SCHEMA_ID]: "ckb-verify-manifest-v1.schema.json",
   [REPORT_SCHEMA_ID]: "ckb-verify-report.schema.json",
 };

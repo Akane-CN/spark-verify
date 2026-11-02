@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
+import tempfile
 import tomllib
 import urllib.error
 import urllib.parse
@@ -304,12 +306,33 @@ def validate_expect(v: Validation, file: Path, line: int, expect: Any) -> None:
             v.error(file, line, "expect.error requires expect.tx = rejected")
 
 
-def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str, Any]) -> None:
+def validate_draft5_with_runner(v: Validation, file: Path, line: int, text: str) -> None:
+    """draft.5 examples must be complete manifests the strict runtime parser accepts; no Python re-implementation."""
+    with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False, encoding="utf-8") as handle:
+        handle.write(text)
+        path = handle.name
+    try:
+        result = subprocess.run(["bun", "run", str(ROOT / "src/cli.ts"), "validate", path], capture_output=True, text=True, cwd=ROOT, check=False)
+    finally:
+        Path(path).unlink(missing_ok=True)
+    if result.returncode != 0:
+        detail = (result.stdout + result.stderr).strip().splitlines()
+        problem = next((entry for entry in detail if entry.startswith("problem:")), detail[-1] if detail else "parser rejected the manifest")
+        v.error(file, line, f"draft.5 example rejected by the strict parser: {problem}")
+
+
+def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str, Any], text: str | None = None) -> None:
     full_manifest = all(key in obj for key in ("meta", "toolchain", "setup"))
     meta = obj.get("meta")
+    if isinstance(meta, dict) and meta.get("spec") == "0.1.0-draft.5":
+        if text is None or not full_manifest:
+            v.error(file, line, "draft.5 examples must be complete manifests")
+        else:
+            validate_draft5_with_runner(v, file, line, text)
+        return
     draft4 = isinstance(meta, dict) and meta.get("spec") == "0.1.0-draft.4"
     if isinstance(meta, dict) and meta.get("spec") not in ("0.1.0-draft.3", "0.1.0-draft.4"):
-        v.error(file, line, "manifest examples must select spec 0.1.0-draft.3 or 0.1.0-draft.4")
+        v.error(file, line, "manifest examples must select spec 0.1.0-draft.3, 0.1.0-draft.4, or 0.1.0-draft.5")
 
     toolchain = obj.get("toolchain")
     if isinstance(toolchain, dict):
@@ -525,7 +548,7 @@ def validate_markdown(v: Validation, file: Path, external_links: set[str]) -> No
             if lang == "toml":
                 obj = tomllib.loads(body)
                 v.toml_count += 1
-                validate_toml_semantics(v, file, line, obj)
+                validate_toml_semantics(v, file, line, obj, body)
             else:
                 obj = json.loads(body)
                 v.json_count += 1

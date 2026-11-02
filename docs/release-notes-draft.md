@@ -24,20 +24,20 @@ Not supported: macOS, Windows, other architectures, Node-only execution, other B
 
 ## Formats
 
-- Manifest specs `0.1.0-draft.3` and `0.1.0-draft.4` (`schemas/ckb-verify-manifest-v1.schema.json`).
-- Reports `ckb-verify-report/1` and `/2` with `environment/3` + `provenance/2` written; `/1` with `environment/2` + `provenance/1` read with `--allow-legacy` (`schemas/ckb-verify-report.schema.json`).
+- Manifest specs `0.1.0-draft.3`, `0.1.0-draft.4`, and `0.1.0-draft.5` (`schemas/ckb-verify-manifest-v1.schema.json`); draft.5 carries the [assertion vocabulary](vocabulary-draft.5.md).
+- Reports `ckb-verify-report/1` and `/2` with `environment/3` + `provenance/2`, and `/3` with `environment/4` + `provenance/3`, written; `/1` with `environment/2` + `provenance/1` read with `--allow-legacy` (`schemas/ckb-verify-report.schema.json`).
 - Evidence bundles `ckb-verify-evidence-bundle/1`, release evidence `ckb-verify-release-evidence/1`.
 
-The rules are in [version policy](version-policy.md); unsupported tuples are rejected explicitly, never migrated silently. Manifest spec identifiers at release stay `0.1.0-draft.3` and `0.1.0-draft.4`; no `0.1.0` spec string is introduced ([release decision 6](release-decisions.md#6-spec-naming-at-release-draft-identifiers-stay)).
+The rules are in [version policy](version-policy.md); unsupported tuples are rejected explicitly, never migrated silently. Manifest spec identifiers at release stay `0.1.0-draft.3`, `0.1.0-draft.4`, and `0.1.0-draft.5`; no `0.1.0` spec string is introduced ([release decision 6](release-decisions.md#6-spec-naming-at-release-draft-identifiers-stay)).
 
 ## Known limitations
 
-- The RFC v0.2 vocabulary is only partly implemented; the [implementation matrix](rfc-implementation-matrix.md) marks every item supported, partial, or deferred; the six release decisions are recorded in [release decisions](release-decisions.md): the implemented draft.3/draft.4 subset ships, and `balance`, script-filter selectors and comparators, `expect.cycles`, `[setup.scripts]` deployment, pure steps, `accounts = 0`, and `expect.error.group` are v0.3 proposals.
+- The RFC v0.2 vocabulary is only partly implemented; the [implementation matrix](rfc-implementation-matrix.md) marks every item supported, partial, or deferred; the six release decisions are recorded in [release decisions](release-decisions.md): decision 1 was reopened on 2026-11-02 and the promised vocabulary (`expect.cycles`, script-filtered Cells with `count`/`data`/`capacity`, CKB and UDT `balance`, script references) ships as `0.1.0-draft.5`; `[setup.scripts]` deployment, named setup-script references, pure steps, `accounts = 0`, and `expect.error.group` remain v0.3 proposals.
 - Trusted repositories only: `verify.toml` is executable code and there is no sandbox ([`SECURITY.md`](../SECURITY.md)).
 - Listener scope is loopback for RPC `8114` and proxy `28114`; the peer-to-peer port follows OffCKB's configuration. Network isolation beyond that is the host's job.
 - The source guard compares Git-visible snapshots before and after a run; it does not monitor execution continuously.
 - Offline validity is internal consistency, not authenticity: there is no signature.
-- One transaction per step; no repository script deployment (`[setup.scripts]`), balance/UDT quantities, cycle comparators, pure steps, or `expect.error.group` (deferred or blocking per the matrix).
+- One transaction per step; no repository script deployment (`[setup.scripts]`), named setup-script references, pure steps, or `expect.error.group` (deferred per the matrix). Balance claims aggregate every live Cell under a lock, so their outcome digests repeat across fresh devnets only when the genesis Cells repeat.
 - A low-severity `elliptic` advisory is waived until 2026-11-25 for disposable devnet keys only ([`SECURITY.md`](../SECURITY.md)); the waiver must be unexpired on the release date.
 
 ## What was not run

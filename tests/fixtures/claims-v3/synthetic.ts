@@ -60,7 +60,7 @@ export function environment4(text: string): EnvironmentEvidenceV4 {
     toolchain: { requested: { ckb: "0.209.0", offckb: "0.4.13" }, observed: { ckb: "0.209.0", offckb: "0.4.13" } },
     platform: { os: "linux", arch: "x64" },
     devnet: { network: "devnet", genesisHash: hex32("51"), systemScripts: structuredClone(bindings3), accounts: structuredClone(accounts3) },
-    provenance: { schema: "ckb-verify-provenance/2", manifest: { sha256: sha256Bytes(Buffer.from(text)) },
+    provenance: { schema: "ckb-verify-provenance/3", toolchain: { ckb: { requested: "0.209.0", observed: "0.209.0", driftAllowed: false } }, manifest: { sha256: sha256Bytes(Buffer.from(text)) },
       source: { gitCommit: "a".repeat(40), dirty: false, dirtyDigest: null }, lockfile: { path: "bun.lock", sha256: sha },
       replay: { declaredDependencies: [], status: "stable", reasons: [] },
       runtime: { name: "bun", requestedVersion: "1.2.19", observedVersion: "1.2.19", metadata: { path: "package.json", sha256: sha } },

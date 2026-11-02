@@ -11,7 +11,7 @@ import { VERSION } from "./version";
 const HELP = `ckb-verify ${VERSION}
 
 Usage:
-  ckb-verify run [manifest]
+  ckb-verify run [manifest] [--allow-version-drift]
   ckb-verify validate [manifest] [--json]
   ckb-verify digest <report.json> [--json] [--allow-legacy]
   ckb-verify check-digest <report.json> [--outcome sha256:...] [--environment sha256:...] [--json] [--allow-legacy]
@@ -21,6 +21,8 @@ Usage:
 
 Commands:
   run [manifest]         Execute declared CKB acceptance claims (default: verify.toml)
+                         --allow-version-drift: draft.5 only; run on the pinned CKB when another exact
+                         version is requested, recorded in provenance/3 and tainting replay
   validate [manifest]    Parse a manifest with the strict grammar; runs nothing (default: verify.toml)
   digest <report>        Re-derive a report's outcome and environment digests offline
   check-digest <report>  Verify a report offline and compare it with expected digests
@@ -34,7 +36,7 @@ artifact is internally consistent, not that its declared claims passed.
 `;
 
 export interface CliDependencies {
-  runManifest: (options: { manifestPath: string; projectRoot: string; signal: AbortSignal }) => Promise<RunManifestResult>;
+  runManifest: (options: { manifestPath: string; projectRoot: string; signal: AbortSignal; allowVersionDrift?: boolean }) => Promise<RunManifestResult>;
   subscribeSignals?: (handler: (signal: "SIGINT" | "SIGTERM") => void) => () => void;
   stdout: (text: string) => void;
   stderr: (text: string) => void;
@@ -254,7 +256,9 @@ export async function main(
     return offlineCommand(args, dependencies);
   }
 
-  if (args[0] === "run" && args.length <= 2) {
+  if (args[0] === "run") {
+    const parsed = parseArgs(args.slice(1), ["allow-version-drift"], []);
+    if (parsed.positional.length > 1) throw new UsageError("run takes at most one manifest path");
     const controller = new AbortController();
     let receivedSignal: "SIGINT" | "SIGTERM" | undefined;
     const unsubscribe = dependencies.subscribeSignals?.((signal) => {
@@ -264,9 +268,10 @@ export async function main(
     });
     try {
       const result = await dependencies.runManifest({
-        manifestPath: args[1] ?? "verify.toml",
+        manifestPath: parsed.positional[0] ?? "verify.toml",
         projectRoot: process.cwd(),
         signal: controller.signal,
+        ...(parsed.flags.has("allow-version-drift") ? { allowVersionDrift: true } : {}),
       });
       if (receivedSignal !== undefined) return receivedSignal === "SIGINT" ? 130 : 143;
       dependencies.stdout(

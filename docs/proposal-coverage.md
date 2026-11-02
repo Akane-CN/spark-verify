@@ -11,16 +11,16 @@ Status words: **done** (shipped on `main` with executable evidence), **partial**
 | Normative document and compatibility policy | done | RFC v0.2 with per-section status lines; [version policy](version-policy.md) |
 | Machine-readable parsed-TOML schema | done | `schemas/ckb-verify-manifest-v1.schema.json`, run by `validate` |
 | Versioned valid/invalid manifests plus report/digest fixtures | done | `tests/fixtures/conformance/manifests/` (26 invalid, paired parser and schema diagnostics), `tests/fixtures/claims-v2/`, the retained historical report |
-| "Frozen" | partial | the identifiers stay `0.1.0-draft.3` / `0.1.0-draft.4` ([decision 6](release-decisions.md#6-spec-naming-at-release-draft-identifiers-stay)); the grammar is published and strict, but not named as a frozen `0.1.0` |
+| "Frozen" | partial | the identifiers stay `0.1.0-draft.3` / `0.1.0-draft.4` / `0.1.0-draft.5` ([decision 6](release-decisions.md#6-spec-naming-at-release-draft-identifiers-stay)); the grammar is published and strict, but not named as a frozen `0.1.0` |
 
 ## Deliverable 2: installable `ckb-verify` CLI
 
 | Promise | Status | Evidence |
 | --- | --- | --- |
 | `validate`, `run`, `digest`, `check-digest` | done | plus `check-bundle`; [offline verification](offline-verification.md) |
-| Cycle comparators (`expect.cycles.*`) | not done | [decision 1](release-decisions.md#1-first-release-vocabulary-the-implemented-subset), reopened on 2026-11-02 to implement the vocabulary as spec `0.1.0-draft.5` |
-| Script-filtered Cell selection with `data`, `data.len`, `capacity` checks | not done | same |
-| Native CKB and 16-byte little-endian UDT/xUDT balance claims | not done | same |
+| Cycle comparators (`expect.cycles.*`) | done | spec `0.1.0-draft.5` ([vocabulary](vocabulary-draft.5.md)); `showcases/vocabulary/verify.cycles-too-low.toml` fails as declared on a fresh devnet |
+| Script-filtered Cell selection with `data`, `data.len`, `capacity` checks | done | draft.5 `lock`/`type` selectors through the node indexer with retained raw pages; `data.eq`/`len`/`min_bytes`, `capacity` comparators; wrong-data and wrong-capacity fixtures fail as declared |
+| Native CKB and 16-byte little-endian UDT/xUDT balance claims | done | draft.5 `balance` by account, address, or lock, with `udt` decoding the 16-byte little-endian prefix; the fixture mints an owner-mode xUDT and checks `eq "1000"`, balance-short fails as declared |
 | Field-level terminal diffs | done | `run` prints `failed:` blocks with expected and observed values for every failed expectation and claim |
 | Schema-backed JSON evidence | done | `schemas/ckb-verify-report.schema.json`, run by the offline commands |
 
@@ -33,7 +33,7 @@ Status words: **done** (shipped on `main` with executable evidence), **partial**
 | Ubuntu support statement backed by execution | done | every CI job, the acceptance matrices, the rehearsals |
 | macOS support statement backed by execution | not done | `.github/workflows/macos-boundary.yml` (manual) would prove the offline commands and the platform-independent tests on macOS and that `run` is refused before any runtime mutation, but on 2026-11-01 GitHub cancelled the job before assigning a hosted macOS runner (`runner_id` 0, cancelled within a second), so nothing has executed on macOS yet; macOS stays unsupported and unclaimed until a run completes |
 | Windows support statement | partial | stated unsupported ([supported combinations](maintenance.md#supported-combinations)); not executed |
-| `bun run build`, `bun run verify:release` entry points | done | `package.json` scripts |
+| `bun run build`, `bun run verify:release` entry points | done | `package.json` scripts; `verify:release` item 7 (`--allow-version-drift`) is implemented with draft.5 |
 
 ## Deliverable 4: external pilot and upstream-fit result
 

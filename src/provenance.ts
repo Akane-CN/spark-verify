@@ -18,6 +18,7 @@ export type ProvenanceReasonCode =
   | "source_state_unavailable"
   | "runtime_pin_missing"
   | "runtime_version_drift"
+  | "tool_version_drift"
   | "lockfile_missing";
 
 export interface ProvenanceReason {
@@ -49,6 +50,13 @@ export interface ProvenanceEvidence extends Omit<LegacyProvenanceEvidence, "sche
   schema: "ckb-verify-provenance/2";
   binaries: { ckb: Omit<InstalledCkbBinary, "path">; ckbDebugger: DebuggerBinaryEvidence | null };
 }
+/** Tool-version drift recorded as a replay input: requested vs observed CKB and whether the run allowed the difference. */
+export interface ToolchainDrift { ckb: { requested: string; observed: string; driftAllowed: boolean } }
+export interface ProvenanceEvidenceV3 extends Omit<ProvenanceEvidence, "schema"> {
+  schema: "ckb-verify-provenance/3";
+  toolchain: ToolchainDrift;
+}
+export type AnyProvenanceEvidence = ProvenanceEvidence | ProvenanceEvidenceV3 | LegacyProvenanceEvidence;
 
 export interface CollectProvenanceOptions {
   projectRoot: string;
@@ -58,6 +66,8 @@ export interface CollectProvenanceOptions {
   ckbBinary: Omit<InstalledCkbBinary, "path">;
   ckbDebuggerBinary?: DebuggerBinaryEvidence | null;
   observedRuntimeVersion?: string;
+  /** When present, provenance/3 is written and tool-version drift becomes a replay reason. */
+  toolchain?: ToolchainDrift;
 }
 
 async function readOptionalFile(path: string): Promise<Uint8Array | null> {
@@ -100,6 +110,7 @@ function replayReasons(
   source: SourceRevision,
   runtime: { requestedVersion: string | null; observedVersion: string },
   lockfileSha256: string | null,
+  toolchain?: ToolchainDrift,
 ): ProvenanceReason[] {
   const reasons: ProvenanceReason[] = dependencies.map((dependency) => ({
     scope: "outcome",
@@ -143,6 +154,10 @@ function replayReasons(
   if (lockfileSha256 === null) {
     reasons.push({ scope: "environment", code: "lockfile_missing", detail: "bun.lock is missing" });
   }
+  if (toolchain !== undefined && toolchain.ckb.requested !== toolchain.ckb.observed) {
+    reasons.push({ scope: "environment", code: "tool_version_drift",
+      detail: `requested ckb ${toolchain.ckb.requested} but observed ${toolchain.ckb.observed} (allowed by --allow-version-drift)` });
+  }
   return reasons;
 }
 
@@ -163,7 +178,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 // Narrow only the versioned provenance seam; this is not a full report parser.
-function hasProvenanceShape(value: unknown): value is ProvenanceEvidence | LegacyProvenanceEvidence {
+function hasToolchainDrift(value: unknown): value is ToolchainDrift {
+  return isRecord(value) && isRecord(value.ckb) && typeof value.ckb.requested === "string" && typeof value.ckb.observed === "string" &&
+    typeof value.ckb.driftAllowed === "boolean" && Object.keys(value).length === 1 && Object.keys(value.ckb).length === 3;
+}
+function hasProvenanceShape(value: unknown): value is AnyProvenanceEvidence {
   if (!isRecord(value) || !isRecord(value.source) || !isRecord(value.manifest) || !isRecord(value.lockfile) ||
       !isRecord(value.runtime) || !isRecord(value.runtime.metadata) || !isRecord(value.replay) ||
       !isRecord(value.binaries) || !isRecord(value.binaries.ckb)) return false;
@@ -181,12 +200,13 @@ function hasProvenanceShape(value: unknown): value is ProvenanceEvidence | Legac
       (v.scope === "environment" || v.scope === "outcome") && typeof v.code === "string" && typeof v.detail === "string") &&
     isRecord(binaries.ckb) && ["version", "platform", "architecture", "asset", "sourceUrl", "expectedArchiveSha256", "archiveSha256", "binarySha256"]
       .every(key => typeof (binaries.ckb as Record<string, unknown>)[key] === "string") &&
-    (value.schema === "ckb-verify-provenance/1" || value.schema === "ckb-verify-provenance/2");
+    (value.schema === "ckb-verify-provenance/1" || value.schema === "ckb-verify-provenance/2" ||
+      (value.schema === "ckb-verify-provenance/3" && hasToolchainDrift(value.toolchain)));
 }
 
 export function assertProvenanceConsistency(
   provenance: unknown, options: { allowLegacy?: boolean } = {},
-): asserts provenance is ProvenanceEvidence | LegacyProvenanceEvidence {
+): asserts provenance is AnyProvenanceEvidence {
   if (!hasProvenanceShape(provenance)) throw new Error("invalid provenance structure or schema");
   if (provenance.schema === "ckb-verify-provenance/1") {
     if (!options.allowLegacy) throw new Error("legacy provenance requires explicit allowLegacy");
@@ -200,11 +220,16 @@ export function assertProvenanceConsistency(
   if (provenance.runtime.requestedVersion !== null && provenance.runtime.metadata.sha256 === null) {
     throw new Error("a pinned Bun runtime must include the package.json digest");
   }
+  const toolchain = provenance.schema === "ckb-verify-provenance/3" ? provenance.toolchain : undefined;
+  if (toolchain !== undefined && toolchain.ckb.requested !== toolchain.ckb.observed && !toolchain.ckb.driftAllowed) {
+    throw new Error("tool-version drift was recorded without being allowed");
+  }
   const expectedReasons = replayReasons(
     provenance.replay.declaredDependencies,
     provenance.source,
     provenance.runtime,
     provenance.lockfile.sha256,
+    toolchain,
   );
   if (!sameReasons(provenance.replay.reasons, expectedReasons)) {
     throw new Error("provenance replay reasons do not match the recorded inputs");
@@ -215,7 +240,9 @@ export function assertProvenanceConsistency(
   }
 }
 
-export async function collectProvenance(options: CollectProvenanceOptions): Promise<ProvenanceEvidence> {
+export async function collectProvenance(options: CollectProvenanceOptions & { toolchain: ToolchainDrift }): Promise<ProvenanceEvidenceV3>;
+export async function collectProvenance(options: CollectProvenanceOptions): Promise<ProvenanceEvidence>;
+export async function collectProvenance(options: CollectProvenanceOptions): Promise<ProvenanceEvidence | ProvenanceEvidenceV3> {
   validateSourceRevision(options.sourceRevision);
   if (options.ckbBinary.expectedArchiveSha256 !== options.ckbBinary.archiveSha256) {
     throw new Error("CKB archive provenance mismatch");
@@ -233,29 +260,33 @@ export async function collectProvenance(options: CollectProvenanceOptions): Prom
     options.sourceRevision,
     { requestedVersion, observedVersion },
     lockfileSha256,
+    options.toolchain,
   );
 
-  const provenance: ProvenanceEvidence = {
-    schema: "ckb-verify-provenance/2",
+  const status: "stable" | "tainted" = reasons.length === 0 ? "stable" : "tainted";
+  const base = {
     replay: {
       declaredDependencies: [...options.replayDependencies],
-      status: reasons.length === 0 ? "stable" : "tainted",
+      status,
       reasons,
     },
     source: { ...options.sourceRevision },
     manifest: { sha256: sha256Bytes(options.manifestBytes) },
-    lockfile: { path: "bun.lock", sha256: lockfileSha256 },
+    lockfile: { path: "bun.lock" as const, sha256: lockfileSha256 },
     runtime: {
-      name: "bun",
+      name: "bun" as const,
       requestedVersion,
       observedVersion,
       metadata: {
-        path: "package.json",
+        path: "package.json" as const,
         sha256: packageJsonBytes === null ? null : sha256Bytes(packageJsonBytes),
       },
     },
     binaries: { ckb: { ...options.ckbBinary }, ckbDebugger: options.ckbDebuggerBinary ?? null },
   };
+  const provenance: ProvenanceEvidence | ProvenanceEvidenceV3 = options.toolchain === undefined
+    ? { schema: "ckb-verify-provenance/2", ...base }
+    : { schema: "ckb-verify-provenance/3", ...base, toolchain: { ckb: { ...options.toolchain.ckb } } };
   assertProvenanceConsistency(provenance);
   return provenance;
 }

@@ -1713,7 +1713,7 @@
        }
       },
       "provenance": {
-       "$ref": "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-provenance-v2.schema.json"
+       "$ref": "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-provenance-v3.schema.json"
       },
       "platform": {
        "type": "object",

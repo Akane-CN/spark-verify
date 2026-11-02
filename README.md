@@ -42,13 +42,14 @@ The acceptance harness runs the committed fixture twice on fresh devnets and req
 
 `PASS` means exactly: **All declared claims passed in the recorded environment.** It does not claim broader contract correctness or a security audit.
 
-The [`ckb-ugmp` showcase](showcases/ckb-ugmp/) adds a bounded, headless adaptation of the Spore mint seam from [`HNO3Miracle/CKB-UGMP@543def6e717b2d67f619a76c3d9283e55b211b83`](https://github.com/HNO3Miracle/CKB-UGMP/tree/543def6e717b2d67f619a76c3d9283e55b211b83). It injects the fresh OffCKB Spore deployment into the upstream project's pinned `@ckb-ccc/spore@1.5.17` construction path, uses deterministic local DOB/0-shaped data, and returns a signed transaction without submitting it. It does not run the browser UI unchanged and carries no CKB-UGMP maintainer endorsement.
+The [`vocabulary` showcase](showcases/vocabulary/) exercises the draft.5 assertion vocabulary on an owner-mode xUDT mint plus a transfer: cycles comparators, script-filtered Cells with data and capacity checks, CKB and UDT balances, and the recorded tool-version drift path. The [`ckb-ugmp` showcase](showcases/ckb-ugmp/) adds a bounded, headless adaptation of the Spore mint seam from [`HNO3Miracle/CKB-UGMP@543def6e717b2d67f619a76c3d9283e55b211b83`](https://github.com/HNO3Miracle/CKB-UGMP/tree/543def6e717b2d67f619a76c3d9283e55b211b83). It injects the fresh OffCKB Spore deployment into the upstream project's pinned `@ckb-ccc/spore@1.5.17` construction path, uses deterministic local DOB/0-shaped data, and returns a signed transaction without submitting it. It does not run the browser UI unchanged and carries no CKB-UGMP maintainer endorsement.
 
 ```bash
 bun install --frozen-lockfile
 bun run check
 bun run showcase:secp-transfer
 bun run showcase:ckb-ugmp
+bun run showcase:vocabulary
 ```
 
 The current pinned fixture environment is:
@@ -81,7 +82,7 @@ The one exercised installation path (Linux x64, Bun 1.2.19, Node 20+) is documen
 ## CLI
 
 ```text
-ckb-verify run [manifest]
+ckb-verify run [manifest] [--allow-version-drift]
 ckb-verify validate [manifest] [--json]
 ckb-verify digest <report.json> [--json] [--allow-legacy]
 ckb-verify check-digest <report.json> [--outcome sha256:...] [--environment sha256:...] [--json] [--allow-legacy]
@@ -152,7 +153,7 @@ count = 1
 
 The feasibility implementation supports only:
 
-- exact legacy spec `0.1.0-draft.3` or new `0.1.0-draft.4`;
+- exact spec `0.1.0-draft.3`, `0.1.0-draft.4`, or `0.1.0-draft.5`;
 - exact CKB and OffCKB versions accepted by the current adapter;
 - ckb-debugger `1.1.1` when requested, mandatory for every declared rejected transaction (Linux/x64 only);
 - a required replay dependency list containing zero or more unique RFC dependency codes;
@@ -162,6 +163,7 @@ The feasibility implementation supports only:
 - optional `expect.error.code` for a rejected script;
 - exact live-Cell count assertions targeting `{ step, index }`;
 - draft.4 only: count 0/1, type builtin `dao`/`spore` plus `args_bytes`, data `min_bytes`, and separate `cell_deps.contains` **table** membership. Properties require count 1. See [bounds and semantics](docs/cell-claims-draft.4.md).
+- draft.5 only: `expect.cycles` comparators; Cell selection by `out_point`, `lock`, and `type` script filters (explicit, any OffCKB built-in with optional wildcard args, or an exported account) with `count` comparators, `data.eq`/`len`/`min_bytes`, and `capacity` comparators; `balance` claims by account, full-format address, or lock, with or without a 16-byte little-endian UDT; and `run --allow-version-drift`. See the [draft.5 vocabulary](docs/vocabulary-draft.5.md) and the [vocabulary fixture](showcases/vocabulary/README.md).
 
 Unknown keys fail closed. A non-empty replay dependency list is accepted but makes the report explicitly `tainted`; it never silently claims stable replay. Script deployment declarations, balance/UDT assertions, script filters, cycle comparators, and multi-transaction steps remain RFC targets and are not silently accepted.
 

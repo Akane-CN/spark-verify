@@ -73,7 +73,18 @@ if [[ $S -eq 0 && $(field outcome "$POSITIVE") == $(field outcome "$SECOND") && 
 else row "6 repeated clean run" FAIL "exit $S; outcome $(field outcome "$SECOND" || echo none) env $(field environment "$SECOND" || echo none)"; fi
 
 # 7. tool-version drift: hard-fail by default, explicit allowance changes the fingerprint and taints replay
-row "7 tool-version drift" PENDING "run --allow-version-drift is not implemented (RFC implementation matrix §2); the default hard-fail is exercised by the parser and setup pins"
+DRIFT_DEFAULT=$("${CLI[@]}" run showcases/vocabulary/verify.drift.toml 2>&1); S_DEFAULT=$?
+DRIFT=$("${CLI[@]}" run showcases/vocabulary/verify.drift.toml --allow-version-drift 2>&1); S=$?
+DRIFT_REPORT=$(field report "$DRIFT" || true)
+BASELINE=$("${CLI[@]}" run showcases/vocabulary/verify.committed.toml 2>&1); S_BASE=$?
+BASELINE_REPORT=$(field report "$BASELINE" || true)
+if [[ $S_DEFAULT -eq 2 && $DRIFT_DEFAULT == *"no pinned CKB release"* && $S -eq 0 && $DRIFT == PASS:* && $S_BASE -eq 0 && -f $DRIFT_REPORT && -f $BASELINE_REPORT &&
+      $(field environment "$DRIFT") != $(field environment "$BASELINE") &&
+      $(report_field "$DRIFT_REPORT" 'r.environment.provenance.replay.status') == '"tainted"' &&
+      $(report_field "$DRIFT_REPORT" 'r.environment.provenance.replay.reasons.map(x => x.code).join(",")') == '"tool_version_drift"' &&
+      $(report_field "$DRIFT_REPORT" 'r.environment.provenance.toolchain.ckb.driftAllowed') == 'true' ]]; then
+  row "7 tool-version drift" PASS "default exit 2 (no pinned CKB for the requested version); --allow-version-drift PASS with a different environment fingerprint and replay tainted: tool_version_drift"
+else row "7 tool-version drift" FAIL "default exit $S_DEFAULT, allowed exit $S, baseline exit $S_BASE"; fi
 
 # 8. equal outcomes must not imply equal environments: the same manifest on a dirty tree
 printf 'created by scripts/verify-release.sh to demonstrate a dirty source tree\n' > "$MARKER"
@@ -88,11 +99,11 @@ else row "8 cross-environment case" FAIL "exit $S; outcome $(field outcome "$DIR
 
 # 9. recompute both hashes of every report offline
 BAD=()
-for r in "$POSITIVE_REPORT" "$FAILING_REPORT" "$REJECTED_REPORT" "$SECOND_REPORT" "$DIRTY_REPORT"; do
+for r in "$POSITIVE_REPORT" "$FAILING_REPORT" "$REJECTED_REPORT" "$SECOND_REPORT" "$DRIFT_REPORT" "$BASELINE_REPORT" "$DIRTY_REPORT"; do
   [[ -f $r ]] || { BAD+=("missing:$r"); continue; }
   "${CLI[@]}" digest "$r" >/dev/null 2>&1 || BAD+=("$r")
 done
-if (( ${#BAD[@]} == 0 )); then row "9 recompute report hashes" PASS "5 reports re-derived offline (digest exit 0), including the FAIL report"
+if (( ${#BAD[@]} == 0 )); then row "9 recompute report hashes" PASS "7 reports re-derived offline (digest exit 0), including the FAIL and the drifted report"
 else row "9 recompute report hashes" FAIL "${BAD[*]}"; fi
 
 {
