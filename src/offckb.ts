@@ -236,7 +236,10 @@ export interface OffckbRunContext {
   systemScriptsPath: string;
   contextPath: string;
   systemScripts: ResolvedSystemScripts;
+  /** Exported accounts without secrets: index, address, and lock script, in export order. */
+  accounts: PublicAccount[];
 }
+export interface PublicAccount { index: number; address: string; lock: { codeHash: string; hashType: "type" | "data" | "data1" | "data2"; args: string } }
 
 interface OffckbDevnetOptions {
   repositoryRoot: string;
@@ -633,6 +636,7 @@ export class OffckbDevnet {
         systemScriptsPath: this.paths.systemScriptsPath,
         contextPath: this.paths.contextPath,
         systemScripts,
+        accounts: accounts.map((account) => ({ index: account.index, address: account.address, lock: { ...account.lock } })),
       };
       await writeFile(
         this.paths.contextPath,

@@ -135,6 +135,7 @@ function fakeDevnet(project: string, debuggerOutput = "", privateKey = KEY): Dev
     systemScriptsPath: join(root, "system-scripts.json"),
     contextPath: join(root, "context.json"),
     systemScripts: {},
+    accounts: [],
   };
   return {
     paths: {
@@ -318,7 +319,7 @@ describe("draft.4 vertical tracer", () => {
     expect(queries).toBe(1);
     const claim = report.evidence.steps[0]!.claims[0]!;
     if (claim.kind !== "cell") throw new Error("expected cell claim");
-    expect(Object.is(claim.target.index, -0)).toBe(true);
+    expect(Object.is((claim.target as { index: number }).index, -0)).toBe(true);
   });
   test.each(["0", "+0", "0.0", "-0", "-0.0", "-0e0"])(
     "FIX3 numeric spelling %s preserves PASS and valid FAIL file readback", async literal => {

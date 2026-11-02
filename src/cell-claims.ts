@@ -76,7 +76,7 @@ export function object(value: unknown, path: string): Record<string, unknown> {
 }
 // Only consumed v2 semantic members are checked here, not legacy diagnostics or
 // an arbitrary report object graph. Accessors cannot bind a stable retained value.
-function retainedMembers(value: object, keys: readonly string[], path: string): void {
+export function retainedMembers(value: object, keys: readonly string[], path: string): void {
   for (const key of keys) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (descriptor === undefined || !descriptor.enumerable || !Object.hasOwn(descriptor, "value")) {
@@ -84,16 +84,16 @@ function retainedMembers(value: object, keys: readonly string[], path: string): 
     }
   }
 }
-function exact(value: Record<string, unknown>, required: string[], optional: string[], path: string): void {
+export function exact(value: Record<string, unknown>, required: string[], optional: string[], path: string): void {
   retainedMembers(value, required, path);
   for (const key of Reflect.ownKeys(value)) {
     if (typeof key !== "string" || (!required.includes(key) && !optional.includes(key))) fail(`${path}.${String(key)}`, "not supported");
     retainedMembers(value, [key], path);
   }
 }
-function list<T>(value: readonly T[], path: string): T[];
-function list(value: unknown, path: string): unknown[];
-function list(value: unknown, path: string): unknown[] {
+export function list<T>(value: readonly T[], path: string): T[];
+export function list(value: unknown, path: string): unknown[];
+export function list(value: unknown, path: string): unknown[] {
   if (!Array.isArray(value)) fail(path, "must be an array");
   retainedSerialization(value, path);
   // Retained arrays are later hashed by the pinned canonicalizer via forEach.
@@ -142,11 +142,11 @@ export function equalSemantic(actual: unknown, expected: unknown, path: string):
   // preserves exact field presence rather than accepting non-JSON extensions.
   if (!sameShape(actual, expected, path) || canonicalize(actual) !== canonicalize(expected)) fail(path, "semantic mismatch");
 }
-function hash32(value: unknown, path: string): string {
+export function hash32(value: unknown, path: string): string {
   if (typeof value !== "string" || !/^0x[0-9a-f]{64}$/.test(value)) fail(path, "must be lowercase hex32");
   return value;
 }
-function bytes(value: unknown, path: string): string {
+export function bytes(value: unknown, path: string): string {
   if (typeof value !== "string" || value.length > 2 + MAX_BYTES * 2 || !/^0x(?:[0-9a-f]{2})*$/.test(value)) {
     fail(path, `must be lowercase even hex bytes bounded by ${MAX_BYTES}`);
   }
@@ -156,7 +156,7 @@ function hashType(value: unknown, path: string): HashType {
   if (value !== "data" && value !== "type" && value !== "data1" && value !== "data2") fail(path, "invalid hash type");
   return value;
 }
-function quantity(value: unknown, digits: number, path: string): string {
+export function quantity(value: unknown, digits: number, path: string): string {
   if (typeof value !== "string" || value.length > digits + 2 || !/^0x(?:0|[1-9a-f][0-9a-f]*)$/.test(value)) fail(path, `must be canonical u${digits * 4} hex quantity`);
   return value;
 }

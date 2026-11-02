@@ -12,7 +12,7 @@ import {
   buildOutcomeClaims,
   verdictForOutcomeClaims,
   verifyReport,
-  type EnvironmentEvidence,
+  type EnvironmentEvidence, type EnvironmentEvidenceV4,
   type RunEvidence,
   type ClaimEvidence,
   type RejectionEvidence,
@@ -32,7 +32,12 @@ import {
   scriptHash,
   transactionHash,
 } from "./transaction";
-import { isManifestV4, isManifestV5, type CellAssertion, type ClaimV4, type Manifest, type ManifestV3 } from "./types";
+import { isManifestV4, isManifestV5, type CellAssertion, type ClaimV4, type ClaimV5, type Manifest, type ManifestV3 } from "./types";
+import {
+  claimDefinitionV3, deriveOutcomeV3, expectedSearchKey, populateEvidenceV3, resolutionContextFromEnvironment, validateIndexerInput, verdictForOutcomeV3,
+  type CellInputV3, type ClaimInputV3, type IndexerInput, type IndexerPage, type IndexerSearchKey, type OutcomeV3, type RunEvidenceV3, type RunInputV3,
+} from "./claims-v3";
+import { INDEXER_PAGE_LIMIT, MAX_SELECTED_CELLS } from "./limits";
 import { claimDefinition, deriveOutcomeV2, populateEvidenceV2, validateLiveCellResponse, validateTransaction,
   verdictForOutcomeV2, type CellInput, type ClaimInputV2, type RunInputV2, type RunEvidenceV2, type OutcomeV2 } from "./cell-claims";
 import { VERSION } from "./version";
@@ -68,7 +73,13 @@ export interface CkbVerifyReportV2 extends Omit<CkbVerifyReportV1, "schema" | "e
   evidence: RunEvidenceV2;
   outcomeClaims: OutcomeV2;
 }
-export type CkbVerifyReport = CkbVerifyReportV1 | CkbVerifyReportV2;
+export interface CkbVerifyReportV3 extends Omit<CkbVerifyReportV1, "schema" | "evidence" | "outcomeClaims" | "environment"> {
+  schema: "ckb-verify-report/3";
+  evidence: RunEvidenceV3;
+  outcomeClaims: OutcomeV3;
+  environment: EnvironmentEvidenceV4;
+}
+export type CkbVerifyReport = CkbVerifyReportV1 | CkbVerifyReportV2 | CkbVerifyReportV3;
 
 export interface RunManifestOptions {
   manifestPath: string;
@@ -203,7 +214,7 @@ async function environmentEvidence(
   context: OffckbRunContext,
   sourceRevision: SourceRevision,
   preparedDebugger?: PreparedDebugger,
-): Promise<EnvironmentEvidence> {
+): Promise<EnvironmentEvidence | EnvironmentEvidenceV4> {
   const provenance = await collectProvenance({
     projectRoot,
     manifestBytes,
@@ -212,9 +223,8 @@ async function environmentEvidence(
     ckbBinary: context.ckbBinary,
     ckbDebuggerBinary: preparedDebugger?.binary ?? null,
   });
-  return {
-    schema: "ckb-verify-environment/3",
-    runner: { name: "ckb-verify", version: VERSION },
+  const base = {
+    runner: { name: "ckb-verify" as const, version: VERSION },
     toolchain: {
       requested: manifest.toolchain,
       observed: {
@@ -231,6 +241,62 @@ async function environmentEvidence(
       systemScripts: context.systemScripts,
     },
   };
+  if (isManifestV5(manifest)) {
+    return { schema: "ckb-verify-environment/4", ...base, devnet: { ...base.devnet, accounts: context.accounts.slice(0, manifest.setup.accounts).map((a) => ({ index: a.index, address: a.address, lock: { ...a.lock } })) } };
+  }
+  return { schema: "ckb-verify-environment/3", ...base };
+}
+
+/** Pages an indexer `get_cells` query with the fixed page size; refuses more than MAX_SELECTED_CELLS. */
+async function queryIndexer(searchKey: IndexerSearchKey, rpcUrl: string, rpc: RunnerRpcCaller, signal?: AbortSignal): Promise<IndexerInput> {
+  const pages: IndexerPage[] = [];
+  let afterCursor: string | null = null;
+  let total = 0;
+  for (;;) {
+    const response = requireRecord(await rpc(rpcUrl, "get_cells", [searchKey, "asc", `0x${INDEXER_PAGE_LIMIT.toString(16)}`, afterCursor], signal), "get_cells result");
+    if (!Array.isArray(response.objects) || typeof response.last_cursor !== "string") throw new Error("get_cells result must carry objects and last_cursor");
+    pages.push({ after_cursor: afterCursor, response: { objects: response.objects as IndexerPage["response"]["objects"], last_cursor: response.last_cursor } });
+    total += response.objects.length;
+    if (total > MAX_SELECTED_CELLS) throw new Error(`indexer query selected more than ${MAX_SELECTED_CELLS} live Cells; narrow the selector`);
+    if (response.objects.length < INDEXER_PAGE_LIMIT) break;
+    afterCursor = response.last_cursor;
+  }
+  return validateIndexerInput({ kind: "indexer", search_key: searchKey, pages }, "get_cells");
+}
+
+async function collectClaimsV3(
+  claims: ClaimV5[], transactions: ReadonlyMap<string, CkbJsonRpcTransaction>, hashes: ReadonlyMap<string, string>,
+  environment: EnvironmentEvidenceV4, rpcUrl: string, rpc: RunnerRpcCaller, signal?: AbortSignal,
+): Promise<ClaimInputV3[]> {
+  const context = resolutionContextFromEnvironment(environment);
+  const snapshots = new Map<string, CellInputV3 | IndexerInput>();
+  const collected: ClaimInputV3[] = [];
+  for (const claim of claims) {
+    const definition = claimDefinitionV3(claim);
+    if (definition.kind === "cell_deps") { collected.push(definition); continue; }
+    if (definition.kind === "cell" && definition.target.outPoint !== undefined) {
+      const key = JSON.stringify(definition.target.outPoint);
+      let input = snapshots.get(key) as CellInputV3 | undefined;
+      if (input === undefined) {
+        const tx = transactions.get(definition.target.outPoint.step), hash = hashes.get(definition.target.outPoint.step);
+        if (tx === undefined || hash === undefined) throw new Error("missing retained target transaction");
+        if (definition.target.outPoint.index >= tx.outputs.length) input = { kind: "missing-output" };
+        else {
+          const outPoint = { tx_hash: hash, index: `0x${definition.target.outPoint.index.toString(16)}` };
+          input = { kind: "query", outPoint, response: validateLiveCellResponse(await rpc(rpcUrl, "get_live_cell", [outPoint, true], signal)) };
+        }
+        snapshots.set(key, input);
+      }
+      collected.push({ ...definition, input });
+      continue;
+    }
+    const searchKey = expectedSearchKey(definition, context);
+    const key = JSON.stringify(searchKey);
+    let input = snapshots.get(key) as IndexerInput | undefined;
+    if (input === undefined) { input = await queryIndexer(searchKey, rpcUrl, rpc, signal); snapshots.set(key, input); }
+    collected.push(definition.kind === "cell" ? { ...definition, input } : { ...definition, input });
+  }
+  return collected;
 }
 
 async function evaluateCell(
@@ -450,7 +516,10 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     const transactions = new Map<string, CkbJsonRpcTransaction>();
     const modernManifest = isManifestV4(manifest) ? manifest : undefined;
     const legacyManifest = manifest.meta.spec === "0.1.0-draft.3" ? (manifest as ManifestV3) : undefined;
-    if (isManifestV5(manifest)) throw new Error("0.1.0-draft.5 execution is not wired into the runner yet");
+    const v5Manifest = isManifestV5(manifest) ? manifest : undefined;
+    const v5Steps: RunInputV3["steps"] = [];
+    // draft.5 claims resolve account and builtin references against the environment the report will carry.
+    const v5Environment = v5Manifest === undefined ? undefined : (await environmentEvidence(projectRoot, manifest, manifestBytes, context, sourceRevision, preparedDebugger)) as EnvironmentEvidenceV4;
 
     for (const [index, step] of manifest.steps.entries()) {
       throwIfAborted(options.signal);
@@ -571,13 +640,17 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
         name: step.name,
         ...(step.expect === undefined ? {} : { expectedStatus: step.expect.tx }),
         ...(step.expect?.error?.code === undefined ? {} : { expectedErrorCode: step.expect.error.code }),
+        ...(step.expect?.cycles === undefined ? {} : { expectedCycles: step.expect.cycles }),
         observedStatus,
         ...(cycles === undefined ? {} : { cycles }),
         ...(rejection === undefined ? {} : { rejection }),
         transactionHash: txHash,
         durationMs: commandResult.durationMs,
       };
-      if (modernManifest !== undefined) {
+      if (v5Manifest !== undefined && v5Environment !== undefined) {
+        v5Steps.push({ ...stepEvidence, transaction: tx,
+          claims: await collectClaimsV3(v5Manifest.steps[index]!.assertions, transactions, transactionHashes, v5Environment, context.rpcUrl, rpc, options.signal) });
+      } else if (modernManifest !== undefined) {
         modernSteps.push({ ...stepEvidence, transaction: tx,
           claims: await collectClaimsV2(modernManifest.steps[index]!.assertions, transactions, transactionHashes, context.rpcUrl, rpc, options.signal) });
       } else if (legacyManifest !== undefined) {
@@ -600,6 +673,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       assertions,
     };
     const modernAssertions = modernManifest === undefined ? [] : await collectClaimsV2(modernManifest.assertions, transactions, transactionHashes, context.rpcUrl, rpc, options.signal);
+    const v5Assertions = v5Manifest === undefined || v5Environment === undefined ? [] : await collectClaimsV3(v5Manifest.assertions, transactions, transactionHashes, v5Environment, context.rpcUrl, rpc, options.signal);
     throwIfAborted(options.signal);
     const finalSourceRevision = await collectSourceRevision(projectRoot);
     if (!sameSourceRevision(sourceRevision, finalSourceRevision)) {
@@ -614,16 +688,23 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       preparedDebugger,
     );
     let report: CkbVerifyReport;
-    if (modernManifest !== undefined) {
+    if (v5Manifest !== undefined) {
+      const input: RunInputV3 = { name: v5Manifest.meta.name, spec: v5Manifest.meta.spec,
+        manifestText: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(manifestBytes), steps: v5Steps, assertions: v5Assertions };
+      const outcomeClaims = deriveOutcomeV3(input, environment);
+      report = { schema: "ckb-verify-report/3", verdict: verdictForOutcomeV3(outcomeClaims), createdAt: new Date().toISOString(),
+        evidence: populateEvidenceV3(input, outcomeClaims), outcomeClaims, environment: environment as EnvironmentEvidenceV4,
+        digests: { outcome: canonicalSha256(outcomeClaims), environment: canonicalSha256(environment) } };
+    } else if (modernManifest !== undefined) {
       const input: RunInputV2 = { name: modernManifest.meta.name, spec: modernManifest.meta.spec,
         manifestText: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(manifestBytes), steps: modernSteps, assertions: modernAssertions };
       const outcomeClaims = deriveOutcomeV2(input, environment);
       report = { schema: "ckb-verify-report/2", verdict: verdictForOutcomeV2(outcomeClaims), createdAt: new Date().toISOString(),
-        evidence: populateEvidenceV2(input, outcomeClaims), outcomeClaims, environment,
+        evidence: populateEvidenceV2(input, outcomeClaims), outcomeClaims, environment: environment as EnvironmentEvidence,
         digests: { outcome: canonicalSha256(outcomeClaims), environment: canonicalSha256(environment) } };
     } else {
       const outcomeClaims = buildOutcomeClaims(evidence);
-      const digests = buildEvidenceDigests(evidence, environment);
+      const digests = buildEvidenceDigests(evidence, environment as EnvironmentEvidence);
       const verdict = verdictForOutcomeClaims(outcomeClaims);
       report = {
         schema: "ckb-verify-report/1",
@@ -631,7 +712,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
         createdAt: new Date().toISOString(),
         evidence,
         outcomeClaims,
-        environment,
+        environment: environment as EnvironmentEvidence,
         digests,
       };
     }
@@ -673,13 +754,13 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       try {
         // v2 publication is gated on the actual pending bytes after scan/stop,
         // not a second serialization of the already-verified in-memory object.
-        if (reportToPublish.report.schema === "ckb-verify-report/2") {
+        if (reportToPublish.report.schema !== "ckb-verify-report/1") {
           verifyReport(JSON.parse(await readFile(pendingReportPath, "utf8")));
         }
         await rename(pendingReportPath, reportPath);
       } catch (error) {
         const publicationErrors: unknown[] = [error];
-        const paths = reportToPublish.report.schema === "ckb-verify-report/2" ? [pendingReportPath, reportPath] : [pendingReportPath];
+        const paths = reportToPublish.report.schema !== "ckb-verify-report/1" ? [pendingReportPath, reportPath] : [pendingReportPath];
         for (const path of paths) {
           try {
             await rm(path, { force: true });
