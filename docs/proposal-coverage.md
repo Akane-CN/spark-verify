@@ -33,7 +33,7 @@ Status words: **done** (shipped on `main` with executable evidence), **partial**
 | Ubuntu support statement backed by execution | done | every CI job, the acceptance matrices, the rehearsals |
 | macOS support statement backed by execution | not done | `.github/workflows/macos-boundary.yml` (manual) would prove the offline commands and the platform-independent tests on macOS and that `run` is refused before any runtime mutation, but on 2026-11-01 GitHub cancelled the job before assigning a hosted macOS runner (`runner_id` 0, cancelled within a second), so nothing has executed on macOS yet; macOS stays unsupported and unclaimed until a run completes |
 | Windows support statement | partial | stated unsupported ([supported combinations](maintenance.md#supported-combinations)); not executed |
-| `bun run build`, `bun run verify:release` entry points | done | `package.json` scripts; `verify:release` item 7 (`--allow-version-drift`) is implemented with draft.5 |
+| `bun run build`, `bun run verify:release` entry points | done | `package.json` scripts; all nine §8.B items pass on `5cf0d92` (`docs/acceptance/2026-11-02-release-surface.md`) |
 
 ## Deliverable 4: external pilot and upstream-fit result
 
