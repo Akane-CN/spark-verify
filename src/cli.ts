@@ -257,8 +257,16 @@ export async function main(
   }
 
   if (args[0] === "run") {
-    const parsed = parseArgs(args.slice(1), ["allow-version-drift"], []);
-    if (parsed.positional.length > 1) throw new UsageError("run takes at most one manifest path");
+    // A usage mistake is exit 2 (no verdict), never 1, which means a claim failed.
+    let parsed: ReturnType<typeof parseArgs>;
+    try {
+      parsed = parseArgs(args.slice(1), ["allow-version-drift"], []);
+      if (parsed.positional.length > 1) throw new UsageError("run takes at most one manifest path");
+    } catch (error) {
+      if (!(error instanceof UsageError)) throw error;
+      dependencies.stderr(`ckb-verify run: ${error.message}\n`);
+      return 2;
+    }
     const controller = new AbortController();
     let receivedSignal: "SIGINT" | "SIGTERM" | undefined;
     const unsubscribe = dependencies.subscribeSignals?.((signal) => {

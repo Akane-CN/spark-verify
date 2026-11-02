@@ -60,6 +60,8 @@ export interface DevnetAdapter {
     source: { cell: "input" | "output"; index: number; role: "lock" | "type" },
   ): Promise<CommandResult>;
   stop(): Promise<void>;
+  /** Development keys to redact beyond the exported accounts (every key the devnet reported). */
+  redactionSecrets?(): readonly string[];
 }
 
 export interface CkbVerifyReportV1 {
@@ -157,57 +159,74 @@ function outputDirectory(root: string, manifest: Manifest): string {
   return join(root, ".ckb-verify", "runs", `${timestamp}-${process.pid}-${slug(manifest.meta.name)}`);
 }
 
-export async function collectSourceRevision(projectRoot: string): Promise<SourceRevision> {
-  try {
-    const commit = await runProcess(["git", "rev-parse", "--verify", "HEAD"], {
-      cwd: projectRoot,
-      timeoutMs: 10_000,
-    });
-    if (commit.timedOut || commit.exitCode !== 0) return { gitCommit: null, dirty: null, dirtyDigest: null };
-    const gitCommit = commit.stdout.trim();
-    if (!/^[0-9a-f]{40}$/.test(gitCommit)) return { gitCommit: null, dirty: null, dirtyDigest: null };
-    const status = await runProcess(["git", "status", "--porcelain=v1", "--untracked-files=all"], {
-      cwd: projectRoot,
-      timeoutMs: 10_000,
-    });
-    if (status.timedOut || status.exitCode !== 0) return { gitCommit, dirty: null, dirtyDigest: null };
-    if (status.stdout.trim() === "") return { gitCommit, dirty: false, dirtyDigest: null };
+export class SourceSnapshotError extends Error {}
 
-    const [diff, untracked] = await Promise.all([
-      runProcess(["git", "diff", "--binary", "--no-ext-diff", "HEAD", "--"], {
-        cwd: projectRoot,
-        timeoutMs: 10_000,
-      }),
-      runProcess(["git", "ls-files", "--others", "--exclude-standard", "-z"], {
-        cwd: projectRoot,
-        timeoutMs: 10_000,
-      }),
-    ]);
-    if (diff.timedOut || diff.exitCode !== 0 || untracked.timedOut || untracked.exitCode !== 0) {
-      return { gitCommit, dirty: true, dirtyDigest: null };
-    }
-    const untrackedEntries = await Promise.all(
-      untracked.stdout
-        .split("\0")
-        .filter((path) => path !== "")
-        .sort()
-        .map(async (path) => {
-          const absolutePath = resolve(projectRoot, path);
-          const metadata = await lstat(absolutePath);
-          const symlink = metadata.isSymbolicLink();
-          const bytes = symlink ? Buffer.from(await readlink(absolutePath), "utf8") : await readFile(absolutePath);
-          const mode = symlink ? "120000" : (metadata.mode & 0o111) === 0 ? "100644" : "100755";
-          return { path, kind: symlink ? "symlink" : "file", mode, digest: sha256Bytes(bytes) };
-        }),
-    );
-    return {
-      gitCommit,
-      dirty: true,
-      dirtyDigest: canonicalSha256({ status: status.stdout, trackedDiff: diff.stdout, untracked: untrackedEntries }),
-    };
+/**
+ * Git-visible snapshot of the project, taken before and after a run. Outside a git repository (or before
+ * the first commit) there is nothing to compare and every field is null; replay is then tainted. Inside a
+ * repository every git call and every untracked entry must be readable, and any failure refuses the run:
+ * a snapshot that silently degraded to nulls on both sides would compare equal and switch the guard off.
+ * Untracked files are listed for the whole repository, and the runner's own `.ckb-verify/` output under
+ * the project is excluded, because it is written by the run itself.
+ */
+export async function collectSourceRevision(projectRoot: string): Promise<SourceRevision> {
+  const unavailable = { gitCommit: null, dirty: null, dirtyDigest: null } as const;
+  let commit;
+  try {
+    commit = await runProcess(["git", "rev-parse", "--verify", "HEAD"], { cwd: projectRoot, timeoutMs: 10_000 });
   } catch {
-    return { gitCommit: null, dirty: null, dirtyDigest: null };
+    return unavailable; // git is not installed
   }
+  if (commit.timedOut || commit.exitCode !== 0) return unavailable; // not a repository, or no commit yet
+  const gitCommit = commit.stdout.trim();
+  if (!/^[0-9a-f]{40}$/.test(gitCommit)) throw new SourceSnapshotError(`git rev-parse returned an unexpected commit: ${gitCommit}`);
+
+  const git = async (args: string[]): Promise<string> => {
+    const result = await runProcess(["git", ...args], { cwd: projectRoot, timeoutMs: 10_000 });
+    if (result.timedOut || result.exitCode !== 0) {
+      throw new SourceSnapshotError(`cannot snapshot the project source: git ${args[0]} ${result.timedOut ? "timed out" : `exited ${result.exitCode}`}: ${result.stderr.trim()}`);
+    }
+    return result.stdout;
+  };
+  const prefix = (await git(["rev-parse", "--show-prefix"])).trim();
+  const toTop = (await git(["rev-parse", "--show-cdup"])).trim();
+  const pathspec = [":(top)", `:(exclude,top)${prefix}.ckb-verify`];
+  const status = await git(["status", "--porcelain=v1", "--untracked-files=all", "--", ...pathspec]);
+  if (status.trim() === "") return { gitCommit, dirty: false, dirtyDigest: null };
+
+  const [diff, untracked] = await Promise.all([
+    git(["diff", "--binary", "--no-ext-diff", "HEAD", "--", ...pathspec]),
+    git(["ls-files", "--others", "--exclude-standard", "--full-name", "-z", "--", ...pathspec]),
+  ]);
+  const untrackedEntries = await Promise.all(
+    untracked
+      .split("\0")
+      .filter((path) => path !== "")
+      .sort()
+      .map(async (path) => {
+        const absolutePath = resolve(projectRoot, toTop, path);
+        let metadata;
+        try { metadata = await lstat(absolutePath); } catch (error) {
+          throw new SourceSnapshotError(`cannot snapshot untracked ${path}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        if (metadata.isDirectory()) {
+          throw new SourceSnapshotError(`cannot snapshot untracked ${path}: it is a nested repository or directory git does not descend into; commit it, add it as a submodule, or ignore it`);
+        }
+        const symlink = metadata.isSymbolicLink();
+        if (!symlink && !metadata.isFile()) throw new SourceSnapshotError(`cannot snapshot untracked ${path}: not a regular file or symlink`);
+        let bytes: Buffer;
+        try { bytes = symlink ? Buffer.from(await readlink(absolutePath), "utf8") : await readFile(absolutePath); } catch (error) {
+          throw new SourceSnapshotError(`cannot snapshot untracked ${path}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        const mode = symlink ? "120000" : (metadata.mode & 0o111) === 0 ? "100644" : "100755";
+        return { path, kind: symlink ? "symlink" : "file", mode, digest: sha256Bytes(bytes) };
+      }),
+  );
+  return {
+    gitCommit,
+    dirty: true,
+    dirtyDigest: canonicalSha256({ status, trackedDiff: diff, untracked: untrackedEntries }),
+  };
 }
 
 function sameSourceRevision(left: SourceRevision, right: SourceRevision): boolean {
@@ -565,7 +584,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   try {
     throwIfAborted(options.signal);
     context = await devnet.start(options.signal);
-    secrets = await readSecrets(context.accountsPath);
+    secrets = [...new Set([...await readSecrets(context.accountsPath), ...(devnet.redactionSecrets?.() ?? [])])];
     throwIfAborted(options.signal);
     if (manifest.toolchain.ckbDebugger !== undefined) {
       try {

@@ -1001,6 +1001,24 @@ describe("runManifest", () => {
     expect(await Bun.file(join(project, ".runtime", "accounts.json")).exists()).toBe(false);
   });
 
+  test("redacts a development key the devnet reported beyond the exported accounts", async () => {
+    // Review finding (2026-11-02): only the first setup.accounts keys were redacted, but OffCKB's other
+    // well-known keys are equally usable by a producer.
+    const { project, manifestPath, outputDir } = await projectWithManifest(1);
+    const extraKey = `0x${"5e".repeat(32)}`;
+    const devnet = { ...fakeDevnet(project), redactionSecrets: () => [KEY, extraKey] };
+    await expect(
+      runManifest({
+        manifestPath, projectRoot: project, outputDir, devnet,
+        runStep: async () => ({ ...commandResult(`signed with ${extraKey}\n`), exitCode: 7 }),
+        rpc: async () => { throw new Error("RPC must not run after producer failure"); },
+      }),
+    ).rejects.toThrow("step transfer exited 7");
+    const stdout = await Bun.file(join(outputDir, "steps", "01-transfer", "stdout.txt")).text();
+    expect(stdout).not.toContain(extraKey);
+    expect(stdout).toContain("[REDACTED]");
+  });
+
   test("redacts leaked development keys even when a producer fails before report creation", async () => {
     const { project, manifestPath, outputDir } = await projectWithManifest(1);
     const manifest = await Bun.file(manifestPath).text();

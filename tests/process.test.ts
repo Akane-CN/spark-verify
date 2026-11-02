@@ -12,6 +12,21 @@ afterEach(async () => {
 });
 
 describe("runCommand", () => {
+  test.skipIf(process.platform !== "linux")("settles on timeout and on abort even when a descendant escapes the group with the pipes", async () => {
+    // Review finding (2026-11-02): `setsid` moved a descendant out of the process group while it kept
+    // stdout open, so the call waited for that descendant instead of the timeout.
+    const timed = performance.now();
+    const result = await runCommand("setsid sleep 30 & exit 0", { cwd: tmpdir(), timeoutMs: 300 });
+    expect(result.timedOut).toBe(true);
+    expect(performance.now() - timed).toBeLessThan(5_000);
+
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 300);
+    const aborted = performance.now();
+    await runCommand("setsid sleep 30 & sleep 30", { cwd: tmpdir(), timeoutMs: 60_000, signal: controller.signal });
+    expect(performance.now() - aborted).toBeLessThan(5_000);
+  });
+
   test("captures stdout, stderr, and the exit code", async () => {
     const result = await runCommand("printf out; printf err >&2; exit 7", {
       cwd: import.meta.dir,
