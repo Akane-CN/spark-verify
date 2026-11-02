@@ -39,8 +39,8 @@ Status words: **done** (shipped on `main` with executable evidence), **partial**
 
 | Promise | Status | Evidence |
 | --- | --- | --- |
-| Public OffCKB maintainer feedback | external | no outreach sent; draft question ready ([external checkpoints](external-checkpoints.md)) |
-| One consented project trial, or a transparent demand/no-go report | external | no consent requested; the CKB-UGMP showcase is feasibility only; the week-8 checkpoint, recorded early on 2026-11-02, records no outreach sent and no consent ([external checkpoints](external-checkpoints.md#week-8-due-2026-11-27-recorded-early-on-2026-11-02)) |
+| Public OffCKB maintainer feedback | external | no outreach sent; question approved for publication on 2026-11-02, for the maintainer to post ([external checkpoints](external-checkpoints.md#week-8-amendment-2026-11-02-outreach-approved)) |
+| One consented project trial, or a transparent demand/no-go report | external | no consent requested; the CKB-UGMP showcase is feasibility only; the week-8 checkpoint, recorded early on 2026-11-02, records no outreach sent and no consent ([external checkpoints](external-checkpoints.md#week-8-due-2026-11-27-recorded-early-on-2026-11-02)); a consent request to CKB-UGMP was approved for publication the same day, for the maintainer to post |
 
 ## Deliverable 5: completion evidence
 

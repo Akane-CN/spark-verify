@@ -40,9 +40,9 @@ Each is recorded in the `0.1.0` section of the [changelog](../CHANGELOG.md). An 
 
 ### What was not done
 
-- Public OffCKB maintainer feedback (#2) and a consented project trial or demand/no-go report (#3). Both need outreach, which needs the maintainer's publication approval.
-- Independent review of the candidate by someone other than its authors. The agent pre-review does not count as one.
-- Publication: tag, prerelease, install-back of the published assets, and a registry package if one is chosen.
+- Public OffCKB maintainer feedback (#2) and a consented project trial or demand/no-go report (#3). Both need outreach. The maintainer approved both texts on 2026-11-02 and will post them ([external checkpoints](external-checkpoints.md#week-8-amendment-2026-11-02-outreach-approved)); this item changes only when a post, and then a reply or the 2026-11-27 due date, exists.
+- Independent review of the candidate by someone other than its authors. The agent pre-review does not count as one. The maintainer is arranging a reviewer, who follows the [independent review guide](independent-review-guide.md).
+- Publication: tag, prerelease, and install-back of the published assets. The publication path is decided: a GitHub release only, with no registry package ([package identity](package-identity.md#decision-2026-11-02)). The maintainer runs it from the [v0.1.0 release runbook](release-runbook-v0.1.0.md) before the elliptic waiver expires on 2026-11-25.
 - The reviewer-time measurement the proposal asked to replace its 15-minute estimate. It needs an outside reviewer's timing and does not exist yet.
 
 ### Maintenance after completion

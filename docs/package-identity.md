@@ -12,6 +12,10 @@ This records what was checked for the distributable's identity before any public
 
 A 404 is a snapshot, not a reservation. Re-run the check in the release commit's review. If the unscoped name is taken by then, publish under a scope the maintainer actually controls (their own npm user scope); never assume ownership of an organization scope.
 
+## Decision (2026-11-02)
+
+The maintainer decided on #20: **v0.1.0 is published as a GitHub release only, with no npm registry package.** The name stays `ckb-verify`, unscoped, and `private` stays `true`, so an accidental `npm publish` keeps failing. The release assets are the tarball, `SHA256SUMS`, and the evidence archive with its checksum. No registry account or publishing credential is needed, and none is created. A registry package can be a later, separate decision with its own candidate. The commands are in the [v0.1.0 release runbook](release-runbook-v0.1.0.md).
+
 ## Ownership and credentials (maintainer decisions)
 
 None of this is verifiable from the repository and none of it is assumed:
@@ -53,8 +57,8 @@ A release changes exactly: `version` in `package.json`, `VERSION` in `src/versio
 
 ## Checklist for the maintainer before step 8
 
-- [ ] registry publication decided (yes/no); if yes, the name or scope, the owning account, and the credential method are written on #20;
-- [ ] `curl` check above repeated on the day; result recorded on #20;
+- [x] registry publication decided (yes/no); if yes, the name or scope, the owning account, and the credential method are written on #20; **no registry**, GitHub release only (2026-11-02, see the decision above);
+- [x] `curl` check above repeated on the day; result recorded on #20: not needed without a registry package; for the record, both names returned 404 on 2026-11-02;
 - [x] the six release-blocking decisions on #18 recorded in [release decisions](release-decisions.md);
 - [ ] independent review of the candidate SHA recorded on #20;
 - [x] the [release notes draft](release-notes-draft.md) completed with the candidate SHA, run id, artifact ids, and checksums (candidate `e311ad3`, [record](acceptance/2026-11-02-candidate-e311ad3.md)).
