@@ -128,5 +128,55 @@
     "file": "draft4-cell-deps-unknown-key.toml",
     "parser": "cell_deps[0].index is not supported",
     "schema": "/assert/cell_deps/0 must NOT have additional properties (index)"
+  },
+  {
+    "file": "draft5-named-script.toml",
+    "parser": "named setup scripts are not supported",
+    "schema": "/assert/cell/0/lock must be object"
+  },
+  {
+    "file": "draft5-no-selector.toml",
+    "parser": "requires a selector: out_point, lock, or type",
+    "schema": "/assert/cell/0 must have required property 'out_point'"
+  },
+  {
+    "file": "draft5-unknown-builtin.toml",
+    "parser": "must be one of the OffCKB system scripts",
+    "schema": "/assert/cell/0/lock must have required property"
+  },
+  {
+    "file": "draft5-bare-amount.toml",
+    "parser": "bare numbers are rejected for asset amounts",
+    "schema": "/assert/balance/0/gte must be string"
+  },
+  {
+    "file": "draft5-two-targets.toml",
+    "parser": "requires exactly one target: account, address, or lock",
+    "schema": "/assert/balance/0 must match exactly one schema in oneOf"
+  },
+  {
+    "file": "draft5-udt-ckb-quantity.toml",
+    "parser": "must be a base-unit integer string",
+    "schema": "/assert/balance/0/gte must match pattern"
+  },
+  {
+    "file": "draft5-too-many-decimals.toml",
+    "parser": "must be a quantity string such as",
+    "schema": "/assert/cell/0/capacity/gte must match pattern"
+  },
+  {
+    "file": "draft5-count-eq-and-gte.toml",
+    "parser": "count.eq cannot be combined with gte or lte",
+    "schema": "/assert/cell/0/count must"
+  },
+  {
+    "file": "draft5-cycles-lt-and-lte.toml",
+    "parser": "cycles.lt and lte are mutually exclusive",
+    "schema": "/step/1/expect/cycles must NOT be valid"
+  },
+  {
+    "file": "draft5-udt-wildcard.toml",
+    "parser": "wildcard args are not allowed",
+    "schema": "/assert/balance/0/udt/type must have required property"
   }
 ]

@@ -1,0 +1,1589 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://spark-verify.invalid/schemas/ckb-verify-claims-v3.schema.json",
+ "title": "draft.5 / outcome3 semantic claims fragment",
+ "$comment": "Bounded semantic fragment for the 0.1.0-draft.5 vocabulary (RFC §4.2 cycles, §5.1 Cell selectors and property checks, §5.2 balance, §5.3 script references). Select a $defs reference. Shape validation does not verify hashes, target existence, indexer page consistency, binding membership, truth, manifest cross-links or provenance. Parser-only rules: exactly one balance target; data.len/min_bytes agreement with data.eq; count zero incompatible with property checks; out_point selects at most one Cell; account indices below setup.accounts; gte/lte ordering. MAX_BYTES and MAX_SELECTED_CELLS are runner resource policy, not consensus.",
+ "not": {},
+ "$defs": {
+  "systemScript": {
+   "enum": [
+    "secp256k1_blake160_sighash_all",
+    "dao",
+    "secp256k1_blake160_multisig_all",
+    "sudt",
+    "xudt",
+    "omnilock",
+    "anyone_can_pay",
+    "always_success",
+    "spore",
+    "spore_cluster",
+    "spore_cluster_agent",
+    "spore_cluster_proxy",
+    "spore_extension_lua",
+    "ckb_js_vm",
+    "nostr_lock",
+    "secp256k1_keccak256_sighash_all",
+    "secp256k1_keccak256_sighash_all_acpl",
+    "secp256k1_blake160_multisig_all_v2",
+    "type_id"
+   ]
+  },
+  "hashType": {
+   "enum": [
+    "data",
+    "type",
+    "data1",
+    "data2"
+   ]
+  },
+  "hash32": {
+   "type": "string",
+   "pattern": "^0x[0-9a-f]{64}$"
+  },
+  "bytes": {
+   "type": "string",
+   "pattern": "^0x(?:[0-9a-f]{2})*$",
+   "maxLength": 2097154
+  },
+  "u32": {
+   "type": "integer",
+   "minimum": 0,
+   "maximum": 4294967295
+  },
+  "byteCount": {
+   "type": "integer",
+   "minimum": 0,
+   "maximum": 1048576
+  },
+  "positiveByteCount": {
+   "type": "integer",
+   "minimum": 1,
+   "maximum": 1048576
+  },
+  "name": {
+   "type": "string",
+   "pattern": "\\S"
+  },
+  "ckbQuantity": {
+   "type": "string",
+   "pattern": "^(?:\\d+(?:\\.\\d{1,8})? CKB|\\d+ shannon)$"
+  },
+  "udtQuantity": {
+   "type": "string",
+   "pattern": "^\\d+$"
+  },
+  "decimal": {
+   "type": "string",
+   "pattern": "^(?:0|[1-9]\\d*)$"
+  },
+  "explicitScript": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "code_hash",
+    "hash_type",
+    "args"
+   ],
+   "properties": {
+    "code_hash": {
+     "$ref": "#/$defs/hash32"
+    },
+    "hash_type": {
+     "$ref": "#/$defs/hashType"
+    },
+    "args": {
+     "$ref": "#/$defs/bytes"
+    }
+   }
+  },
+  "builtinScript": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "builtin"
+   ],
+   "properties": {
+    "builtin": {
+     "$ref": "#/$defs/systemScript"
+    },
+    "args": {
+     "$ref": "#/$defs/bytes"
+    }
+   }
+  },
+  "builtinScriptExact": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "builtin",
+    "args"
+   ],
+   "properties": {
+    "builtin": {
+     "$ref": "#/$defs/systemScript"
+    },
+    "args": {
+     "$ref": "#/$defs/bytes"
+    }
+   }
+  },
+  "accountLock": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "account"
+   ],
+   "properties": {
+    "account": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 19
+    }
+   }
+  },
+  "lockRef": {
+   "oneOf": [
+    {
+     "$ref": "#/$defs/explicitScript"
+    },
+    {
+     "$ref": "#/$defs/builtinScript"
+    },
+    {
+     "$ref": "#/$defs/accountLock"
+    }
+   ]
+  },
+  "typeRef": {
+   "oneOf": [
+    {
+     "$ref": "#/$defs/explicitScript"
+    },
+    {
+     "$ref": "#/$defs/builtinScript"
+    }
+   ]
+  },
+  "exactLockRef": {
+   "oneOf": [
+    {
+     "$ref": "#/$defs/explicitScript"
+    },
+    {
+     "$ref": "#/$defs/builtinScriptExact"
+    },
+    {
+     "$ref": "#/$defs/accountLock"
+    }
+   ]
+  },
+  "exactTypeRef": {
+   "oneOf": [
+    {
+     "$ref": "#/$defs/explicitScript"
+    },
+    {
+     "$ref": "#/$defs/builtinScriptExact"
+    }
+   ]
+  },
+  "countRange": {
+   "oneOf": [
+    {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 4294967295
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "minProperties": 1,
+     "properties": {
+      "eq": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 4294967295
+      },
+      "gte": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 4294967295
+      },
+      "lte": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 4294967295
+      }
+     },
+     "allOf": [
+      {
+       "if": {
+        "required": [
+         "eq"
+        ],
+        "properties": {
+         "eq": {}
+        }
+       },
+       "then": {
+        "not": {
+         "anyOf": [
+          {
+           "required": [
+            "gte"
+           ],
+           "properties": {
+            "gte": {}
+           }
+          },
+          {
+           "required": [
+            "lte"
+           ],
+           "properties": {
+            "lte": {}
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "ckbRange": {
+   "type": "object",
+   "additionalProperties": false,
+   "minProperties": 1,
+   "properties": {
+    "eq": {
+     "$ref": "#/$defs/ckbQuantity"
+    },
+    "gte": {
+     "$ref": "#/$defs/ckbQuantity"
+    },
+    "lte": {
+     "$ref": "#/$defs/ckbQuantity"
+    }
+   },
+   "allOf": [
+    {
+     "if": {
+      "required": [
+       "eq"
+      ],
+      "properties": {
+       "eq": {}
+      }
+     },
+     "then": {
+      "not": {
+       "anyOf": [
+        {
+         "required": [
+          "gte"
+         ],
+         "properties": {
+          "gte": {}
+         }
+        },
+        {
+         "required": [
+          "lte"
+         ],
+         "properties": {
+          "lte": {}
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "cyclesCheck": {
+   "type": "object",
+   "additionalProperties": false,
+   "minProperties": 1,
+   "properties": {
+    "lt": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 9007199254740991
+    },
+    "lte": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 9007199254740991
+    },
+    "eq": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 9007199254740991
+    },
+    "gte": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 9007199254740991
+    }
+   },
+   "allOf": [
+    {
+     "if": {
+      "required": [
+       "eq"
+      ],
+      "properties": {
+       "eq": {}
+      }
+     },
+     "then": {
+      "maxProperties": 1
+     }
+    },
+    {
+     "not": {
+      "required": [
+       "lt",
+       "lte"
+      ],
+      "properties": {
+       "lt": {},
+       "lte": {}
+      }
+     }
+    }
+   ]
+  },
+  "manifestData": {
+   "type": "object",
+   "additionalProperties": false,
+   "minProperties": 1,
+   "properties": {
+    "eq": {
+     "$ref": "#/$defs/bytes"
+    },
+    "len": {
+     "$ref": "#/$defs/byteCount"
+    },
+    "min_bytes": {
+     "$ref": "#/$defs/positiveByteCount"
+    }
+   }
+  },
+  "manifestCell": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "out_point": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "step",
+      "index"
+     ],
+     "properties": {
+      "step": {
+       "$ref": "#/$defs/name"
+      },
+      "index": {
+       "$ref": "#/$defs/u32"
+      }
+     }
+    },
+    "lock": {
+     "$ref": "#/$defs/lockRef"
+    },
+    "type": {
+     "$ref": "#/$defs/typeRef"
+    },
+    "count": {
+     "$ref": "#/$defs/countRange"
+    },
+    "data": {
+     "$ref": "#/$defs/manifestData"
+    },
+    "capacity": {
+     "$ref": "#/$defs/ckbRange"
+    }
+   },
+   "anyOf": [
+    {
+     "required": [
+      "out_point"
+     ],
+     "properties": {
+      "out_point": {}
+     }
+    },
+    {
+     "required": [
+      "lock"
+     ],
+     "properties": {
+      "lock": {}
+     }
+    },
+    {
+     "required": [
+      "type"
+     ],
+     "properties": {
+      "type": {}
+     }
+    }
+   ],
+   "allOf": [
+    {
+     "anyOf": [
+      {
+       "required": [
+        "count"
+       ],
+       "properties": {
+        "count": {}
+       }
+      },
+      {
+       "required": [
+        "data"
+       ],
+       "properties": {
+        "data": {}
+       }
+      },
+      {
+       "required": [
+        "capacity"
+       ],
+       "properties": {
+        "capacity": {}
+       }
+      }
+     ]
+    }
+   ]
+  },
+  "manifestCellDeps": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "step",
+    "contains"
+   ],
+   "properties": {
+    "step": {
+     "$ref": "#/$defs/name"
+    },
+    "contains": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "builtin"
+     ],
+     "properties": {
+      "builtin": {
+       "$ref": "#/$defs/systemScript"
+      }
+     }
+    }
+   }
+  },
+  "manifestBalance": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "account": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 19
+    },
+    "address": {
+     "type": "string",
+     "pattern": "^ck[bt]1[02-9ac-hj-np-z]{6,}$"
+    },
+    "lock": {
+     "$ref": "#/$defs/exactLockRef"
+    },
+    "udt": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "type"
+     ],
+     "properties": {
+      "type": {
+       "$ref": "#/$defs/exactTypeRef"
+      }
+     }
+    },
+    "eq": {
+     "type": "string"
+    },
+    "gte": {
+     "type": "string"
+    },
+    "lte": {
+     "type": "string"
+    }
+   },
+   "oneOf": [
+    {
+     "required": [
+      "account"
+     ],
+     "properties": {
+      "account": {}
+     }
+    },
+    {
+     "required": [
+      "address"
+     ],
+     "properties": {
+      "address": {}
+     }
+    },
+    {
+     "required": [
+      "lock"
+     ],
+     "properties": {
+      "lock": {}
+     }
+    }
+   ],
+   "allOf": [
+    {
+     "anyOf": [
+      {
+       "required": [
+        "eq"
+       ],
+       "properties": {
+        "eq": {}
+       }
+      },
+      {
+       "required": [
+        "gte"
+       ],
+       "properties": {
+        "gte": {}
+       }
+      },
+      {
+       "required": [
+        "lte"
+       ],
+       "properties": {
+        "lte": {}
+       }
+      }
+     ]
+    },
+    {
+     "if": {
+      "required": [
+       "udt"
+      ],
+      "properties": {
+       "udt": {}
+      }
+     },
+     "then": {
+      "properties": {
+       "eq": {
+        "$ref": "#/$defs/udtQuantity"
+       },
+       "gte": {
+        "$ref": "#/$defs/udtQuantity"
+       },
+       "lte": {
+        "$ref": "#/$defs/udtQuantity"
+       }
+      }
+     },
+     "else": {
+      "properties": {
+       "eq": {
+        "$ref": "#/$defs/ckbQuantity"
+       },
+       "gte": {
+        "$ref": "#/$defs/ckbQuantity"
+       },
+       "lte": {
+        "$ref": "#/$defs/ckbQuantity"
+       }
+      }
+     }
+    },
+    {
+     "if": {
+      "required": [
+       "eq"
+      ],
+      "properties": {
+       "eq": {}
+      }
+     },
+     "then": {
+      "not": {
+       "anyOf": [
+        {
+         "required": [
+          "gte"
+         ],
+         "properties": {
+          "gte": {}
+         }
+        },
+        {
+         "required": [
+          "lte"
+         ],
+         "properties": {
+          "lte": {}
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "manifestAssertions": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [],
+   "properties": {
+    "cell": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/manifestCell"
+     }
+    },
+    "cell_deps": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/manifestCellDeps"
+     }
+    },
+    "balance": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/manifestBalance"
+     }
+    }
+   }
+  },
+  "scriptRefResolved": {
+   "oneOf": [
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind",
+      "codeHash",
+      "hashType",
+      "args"
+     ],
+     "properties": {
+      "kind": {
+       "const": "explicit"
+      },
+      "codeHash": {
+       "$ref": "#/$defs/hash32"
+      },
+      "hashType": {
+       "$ref": "#/$defs/hashType"
+      },
+      "args": {
+       "$ref": "#/$defs/bytes"
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind",
+      "name",
+      "args"
+     ],
+     "properties": {
+      "kind": {
+       "const": "builtin"
+      },
+      "name": {
+       "$ref": "#/$defs/systemScript"
+      },
+      "args": {
+       "oneOf": [
+        {
+         "$ref": "#/$defs/bytes"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind",
+      "index"
+     ],
+     "properties": {
+      "kind": {
+       "const": "account"
+      },
+      "index": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 19
+      }
+     }
+    }
+   ]
+  },
+  "countRangeNormalized": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [],
+   "properties": {
+    "eq": {
+     "$ref": "#/$defs/u32"
+    },
+    "gte": {
+     "$ref": "#/$defs/u32"
+    },
+    "lte": {
+     "$ref": "#/$defs/u32"
+    }
+   },
+   "minProperties": 1
+  },
+  "decimalRange": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [],
+   "properties": {
+    "eq": {
+     "$ref": "#/$defs/decimal"
+    },
+    "gte": {
+     "$ref": "#/$defs/decimal"
+    },
+    "lte": {
+     "$ref": "#/$defs/decimal"
+    }
+   },
+   "minProperties": 1
+  },
+  "dataCheck": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [],
+   "properties": {
+    "eq": {
+     "$ref": "#/$defs/bytes"
+    },
+    "len": {
+     "$ref": "#/$defs/byteCount"
+    },
+    "minBytes": {
+     "$ref": "#/$defs/positiveByteCount"
+    }
+   },
+   "minProperties": 1
+  },
+  "cellTarget": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [],
+   "properties": {
+    "outPoint": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "step",
+      "index"
+     ],
+     "properties": {
+      "step": {
+       "$ref": "#/$defs/name"
+      },
+      "index": {
+       "$ref": "#/$defs/u32"
+      }
+     }
+    },
+    "lock": {
+     "$ref": "#/$defs/scriptRefResolved"
+    },
+    "type": {
+     "$ref": "#/$defs/scriptRefResolved"
+    }
+   },
+   "minProperties": 1
+  },
+  "cellExpected": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "count"
+   ],
+   "properties": {
+    "count": {
+     "$ref": "#/$defs/countRangeNormalized"
+    },
+    "data": {
+     "$ref": "#/$defs/dataCheck"
+    },
+    "capacity": {
+     "$ref": "#/$defs/decimalRange"
+    }
+   }
+  },
+  "balanceTarget": {
+   "oneOf": [
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind",
+      "index"
+     ],
+     "properties": {
+      "kind": {
+       "const": "account"
+      },
+      "index": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 19
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind",
+      "address",
+      "lock"
+     ],
+     "properties": {
+      "kind": {
+       "const": "address"
+      },
+      "address": {
+       "type": "string",
+       "pattern": "^ck[bt]1[02-9ac-hj-np-z]{6,}$"
+      },
+      "lock": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "codeHash",
+        "hashType",
+        "args"
+       ],
+       "properties": {
+        "codeHash": {
+         "$ref": "#/$defs/hash32"
+        },
+        "hashType": {
+         "$ref": "#/$defs/hashType"
+        },
+        "args": {
+         "$ref": "#/$defs/bytes"
+        }
+       }
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind",
+      "script"
+     ],
+     "properties": {
+      "kind": {
+       "const": "lock"
+      },
+      "script": {
+       "$ref": "#/$defs/scriptRefResolved"
+      }
+     }
+    }
+   ]
+  },
+  "balanceExpected": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "amount"
+   ],
+   "properties": {
+    "udt": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "type"
+     ],
+     "properties": {
+      "type": {
+       "$ref": "#/$defs/scriptRefResolved"
+      }
+     }
+    },
+    "amount": {
+     "$ref": "#/$defs/decimalRange"
+    }
+   }
+  },
+  "outPointObserved": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "txHash",
+    "index"
+   ],
+   "properties": {
+    "txHash": {
+     "$ref": "#/$defs/hash32"
+    },
+    "index": {
+     "$ref": "#/$defs/u32"
+    }
+   }
+  },
+  "selectedCell": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "outPoint",
+    "capacity",
+    "dataBytes",
+    "dataHash"
+   ],
+   "properties": {
+    "outPoint": {
+     "$ref": "#/$defs/outPointObserved"
+    },
+    "capacity": {
+     "$ref": "#/$defs/decimal"
+    },
+    "dataBytes": {
+     "oneOf": [
+      {
+       "$ref": "#/$defs/byteCount"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "dataHash": {
+     "oneOf": [
+      {
+       "$ref": "#/$defs/hash32"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   }
+  },
+  "cellObserved": {
+   "oneOf": [
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "state",
+      "count"
+     ],
+     "properties": {
+      "state": {
+       "const": "missing-output"
+      },
+      "count": {
+       "const": 0
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "state",
+      "status",
+      "count"
+     ],
+     "properties": {
+      "state": {
+       "const": "non-live"
+      },
+      "status": {
+       "enum": [
+        "dead",
+        "unknown"
+       ]
+      },
+      "count": {
+       "const": 0
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "state",
+      "count",
+      "cells"
+     ],
+     "properties": {
+      "state": {
+       "const": "selected"
+      },
+      "count": {
+       "type": "integer",
+       "minimum": 0,
+       "maximum": 1000
+      },
+      "cells": {
+       "type": "array",
+       "maxItems": 1000,
+       "items": {
+        "$ref": "#/$defs/selectedCell"
+       }
+      }
+     }
+    }
+   ]
+  },
+  "balanceObserved": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "cells",
+    "total",
+    "malformed"
+   ],
+   "properties": {
+    "cells": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 1000
+    },
+    "total": {
+     "oneOf": [
+      {
+       "$ref": "#/$defs/decimal"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "malformed": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/outPointObserved"
+     }
+    }
+   }
+  },
+  "rpcScript": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "code_hash",
+    "hash_type",
+    "args"
+   ],
+   "properties": {
+    "code_hash": {
+     "$ref": "#/$defs/hash32"
+    },
+    "hash_type": {
+     "$ref": "#/$defs/hashType"
+    },
+    "args": {
+     "$ref": "#/$defs/bytes"
+    }
+   }
+  },
+  "rpcOutput": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "capacity",
+    "lock"
+   ],
+   "properties": {
+    "capacity": {
+     "type": "string",
+     "pattern": "^0x(?:0|[1-9a-f][0-9a-f]{0,15})$"
+    },
+    "lock": {
+     "$ref": "#/$defs/rpcScript"
+    },
+    "type": {
+     "oneOf": [
+      {
+       "$ref": "#/$defs/rpcScript"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   }
+  },
+  "rpcOutPoint": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "tx_hash",
+    "index"
+   ],
+   "properties": {
+    "tx_hash": {
+     "$ref": "#/$defs/hash32"
+    },
+    "index": {
+     "type": "string",
+     "pattern": "^0x(?:0|[1-9a-f][0-9a-f]{0,7})$"
+    }
+   }
+  },
+  "indexerSearchKey": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "script",
+    "script_type",
+    "script_search_mode",
+    "with_data"
+   ],
+   "properties": {
+    "script": {
+     "$ref": "#/$defs/rpcScript"
+    },
+    "script_type": {
+     "enum": [
+      "lock",
+      "type"
+     ]
+    },
+    "script_search_mode": {
+     "enum": [
+      "exact",
+      "prefix"
+     ]
+    },
+    "filter": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "script"
+     ],
+     "properties": {
+      "script": {
+       "$ref": "#/$defs/rpcScript"
+      }
+     }
+    },
+    "with_data": {
+     "type": "boolean"
+    }
+   }
+  },
+  "indexerCell": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "output",
+    "output_data",
+    "out_point",
+    "block_number",
+    "tx_index"
+   ],
+   "properties": {
+    "output": {
+     "$ref": "#/$defs/rpcOutput"
+    },
+    "output_data": {
+     "oneOf": [
+      {
+       "$ref": "#/$defs/bytes"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "out_point": {
+     "$ref": "#/$defs/rpcOutPoint"
+    },
+    "block_number": {
+     "type": "string",
+     "pattern": "^0x(?:0|[1-9a-f][0-9a-f]{0,15})$"
+    },
+    "tx_index": {
+     "type": "string",
+     "pattern": "^0x(?:0|[1-9a-f][0-9a-f]{0,7})$"
+    }
+   }
+  },
+  "indexerPage": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "after_cursor",
+    "response"
+   ],
+   "properties": {
+    "after_cursor": {
+     "oneOf": [
+      {
+       "type": "string",
+       "pattern": "^0x[0-9a-f]*$"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "response": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "objects",
+      "last_cursor"
+     ],
+     "properties": {
+      "objects": {
+       "type": "array",
+       "maxItems": 100,
+       "items": {
+        "$ref": "#/$defs/indexerCell"
+       }
+      },
+      "last_cursor": {
+       "type": "string",
+       "pattern": "^0x[0-9a-f]*$"
+      }
+     }
+    }
+   }
+  },
+  "indexerInput": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "kind",
+    "search_key",
+    "pages"
+   ],
+   "properties": {
+    "kind": {
+     "const": "indexer"
+    },
+    "search_key": {
+     "$ref": "#/$defs/indexerSearchKey"
+    },
+    "pages": {
+     "type": "array",
+     "minItems": 1,
+     "maxItems": 11,
+     "items": {
+      "$ref": "#/$defs/indexerPage"
+     }
+    }
+   }
+  },
+  "cellInput": {
+   "oneOf": [
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind"
+     ],
+     "properties": {
+      "kind": {
+       "const": "missing-output"
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind",
+      "outPoint",
+      "response"
+     ],
+     "properties": {
+      "kind": {
+       "const": "query"
+      },
+      "outPoint": {
+       "$ref": "#/$defs/rpcOutPoint"
+      },
+      "response": {
+       "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v2.schema.json#/$defs/liveCellResponse"
+      }
+     }
+    },
+    {
+     "$ref": "#/$defs/indexerInput"
+    }
+   ]
+  },
+  "cellOutcome": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "kind",
+    "target",
+    "expected",
+    "observed",
+    "observationValid",
+    "ok"
+   ],
+   "properties": {
+    "kind": {
+     "const": "cell"
+    },
+    "target": {
+     "$ref": "#/$defs/cellTarget"
+    },
+    "expected": {
+     "$ref": "#/$defs/cellExpected"
+    },
+    "observed": {
+     "$ref": "#/$defs/cellObserved"
+    },
+    "observationValid": {
+     "type": "boolean"
+    },
+    "ok": {
+     "type": "boolean"
+    }
+   }
+  },
+  "cellDepsOutcome": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "kind",
+    "target",
+    "expected",
+    "observed",
+    "observationValid",
+    "ok"
+   ],
+   "properties": {
+    "kind": {
+     "const": "cell_deps"
+    },
+    "target": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "step"
+     ],
+     "properties": {
+      "step": {
+       "$ref": "#/$defs/name"
+      }
+     }
+    },
+    "expected": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "contains"
+     ],
+     "properties": {
+      "contains": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "kind",
+        "name"
+       ],
+       "properties": {
+        "kind": {
+         "const": "builtin"
+        },
+        "name": {
+         "$ref": "#/$defs/systemScript"
+        }
+       }
+      }
+     }
+    },
+    "observed": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "present"
+     ],
+     "properties": {
+      "present": {
+       "type": "array",
+       "items": {
+        "type": "boolean"
+       }
+      }
+     }
+    },
+    "observationValid": {
+     "const": true
+    },
+    "ok": {
+     "type": "boolean"
+    }
+   }
+  },
+  "balanceOutcome": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "kind",
+    "target",
+    "expected",
+    "observed",
+    "observationValid",
+    "ok"
+   ],
+   "properties": {
+    "kind": {
+     "const": "balance"
+    },
+    "target": {
+     "$ref": "#/$defs/balanceTarget"
+    },
+    "expected": {
+     "$ref": "#/$defs/balanceExpected"
+    },
+    "observed": {
+     "$ref": "#/$defs/balanceObserved"
+    },
+    "observationValid": {
+     "type": "boolean"
+    },
+    "ok": {
+     "type": "boolean"
+    }
+   }
+  },
+  "claimOutcome": {
+   "oneOf": [
+    {
+     "$ref": "#/$defs/cellOutcome"
+    },
+    {
+     "$ref": "#/$defs/cellDepsOutcome"
+    },
+    {
+     "$ref": "#/$defs/balanceOutcome"
+    }
+   ]
+  },
+  "claimEvidence": {
+   "oneOf": [
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind",
+      "target",
+      "expected",
+      "observed",
+      "observationValid",
+      "ok",
+      "input"
+     ],
+     "properties": {
+      "kind": {
+       "const": "cell"
+      },
+      "target": {
+       "$ref": "#/$defs/cellTarget"
+      },
+      "expected": {
+       "$ref": "#/$defs/cellExpected"
+      },
+      "observed": {
+       "$ref": "#/$defs/cellObserved"
+      },
+      "observationValid": {
+       "type": "boolean"
+      },
+      "ok": {
+       "type": "boolean"
+      },
+      "input": {
+       "$ref": "#/$defs/cellInput"
+      }
+     }
+    },
+    {
+     "$ref": "#/$defs/cellDepsOutcome"
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "kind",
+      "target",
+      "expected",
+      "observed",
+      "observationValid",
+      "ok",
+      "input"
+     ],
+     "properties": {
+      "kind": {
+       "const": "balance"
+      },
+      "target": {
+       "$ref": "#/$defs/balanceTarget"
+      },
+      "expected": {
+       "$ref": "#/$defs/balanceExpected"
+      },
+      "observed": {
+       "$ref": "#/$defs/balanceObserved"
+      },
+      "observationValid": {
+       "type": "boolean"
+      },
+      "ok": {
+       "type": "boolean"
+      },
+      "input": {
+       "$ref": "#/$defs/indexerInput"
+      }
+     }
+    }
+   ]
+  }
+ }
+}

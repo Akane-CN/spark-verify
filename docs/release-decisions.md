@@ -59,6 +59,18 @@ The six decisions the [RFC-to-implementation matrix](rfc-implementation-matrix.m
 
 **Consequences.** The version policy's open-decisions section is replaced by this record; the release notes name both identifiers; no parser, schema, or fixture changes.
 
+## Reopened entries
+
+Reopening a decision is a dated entry here, not an edit of the original text above.
+
+### 2026-11-02: decision 1 reopened, the promised vocabulary is implemented as spec `0.1.0-draft.5`
+
+**Why.** The original decision read the missing vocabulary as deferrable because no observed user need asked for it. That reading ignored that the [Spark proposal revision 0.3](spark-proposal.md#8-deliverables--how-to-verify) lists cycle comparators, script-filtered Cell selection with `data`/`data.len`/`capacity` checks, and native CKB and 16-byte little-endian UDT/xUDT balance claims as funded deliverable 2. Keeping decision 1 as written would narrow the promised scope by decision, which the roadmap forbids. The [proposal coverage](proposal-coverage.md) record makes the gap explicit.
+
+**New decision.** `v0.1.0` ships the RFC §4.2 `expect.cycles.{lt,lte,eq,gte}` comparators, the §5.1 Cell selectors by `lock`/`type` script filter with `count` comparators, `data.eq`, `data.len`, and `capacity` comparators, the §5.2 `balance` claims (CKB and 16-byte little-endian UDT) with the quantity grammar, and the §5.3 explicit, builtin, and wildcard-args script references, as a new manifest spec `0.1.0-draft.5` with its own report, outcome, and schema versions per the [version policy](version-policy.md). `0.1.0-draft.3` and `0.1.0-draft.4` keep their grammars. Decision 2 (`[setup.scripts]` deployment, which the proposal does not promise) and decision 3 (pure steps, `accounts = 0`) are unchanged; named setup-script references therefore remain out of scope and the §5.3 named form resolves OffCKB built-ins only. Decision 4 is unchanged: `expect.error.group` stays code-only until the named-script question is settled.
+
+**Consequences.** Decision 6 is amended: `0.1.0-draft.5` joins the accepted identifiers. Implemented: the [vocabulary](vocabulary-draft.5.md) page, the [vocabulary fixture](../showcases/vocabulary/README.md) on a fresh devnet, report `/3` with environment `/4` and provenance `/3`, the published schema branches, 14 conformance fixtures, `run --allow-version-drift`, and the updated matrix, RFC status lines, version policy, and release notes draft.
+
 ## What this record does not do
 
 It does not freeze the RFC, publish anything, or close #20's remaining gates (package identity, candidate freeze, independent review, publication approval). Reopening any decision is a new entry here with a date and a reason, not an edit of the old one.

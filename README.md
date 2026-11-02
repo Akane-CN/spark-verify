@@ -42,13 +42,14 @@ The acceptance harness runs the committed fixture twice on fresh devnets and req
 
 `PASS` means exactly: **All declared claims passed in the recorded environment.** It does not claim broader contract correctness or a security audit.
 
-The [`ckb-ugmp` showcase](showcases/ckb-ugmp/) adds a bounded, headless adaptation of the Spore mint seam from [`HNO3Miracle/CKB-UGMP@543def6e717b2d67f619a76c3d9283e55b211b83`](https://github.com/HNO3Miracle/CKB-UGMP/tree/543def6e717b2d67f619a76c3d9283e55b211b83). It injects the fresh OffCKB Spore deployment into the upstream project's pinned `@ckb-ccc/spore@1.5.17` construction path, uses deterministic local DOB/0-shaped data, and returns a signed transaction without submitting it. It does not run the browser UI unchanged and carries no CKB-UGMP maintainer endorsement.
+The [`vocabulary` showcase](showcases/vocabulary/) exercises the draft.5 assertion vocabulary on an owner-mode xUDT mint plus a transfer: cycles comparators, script-filtered Cells with data and capacity checks, CKB and UDT balances, and the recorded tool-version drift path. The [`ckb-ugmp` showcase](showcases/ckb-ugmp/) adds a bounded, headless adaptation of the Spore mint seam from [`HNO3Miracle/CKB-UGMP@543def6e717b2d67f619a76c3d9283e55b211b83`](https://github.com/HNO3Miracle/CKB-UGMP/tree/543def6e717b2d67f619a76c3d9283e55b211b83). It injects the fresh OffCKB Spore deployment into the upstream project's pinned `@ckb-ccc/spore@1.5.17` construction path, uses deterministic local DOB/0-shaped data, and returns a signed transaction without submitting it. It does not run the browser UI unchanged and carries no CKB-UGMP maintainer endorsement.
 
 ```bash
 bun install --frozen-lockfile
 bun run check
 bun run showcase:secp-transfer
 bun run showcase:ckb-ugmp
+bun run showcase:vocabulary
 ```
 
 The current pinned fixture environment is:
@@ -68,6 +69,12 @@ The private `0.0.2` runner also accepts [draft.4 type/args-length/data-length an
 
 The new wrapper verifies each complete PASS/FAIL report with `verifyReport`, checks the intended failing predicates, and independently checks account/pending-report absence and ports even if report readback fails. Repeats require equal outcomes; repeated raw provenance requires equal environments. Differing real genesis/deployment bindings remain visible, not scrubbed to force equality. Each showcase job then packages its canonical reports into a sanitized, checksummed [evidence bundle](docs/offline-verification.md#evidence-bundles) that a later job downloads through the API and re-verifies offline (#19).
 
+## Dogfood manifest and reusable CI
+
+The repository root carries its own [`verify.toml`](verify.toml): the secp256k1 transfer producer run on a fresh devnet with one live-output claim. `bun run verify:release` runs the release verification surface promised in the proposal from a clean checkout (validate every included manifest, run the root manifest, the positive, failing, and script-rejection paths, a repeated clean run with equal digests, a dirty-tree run showing that equal outcomes do not imply equal environments, and an offline recomputation of every report) and writes a Markdown record. `bun run build` type-checks and packs the distributable.
+
+[`.github/workflows/ckb-verify-reusable.yml`](.github/workflows/ckb-verify-reusable.yml) is a pinned, secret-free reusable workflow (`workflow_call`) that validates and runs one manifest on a fresh devnet and keeps only the canonical `report.json` files as an artifact. This repository calls it for its root manifest in the `dogfood` job (the manual `macos-boundary` workflow records the macOS state separately); a consumer that installed the package per the [installation guide](docs/install.md) calls it with `uses: Akane-CN/spark-verify/.github/workflows/ckb-verify-reusable.yml@<commit>`. The [proposal coverage](docs/proposal-coverage.md) record maps every promised deliverable to its status.
+
 ## Installing into your own project
 
 The one exercised installation path (Linux x64, Bun 1.2.19, Node 20+) is documented step by step in [docs/install.md](docs/install.md): pack the tarball, declare the shipped OffCKB security patch **before** the first `bun install`, install into a clean project, run, and verify offline. The runner refuses to start a devnet next to an unpatched OffCKB bundle. `scripts/acceptance-matrix.sh --consumer` reproduces that path end to end; `scripts/acceptance-matrix.sh` runs the same scenario matrix against this checkout. The package is unreleased and private; see the [release checklist](docs/release-checklist.md), [maintenance loop](docs/maintenance.md), and [changelog](CHANGELOG.md).
@@ -75,7 +82,7 @@ The one exercised installation path (Linux x64, Bun 1.2.19, Node 20+) is documen
 ## CLI
 
 ```text
-ckb-verify run [manifest]
+ckb-verify run [manifest] [--allow-version-drift]
 ckb-verify validate [manifest] [--json]
 ckb-verify digest <report.json> [--json] [--allow-legacy]
 ckb-verify check-digest <report.json> [--outcome sha256:...] [--environment sha256:...] [--json] [--allow-legacy]
@@ -146,7 +153,7 @@ count = 1
 
 The feasibility implementation supports only:
 
-- exact legacy spec `0.1.0-draft.3` or new `0.1.0-draft.4`;
+- exact spec `0.1.0-draft.3`, `0.1.0-draft.4`, or `0.1.0-draft.5`;
 - exact CKB and OffCKB versions accepted by the current adapter;
 - ckb-debugger `1.1.1` when requested, mandatory for every declared rejected transaction (Linux/x64 only);
 - a required replay dependency list containing zero or more unique RFC dependency codes;
@@ -156,6 +163,7 @@ The feasibility implementation supports only:
 - optional `expect.error.code` for a rejected script;
 - exact live-Cell count assertions targeting `{ step, index }`;
 - draft.4 only: count 0/1, type builtin `dao`/`spore` plus `args_bytes`, data `min_bytes`, and separate `cell_deps.contains` **table** membership. Properties require count 1. See [bounds and semantics](docs/cell-claims-draft.4.md).
+- draft.5 only: `expect.cycles` comparators; Cell selection by `out_point`, `lock`, and `type` script filters (explicit, any OffCKB built-in with optional wildcard args, or an exported account) with `count` comparators, `data.eq`/`len`/`min_bytes`, and `capacity` comparators; `balance` claims by account, full-format address, or lock, with or without a 16-byte little-endian UDT; and `run --allow-version-drift`. See the [draft.5 vocabulary](docs/vocabulary-draft.5.md) and the [vocabulary fixture](showcases/vocabulary/README.md).
 
 Unknown keys fail closed. A non-empty replay dependency list is accepted but makes the report explicitly `tainted`; it never silently claims stable replay. Script deployment declarations, balance/UDT assertions, script filters, cycle comparators, and multi-transaction steps remain RFC targets and are not silently accepted.
 

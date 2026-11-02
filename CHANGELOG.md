@@ -35,7 +35,25 @@ the private `version` field of `package.json`, not published packages. Dates are
   download failure and recovery; `--consumer` runs it against the packed, installed package.
 - Maintenance material: [release checklist](docs/release-checklist.md),
   [maintenance loop](docs/maintenance.md), bug report template, `scripts/release-rehearsal.sh` (#20, #21).
-- `docs/release-decisions.md` records the six release decisions for `v0.1.0`: the implemented
+- Manifest spec `0.1.0-draft.5` with the promised assertion vocabulary: `expect.cycles` comparators; Cell
+  selection by `out_point`, `lock`, and `type` script filters (explicit, any OffCKB built-in with optional
+  wildcard args, or an exported account) with `count` comparators, `data.eq`/`len`/`min_bytes`, and
+  `capacity` comparators; `balance` claims by account, full-format address, or lock, with or without a
+  16-byte little-endian UDT; and `run --allow-version-drift`. Reports are `ckb-verify-report/3` with
+  `ckb-verify-outcome/3`, `ckb-verify-environment/4` (exported accounts), and `ckb-verify-provenance/3`
+  (tool-version drift record); raw indexer pages are retained and every observation is re-derived offline.
+  Published schema branches, 14 conformance fixtures, the `vocabulary` showcase (owner-mode xUDT mint on a
+  fresh devnet, five cases plus a repeat) and its CI evidence bundle, `docs/vocabulary-draft.5.md`
+  ([release decision 1 reopened](docs/release-decisions.md), #20).
+- Repository-root dogfood manifest (`verify.toml`), `bun run verify:release` (the proposal's release
+  verification surface with a Markdown record), `bun run build`, the pinned secret-free reusable
+  workflow `.github/workflows/ckb-verify-reusable.yml` (called by the `dogfood` job), a manual
+  `macos-boundary` workflow for the macOS offline-command and refusal check (hosted macOS runners were
+  unavailable on 2026-11-01, so macOS remains unexecuted), and
+  `docs/proposal-coverage.md` mapping every promised deliverable to its status (#20).
+- `run` prints a field-level expected/observed diff for every failed expectation and claim on FAIL.
+- `docs/release-decisions.md` records the six release decisions for `v0.1.0` (decision 1 reopened on
+  2026-11-02: the promised vocabulary is implemented as spec `0.1.0-draft.5`): the implemented
   draft.3/draft.4 subset ships; `balance`, script-filter selectors and comparators, `expect.cycles`,
   `[setup.scripts]` deployment, pure steps, `accounts = 0`, and `expect.error.group` are v0.3
   proposals; RFC §7 is rewritten to the shipped report and CLI contract; the spec identifiers stay

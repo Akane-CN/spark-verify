@@ -6,11 +6,11 @@
 
 | Identifier | Where | Current | Names |
 | --- | --- | --- | --- |
-| Manifest spec | `meta.spec` in `verify.toml` | `0.1.0-draft.3`, `0.1.0-draft.4` | the grammar and claim vocabulary the author wrote against |
-| Report envelope | `schema` in `report.json` | `ckb-verify-report/1` (draft.3), `ckb-verify-report/2` (draft.4) | the top-level artifact layout and which verifier branch applies |
-| Outcome claims | `outcomeClaims.schema` | `ckb-verify-outcome/1`, `ckb-verify-outcome/2` | the normalized object whose RFC 8785 hash is the outcome digest |
-| Environment | `environment.schema` | `ckb-verify-environment/3` (historical `/2`) | the object whose hash is the environment fingerprint |
-| Provenance | `environment.provenance.schema` | `ckb-verify-provenance/2` (historical `/1`) | source, runtime, lockfile, binary, and replay provenance inside the environment |
+| Manifest spec | `meta.spec` in `verify.toml` | `0.1.0-draft.3`, `0.1.0-draft.4`, `0.1.0-draft.5` | the grammar and claim vocabulary the author wrote against |
+| Report envelope | `schema` in `report.json` | `ckb-verify-report/1` (draft.3), `ckb-verify-report/2` (draft.4), `ckb-verify-report/3` (draft.5) | the top-level artifact layout and which verifier branch applies |
+| Outcome claims | `outcomeClaims.schema` | `ckb-verify-outcome/1`, `ckb-verify-outcome/2`, `ckb-verify-outcome/3` | the normalized object whose RFC 8785 hash is the outcome digest |
+| Environment | `environment.schema` | `ckb-verify-environment/3`, `ckb-verify-environment/4` (draft.5: adds the exported accounts) (historical `/2`) | the object whose hash is the environment fingerprint |
+| Provenance | `environment.provenance.schema` | `ckb-verify-provenance/2`, `ckb-verify-provenance/3` (draft.5: adds the tool-version drift record) (historical `/1`) | source, runtime, lockfile, binary, and replay provenance inside the environment |
 | Evidence bundle | `bundle.json` `schema` | `ckb-verify-evidence-bundle/1` | the CI bundle layout and its checksum manifest |
 | Runner | `ckb-verify --version`, `environment.runner.version`, `package.json` | `0.0.2` (unreleased, private) | the code that produced or verified an artifact |
 | Producer result | `protocol` in the file written to `CKB_VERIFY_RESULT` | `1` | the envelope a step command hands to the runner |
@@ -23,6 +23,7 @@ A report is accepted only as a whole tuple. The verifier does not accept a repor
 
 | Report | Outcome | Specs (`evidence.spec`, `outcomeClaims.spec`) | Environment | Provenance | Accepted by |
 | --- | --- | --- | --- | --- | --- |
+| `report/3` | `outcome/3` | both `0.1.0-draft.5` | `environment/4` | `provenance/3` | current runner, `digest`, `check-digest`, `check-bundle` |
 | `report/2` | `outcome/2` | both `0.1.0-draft.4` | `environment/3` | `provenance/2` | current runner, `digest`, `check-digest`, `check-bundle` |
 | `report/1` | `outcome/1` | both `0.1.0-draft.3` | `environment/3` | `provenance/2` | current runner, `digest`, `check-digest`, `check-bundle` |
 | `report/1` | `outcome/1` | both `0.1.0-draft.3` | `environment/2` | `provenance/1` | historical only: `digest`/`check-digest` with `--allow-legacy`; never written any more; gains no debugger-identity guarantee |
@@ -40,7 +41,7 @@ Legacy acceptance is an explicit reader opt-in and never widens what `report/2` 
 
 ## Reading and writing rules
 
-- The runner **writes** exactly one tuple per manifest spec: draft.3 → report/1, draft.4 → report/2, both with environment/3 + provenance/2. It never writes historical tuples.
+- The runner **writes** exactly one tuple per manifest spec: draft.3 → report/1 and draft.4 → report/2, both with environment/3 + provenance/2; draft.5 → report/3 with environment/4 + provenance/3. It never writes historical tuples.
 - A verifier **reads** every tuple listed as accepted and nothing else. Unsupported, missing, mixed, or inferred-from-content versions fail closed with an explicit message naming the identifier; a report is never reinterpreted under a different version to make it pass.
 - There is **no automatic migration** of manifests or reports. A manifest written for a retired spec is rejected by `validate` with the exact spec string; a report of a retired version is rejected by `digest` as unsupported, and the previous runner release remains the way to read it. A migration tool, if one is ever written, produces a new artifact with new digests; it never rewrites hashes inside an existing one.
 - Digest comparison across versions is undefined: an outcome digest from `outcome/1` and one from `outcome/2` are different objects and must not be compared, even for the same manifest. Repeatability claims are made within one tuple.
@@ -55,4 +56,4 @@ Legacy acceptance is an explicit reader opt-in and never widens what `report/2` 
 
 ## Decisions recorded (#18)
 
-[Release decision 6](release-decisions.md#6-spec-naming-at-release-draft-identifiers-stay): at `v0.1.0` the manifest spec identifiers are `0.1.0-draft.3` and `0.1.0-draft.4`, both read and written as in the tables above, and no `0.1.0` spec string is introduced. `0.1.0-draft.3` is retained through `v0.1.x`; its retirement, if any, is announced one minor release ahead and report `/1` keeps being written for draft.3 manifests until then. A `0.1.0` spec string is reserved for the first grammar freeze after the v0.3 proposals are settled.
+[Release decision 6](release-decisions.md#6-spec-naming-at-release-draft-identifiers-stay), amended on 2026-11-02: at `v0.1.0` the manifest spec identifiers are `0.1.0-draft.3`, `0.1.0-draft.4`, and `0.1.0-draft.5`, all read and written as in the tables above, and no `0.1.0` spec string is introduced. `0.1.0-draft.3` is retained through `v0.1.x`; its retirement, if any, is announced one minor release ahead and report `/1` keeps being written for draft.3 manifests until then. A `0.1.0` spec string is reserved for the first grammar freeze after the v0.3 proposals are settled.

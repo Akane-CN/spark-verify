@@ -3,6 +3,7 @@ import { readFile, lstat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { canonicalSha256, sha256Bytes } from "./canonical";
 import { deriveOutcomeV2 } from "./cell-claims";
+import { deriveOutcomeV3 } from "./claims-v3";
 import { ManifestError } from "./errors";
 import { loadManifest } from "./manifest";
 import { buildOutcomeClaims, verifyReport, type RunEvidence } from "./report";
@@ -146,6 +147,9 @@ export const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 function recomputeDigests(report: Record<string, unknown>): DigestPair | null {
   try {
     const environment = canonicalSha256(report.environment);
+    if (report.schema === "ckb-verify-report/3") {
+      return { outcome: canonicalSha256(deriveOutcomeV3(report.evidence, report.environment)), environment };
+    }
     if (report.schema === "ckb-verify-report/2") {
       return { outcome: canonicalSha256(deriveOutcomeV2(report.evidence, report.environment)), environment };
     }

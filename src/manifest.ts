@@ -17,7 +17,9 @@ import type {
 export { ManifestError } from "./errors";
 
 const SPEC_VERSION = "0.1.0-draft.3" as const;
-export const MAX_BYTES = 1_048_576; // Runner resource policy, not consensus.
+export { MAX_BYTES } from "./limits";
+import { MAX_BYTES } from "./limits";
+import { parseAssertionsV5, parseExpectationV5 } from "./manifest-v5";
 const OFFCKB_VERSION = "0.4.13" as const;
 const EXACT_VERSION = /^\d+\.\d+\.\d+$/;
 const REPLAY_DEPENDENCIES = new Set<ReplayDependency>([
@@ -70,7 +72,9 @@ function parseMeta(value: unknown, source: string): ManifestMeta {
   exactKeys(table, ["name", "spec", "description"], "meta", source);
   const name = requiredString(table.name, "meta.name", source);
   if (name.length > 100) fail(source, "meta.name must not exceed 100 characters");
-  if (table.spec !== SPEC_VERSION && table.spec !== "0.1.0-draft.4") fail(source, 'meta.spec must equal "0.1.0-draft.3" or "0.1.0-draft.4"');
+  if (table.spec !== SPEC_VERSION && table.spec !== "0.1.0-draft.4" && table.spec !== "0.1.0-draft.5") {
+    fail(source, 'meta.spec must equal "0.1.0-draft.3", "0.1.0-draft.4", or "0.1.0-draft.5"');
+  }
 
   let description: string | undefined;
   if (table.description !== undefined) {
@@ -273,6 +277,7 @@ function parseAssertionsV4(value: unknown, path: string, names: ReadonlySet<stri
 
 function parseSteps<A>(value: unknown, source: string,
   assertions: (value: unknown, path: string, names: ReadonlySet<string>, source: string) => A[],
+  expectation: (value: unknown, path: string, source: string) => StepExpectation | undefined = parseExpectation,
 ): ManifestStep<A>[] {
   if (!Array.isArray(value) || value.length === 0) {
     fail(source, "step must contain at least one array table");
@@ -297,12 +302,12 @@ function parseSteps<A>(value: unknown, source: string,
   return tables.map((table, index) => {
     const path = `step[${index}]`;
     const allowedStepNames = new Set(names.slice(0, index + 1));
-    const expectation = parseExpectation(table.expect, `${path}.expect`, source);
+    const expect = expectation(table.expect, `${path}.expect`, source);
     return {
       name: names[index] as string,
       run: requiredString(table.run, `${path}.run`, source),
       timeoutMs: parseTimeout(table.timeout, `${path}.timeout`, source),
-      ...(expectation === undefined ? {} : { expect: expectation }),
+      ...(expect === undefined ? {} : { expect }),
       assertions: assertions(table.assert, `${path}.assert`, allowedStepNames, source),
     };
   });
@@ -321,8 +326,9 @@ export function parseManifestText(text: string, source = "verify.toml"): Manifes
   const meta = parseMeta(root.meta, source);
   const common = { toolchain: parseToolchain(root.toolchain, source),
     replay: parseReplay(root.replay, source), setup: parseSetup(root.setup, source) };
-  const parseBody = <A>(parser: (value: unknown, path: string, names: ReadonlySet<string>, source: string) => A[]) => {
-    const steps = parseSteps(root.step, source, parser);
+  const parseBody = <A>(parser: (value: unknown, path: string, names: ReadonlySet<string>, source: string) => A[],
+    expectation?: (value: unknown, path: string, source: string) => StepExpectation | undefined) => {
+    const steps = parseSteps(root.step, source, parser, expectation);
     const assertions = parser(root.assert, "assert", new Set(steps.map(step => step.name)), source);
 
     const claimCount = steps.reduce(
@@ -338,6 +344,9 @@ export function parseManifestText(text: string, source = "verify.toml"): Manifes
     }
     return { steps, assertions };
   };
+  if (meta.spec === "0.1.0-draft.5") {
+    return { meta: { ...meta, spec: "0.1.0-draft.5" }, ...common, ...parseBody(parseAssertionsV5(common.setup.accounts), parseExpectationV5) };
+  }
   return meta.spec === "0.1.0-draft.4"
     ? { meta: { ...meta, spec: "0.1.0-draft.4" }, ...common, ...parseBody(parseAssertionsV4) }
     : { meta: { ...meta, spec: "0.1.0-draft.3" }, ...common, ...parseBody(parseCellAssertions) };
@@ -348,7 +357,7 @@ export async function loadManifest(path: string): Promise<{ manifest: Manifest; 
   if (!(await file.exists())) fail(path, "file does not exist");
   const bytes = new Uint8Array(await file.arrayBuffer());
   const manifest = parseManifestText(new TextDecoder().decode(bytes), path);
-  if (manifest.meta.spec === "0.1.0-draft.4") {
+  if (manifest.meta.spec !== "0.1.0-draft.3") {
     try {
       const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
       if (!Buffer.from(text, "utf8").equals(bytes)) fail(path, "manifest must roundtrip as UTF-8");

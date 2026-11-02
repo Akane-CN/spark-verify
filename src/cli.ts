@@ -11,7 +11,7 @@ import { VERSION } from "./version";
 const HELP = `ckb-verify ${VERSION}
 
 Usage:
-  ckb-verify run [manifest]
+  ckb-verify run [manifest] [--allow-version-drift]
   ckb-verify validate [manifest] [--json]
   ckb-verify digest <report.json> [--json] [--allow-legacy]
   ckb-verify check-digest <report.json> [--outcome sha256:...] [--environment sha256:...] [--json] [--allow-legacy]
@@ -21,6 +21,8 @@ Usage:
 
 Commands:
   run [manifest]         Execute declared CKB acceptance claims (default: verify.toml)
+                         --allow-version-drift: draft.5 only; run on the pinned CKB when another exact
+                         version is requested, recorded in provenance/3 and tainting replay
   validate [manifest]    Parse a manifest with the strict grammar; runs nothing (default: verify.toml)
   digest <report>        Re-derive a report's outcome and environment digests offline
   check-digest <report>  Verify a report offline and compare it with expected digests
@@ -34,7 +36,7 @@ artifact is internally consistent, not that its declared claims passed.
 `;
 
 export interface CliDependencies {
-  runManifest: (options: { manifestPath: string; projectRoot: string; signal: AbortSignal }) => Promise<RunManifestResult>;
+  runManifest: (options: { manifestPath: string; projectRoot: string; signal: AbortSignal; allowVersionDrift?: boolean }) => Promise<RunManifestResult>;
   subscribeSignals?: (handler: (signal: "SIGINT" | "SIGTERM") => void) => () => void;
   stdout: (text: string) => void;
   stderr: (text: string) => void;
@@ -254,7 +256,9 @@ export async function main(
     return offlineCommand(args, dependencies);
   }
 
-  if (args[0] === "run" && args.length <= 2) {
+  if (args[0] === "run") {
+    const parsed = parseArgs(args.slice(1), ["allow-version-drift"], []);
+    if (parsed.positional.length > 1) throw new UsageError("run takes at most one manifest path");
     const controller = new AbortController();
     let receivedSignal: "SIGINT" | "SIGTERM" | undefined;
     const unsubscribe = dependencies.subscribeSignals?.((signal) => {
@@ -264,9 +268,10 @@ export async function main(
     });
     try {
       const result = await dependencies.runManifest({
-        manifestPath: args[1] ?? "verify.toml",
+        manifestPath: parsed.positional[0] ?? "verify.toml",
         projectRoot: process.cwd(),
         signal: controller.signal,
+        ...(parsed.flags.has("allow-version-drift") ? { allowVersionDrift: true } : {}),
       });
       if (receivedSignal !== undefined) return receivedSignal === "SIGINT" ? 130 : 143;
       dependencies.stdout(
@@ -275,6 +280,7 @@ export async function main(
             ? "All declared claims passed in the recorded environment."
             : "One or more declared claims failed."
         }\n` +
+          (result.verdict === "PASS" ? "" : renderFailures(result.report)) +
           `report: ${result.reportPath}\n` +
           `outcome: ${result.report.digests.outcome}\n` +
           `environment: ${result.report.digests.environment}\n`,
@@ -291,6 +297,30 @@ export async function main(
 
   dependencies.stderr(`ckb-verify: unsupported command: ${args.join(" ")}\n`);
   return 2;
+}
+
+interface ClaimLike { kind: string; target: unknown; expected: unknown; observed: unknown; ok: boolean }
+interface StepLike { name: string; expectedStatus?: string; observedStatus?: string; expectedErrorCode?: number; rejection?: { code?: number }; claims: ClaimLike[] }
+
+/** One `failed:` block per failed expectation or claim: the field, then the expected and observed values. */
+export function renderFailures(report: { outcomeClaims: unknown }): string {
+  const outcome = report.outcomeClaims as { steps: StepLike[]; assertions: ClaimLike[] };
+  const lines: string[] = [];
+  const diff = (field: string, expected: unknown, observed: unknown) => {
+    lines.push(`failed: ${field}`, `  expected: ${JSON.stringify(expected)}`, `  observed: ${JSON.stringify(observed ?? null)}`);
+  };
+  const claims = (list: ClaimLike[], where: string) => {
+    list.forEach((claim, index) => {
+      if (!claim.ok) diff(`${where}.${claim.kind}[${index}] target ${JSON.stringify(claim.target)}`, claim.expected, claim.observed);
+    });
+  };
+  for (const step of outcome.steps) {
+    if (step.expectedStatus !== undefined && step.expectedStatus !== step.observedStatus) diff(`step "${step.name}" expect.tx`, step.expectedStatus, step.observedStatus);
+    if (step.expectedErrorCode !== undefined && step.expectedErrorCode !== step.rejection?.code) diff(`step "${step.name}" expect.error.code`, step.expectedErrorCode, step.rejection?.code);
+    claims(step.claims, `step "${step.name}" assert`);
+  }
+  claims(outcome.assertions, "assert");
+  return lines.length === 0 ? "" : `${lines.join("\n")}\n`;
 }
 
 if (import.meta.main) {

@@ -1,6 +1,6 @@
 # RFC v0.2 to implementation matrix
 
-This matrix compares every normative item of [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md) with what the private `0.0.2` runner actually does. It exists so the RFC is never silently narrowed: an item is **supported** only when the parser, runner, verifier, and a real fixture all implement it; **deferred** items are intentionally not implemented and say why; **release-blocking** items needed a decision or work before `v0.1.0`; all six are recorded in [release decisions](release-decisions.md) (#18), so none remain. "Supported" never implies grant-scope completion.
+This matrix compares every normative item of [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md) with what the private `0.0.2` runner actually does; "(draft.5)" marks items available only under `meta.spec = "0.1.0-draft.5"` ([vocabulary](vocabulary-draft.5.md)). It exists so the RFC is never silently narrowed: an item is **supported** only when the parser, runner, verifier, and a real fixture all implement it; **deferred** items are intentionally not implemented and say why; **release-blocking** items needed a decision or work before `v0.1.0`; all six are recorded in [release decisions](release-decisions.md) (#18), so none remain. "Supported" never implies grant-scope completion.
 
 Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred · ⛔ release-blocking decision or work.
 
@@ -24,7 +24,7 @@ Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred 
 | Exact `toolchain.ckb` | ◐ | any exact `x.y.z` parses; only `0.209.0` has pinned release assets, so other values fail at setup with no verdict |
 | Exact `toolchain.offckb` | ◐ | must equal the adapter pin `0.4.13` |
 | Exact `toolchain.ckb-debugger` | ◐ | must be `1.1.1` (the only pinned Linux x64 asset); required whenever a step expects `rejected` |
-| `--allow-version-drift` | ⏸ | tool pins are exact-only; the runner refuses other versions rather than tainting. Runtime (Bun) drift and missing pins are recorded as `tainted` reasons instead |
+| `--allow-version-drift` | ✅ (draft.5) | `run --allow-version-drift` runs a draft.5 manifest that requests an unpinned exact `toolchain.ckb` on the pinned `0.209.0`; provenance/3 records requested/observed/allowed and replay is tainted `tool_version_drift`; refused before any runtime mutation by default. OffCKB and debugger pins stay exact-only |
 | Repository runtime/package-manager pins and lockfile recorded | ✅ | provenance `runtime` (Bun pin from `packageManager`), `lockfile` (`bun.lock`), `manifest.sha256`; other runtimes/lockfiles are not read (⏸) |
 | `[replay].dependencies` required, unique, from the five codes; listed codes taint with outcome-scoped reasons | ✅ | `src/provenance.ts`; conformance fixtures for unknown and duplicate codes |
 
@@ -50,7 +50,7 @@ Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred 
 | Result-contract errors (missing result on a tx step; result on a pure step) | ◐ | the first is an execution error; the second cannot occur because pure steps do not exist |
 | Non-zero command exit is an execution error | ✅ | |
 | `expect.tx = "committed" \| "rejected"` | ✅ | terminal node status via the OffCKB proxy |
-| `expect.cycles.{lt,lte,eq,gte}` | ⏸ | cycles are observed and recorded in the outcome (`test_tx_pool_accept`), but no comparator is accepted |
+| `expect.cycles.{lt,lte,eq,gte}` | ✅ (draft.5) | `{ lt \| lte, gte }` or `{ eq }`; `expectedCycles` enters the outcome; a missing cycles value never satisfies a comparator |
 | `expect.error.code` | ✅ | satisfied only by script evidence from the pinned debugger |
 | `expect.error.group` (role, script, args) | ⏸ | the rejection evidence records `role`, `source`, `script`, and `scriptHash`, but the manifest cannot pin a group. Decided: code-only pinning in v0.1 ([decision 4](release-decisions.md#4-expecterrorgroup-code-only-pinning)) |
 | Rejection kinds `script` vs `node`; bare `rejected` satisfied by either | ✅ | `src/transaction.ts`; node messages excluded from the outcome digest |
@@ -61,18 +61,18 @@ Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred 
 | RFC item | Status | Implementation and notes |
 | --- | --- | --- |
 | `cell` selector by `out_point = { step, index }` | ✅ | symbolic target retained in the outcome digest |
-| `cell` selector by `lock`/`type` script filter (query all matching live Cells) | ⏸ | no indexer query path |
+| `cell` selector by `lock`/`type` script filter (query all matching live Cells) | ✅ (draft.5) | indexer `get_cells` pages retained raw (100 per page, at most 1000 Cells); wildcard args match by prefix |
 | `count = N` exact | ◐ | draft.3: any non-negative count; draft.4: `0` or `1` only |
-| `count.eq/gte/lte` comparators | ⏸ | |
-| `data.eq` | ⏸ | |
-| `data.len` | ◐ | draft.4 `data = { min_bytes = N }` is a lower bound on decoded length, not exact length |
-| `capacity.{eq,gte,lte}` | ⏸ | |
+| `count.eq/gte/lte` comparators | ✅ (draft.5) | shorthand `N` or `{ eq \| gte, lte }`; property checks force `gte 1` |
+| `data.eq` | ✅ (draft.5) | exact bytes; re-derived from the retained raw data |
+| `data.len` | ✅ (draft.5) | exact byte length; draft.4 keeps `min_bytes` as a lower bound, draft.5 accepts both |
+| `capacity.{eq,gte,lte}` | ✅ (draft.5) | `"N CKB"`/`"N shannon"` strings, compared in shannons |
 | Output type identity and args length | ✅ (draft.4) | `type = { builtin, args_bytes }`; identity normalized to the claimed builtin or retained raw on mismatch |
 | Transaction CellDep membership | ✅ (draft.4) | `[[…assert.cell_deps]] contains = { builtin }`, beyond the RFC's vocabulary |
 | No vacuous success | ✅ | a missing output fails even `count = 0`; draft.4 property checks require `count = 1` |
-| `balance` by `account`/`address`/`lock`, with or without `udt` | ⏸ | no aggregate queries, no quantity grammar, no UDT decoding |
-| Script references (explicit, named setup script, wildcard args) | ⏸ | follows from the absence of `[setup.scripts]`; draft.4 builtin references are the only named form |
-| Comparator validation rules | ⏸ | no comparators exist to validate |
+| `balance` by `account`/`address`/`lock`, with or without `udt` | ✅ (draft.5) | aggregate over live Cells under the lock (indexer pages retained); UDT amounts decoded as the 16-byte little-endian prefix, shorter data invalidates the observation; full-format addresses decoded offline |
+| Script references (explicit, named setup script, wildcard args) | ◐ (draft.5) | explicit `{ code_hash, hash_type, args }`, `{ builtin[, args] }` for every exported system script, `{ account }` for locks, wildcard args recorded as `null`; named setup scripts stay out ([decision 2](release-decisions.md#2-repository-script-deployment-a-documented-limitation)) |
+| Comparator validation rules | ✅ (draft.5) | `eq` exclusive, `lt`/`lte` exclusive, `gte` ≤ `lte`, strings only for quantities; parser-only conformance cases |
 
 ## §6 Reproducibility
 
@@ -93,7 +93,7 @@ Legend: ✅ supported · ◐ partial (the difference is stated) · ⏸ deferred 
 | Report with versions, evidence, outcome claims, environment, pass flag, digests, replay | ✅ | `schema`, `verdict`, `createdAt`, `evidence`, `outcomeClaims`, `environment` (with `provenance.replay`), `digests`; RFC §7 now describes this shipped contract ([decision 5](release-decisions.md#5-rfc-7-rewritten-to-the-shipped-contract), [report anatomy](evidence-report.md)) |
 | `ckb-verify run [path]` | ✅ | |
 | `run --report <file>`, `run --json` | ⏸ | the report path is fixed under `.ckb-verify/runs/`; machine-readable output exists for the offline commands only |
-| `run --allow-version-drift` | ⏸ | see §2 |
+| `run --allow-version-drift` | ✅ (draft.5) | see §2 |
 | `ckb-verify validate [path]` | ✅ | strict parser plus the published manifest schema; executes nothing |
 | `ckb-verify digest <report>` | ✅ | always re-derives both digests (the RFC's `--kind` selector is not needed) |
 | `ckb-verify check-digest <report> …` | ◐ | implemented as `--outcome <sha256:…>` / `--environment <sha256:…>` instead of `--kind <k> <hash>`; same semantics |
@@ -127,4 +127,4 @@ Declarative transaction construction, arbitrary genesis Cells, testnet/mainnet e
 
 ## Release decisions (#18 → #20)
 
-The six decisions this matrix raised are recorded, with rationale and consequences, in [release decisions](release-decisions.md): (1) `v0.1.0` ships the implemented draft.3/draft.4 subset and the rest of RFC §4–§5 becomes v0.3 proposals; (2) `[setup.scripts]` deployment is a documented limitation; (3) pure steps and `accounts = 0` are not in v0.1; (4) `expect.error.group` is code-only pinning; (5) RFC §7 is rewritten to the shipped contract; (6) the spec identifiers stay `0.1.0-draft.3` and `0.1.0-draft.4` with no `0.1.0` string at release. No ⛔ item remains; reopening a decision is a dated new entry on that page.
+The six decisions this matrix raised are recorded, with rationale and consequences, in [release decisions](release-decisions.md): (1) originally the implemented draft.3/draft.4 subset only; **reopened on 2026-11-02**: the promised vocabulary ships as `0.1.0-draft.5` ([vocabulary](vocabulary-draft.5.md)), and what remains deferred is named setup-script references, `[setup.scripts]`, pure steps, and `expect.error.group`; (2) `[setup.scripts]` deployment is a documented limitation; (3) pure steps and `accounts = 0` are not in v0.1; (4) `expect.error.group` is code-only pinning; (5) RFC §7 is rewritten to the shipped contract; (6) the spec identifiers stay `0.1.0-draft.3` and `0.1.0-draft.4` with no `0.1.0` string at release. No ⛔ item remains; reopening a decision is a dated new entry on that page.

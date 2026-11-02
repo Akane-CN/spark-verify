@@ -32,6 +32,13 @@ jobs:
       - name: Validate documentation
         run: ./scripts/validate-docs.sh --examples
 
+  dogfood:
+    name: Root manifest through the reusable workflow
+    uses: ./.github/workflows/ckb-verify-reusable.yml
+    with:
+      manifest: verify.toml
+      command: bun run src/cli.ts
+
   secp-transfer:
     name: Secp transfer showcase
     runs-on: ubuntu-24.04
@@ -123,9 +130,40 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  vocabulary:
+    name: Draft.5 vocabulary showcase
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@db6bcf6eb8d88a8aa03265b887ec7bd84d64cd68 # v2.1.1
+        with:
+          bun-version: 1.2.19
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Run fresh-devnet vocabulary showcase
+        run: bun run showcase:vocabulary
+      - name: Package sanitized evidence
+        run: >
+          bun run scripts/package-evidence.ts --out evidence/vocabulary
+          --repository "$GITHUB_REPOSITORY" --source-sha "$GITHUB_SHA"
+          --workflow "$GITHUB_WORKFLOW" --job vocabulary
+          --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
+      - name: Upload evidence bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: evidence-vocabulary-${{ github.sha }}
+          path: evidence/vocabulary
+          if-no-files-found: error
+          retention-days: 30
+
   verify-evidence:
     name: Download and verify evidence bundles
-    needs: [secp-transfer, cell-properties, ckb-ugmp]
+    needs: [secp-transfer, cell-properties, ckb-ugmp, vocabulary]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -149,7 +187,7 @@ jobs:
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --paginate > artifacts.json
           bun -e '
-            const expected = ["secp-transfer", "cell-properties", "ckb-ugmp"].map(job => `evidence-${job}-${process.env.GITHUB_SHA}`);
+            const expected = ["secp-transfer", "cell-properties", "ckb-ugmp", "vocabulary"].map(job => `evidence-${job}-${process.env.GITHUB_SHA}`);
             const listed = JSON.parse(await Bun.file("artifacts.json").text()).artifacts;
             const lines = [];
             for (const name of expected) {
@@ -174,7 +212,7 @@ jobs:
             count=$((count + 1))
             bun run src/cli.ts check-bundle "$bundle" --source-sha "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY"
           done
-          test "$count" -eq 3
+          test "$count" -eq 4
       - name: Assemble the release-evidence archive from the verified bundles
         run: >
           bun run scripts/release-evidence.ts assemble
@@ -182,6 +220,7 @@ jobs:
           --bundle "downloaded-evidence/evidence-secp-transfer-$GITHUB_SHA"
           --bundle "downloaded-evidence/evidence-cell-properties-$GITHUB_SHA"
           --bundle "downloaded-evidence/evidence-ckb-ugmp-$GITHUB_SHA"
+          --bundle "downloaded-evidence/evidence-vocabulary-$GITHUB_SHA"
           --repository "$GITHUB_REPOSITORY" --source-sha "$GITHUB_SHA"
           --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT"
       - name: Verify the archive the way a consumer would (tar, sha256sum, check-bundle)
@@ -196,7 +235,7 @@ jobs:
             count=$((count + 1))
             bun run src/cli.ts check-bundle "$bundle" --source-sha "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY"
           done
-          test "$count" -eq 3
+          test "$count" -eq 4
       - name: Upload the release-evidence archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
