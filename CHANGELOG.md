@@ -43,17 +43,28 @@ the private `version` field of `package.json`, not published packages. Dates are
   `ckb-verify-outcome/3`, `ckb-verify-environment/4` (exported accounts), and `ckb-verify-provenance/3`
   (tool-version drift record); raw indexer pages are retained and every observation is re-derived offline.
   Published schema branches, 14 conformance fixtures, the `vocabulary` showcase (owner-mode xUDT mint on a
-  fresh devnet, five cases plus a repeat) and its CI evidence bundle, `docs/vocabulary-draft.5.md`
+  fresh devnet, five cases plus a repeat) and its CI evidence bundle, `docs/vocabulary-v0.1.md`
   ([release decision 1 reopened](docs/release-decisions.md), #20).
 - Repository-root dogfood manifest (`verify.toml`), `bun run verify:release` (the proposal's release
   verification surface with a Markdown record), `bun run build`, the pinned secret-free reusable
-  workflow `.github/workflows/ckb-verify-reusable.yml` (called by the `dogfood` job), a manual
-  `macos-boundary` workflow for the macOS offline-command and refusal check (hosted macOS runners were
-  unavailable on 2026-11-01, so macOS remains unexecuted), and
+  workflow `.github/workflows/ckb-verify-reusable.yml` (called by the `dogfood` job), and
   `docs/proposal-coverage.md` mapping every promised deliverable to its status (#20).
+- The frozen v0.1 contract: manifest spec `0.1.0`, the draft.5 grammar under its release identifier,
+  written as `ckb-verify-report/3` with the evidence and outcome naming the manifest's identifier.
+  `tests/frozen-contract.test.ts` pins the v0.1 parts of the published schemas by RFC 8785 digest,
+  re-verifies a golden `0.1.0` report against locked digests, and re-runs the whole draft.5 conformance
+  corpus under `0.1.0`; the root `verify.toml` and the vocabulary showcase use `0.1.0`
+  ([version policy](docs/version-policy.md#the-frozen-v01-contract), release decision 6 reopened, #20).
+  `docs/vocabulary-v0.1.md` (renamed from `vocabulary-draft.5.md`) and `docs/version-policy.md` now ship
+  in the package.
+- `.github/workflows/platform-boundary.yml` (replacing the manual `macos-boundary` workflow): on macOS 14
+  and Windows Server 2022 hosted runners it installs, type-checks, runs the platform-independent tests and
+  the offline commands, and proves that `run` is refused with exit 2 before anything is written. It runs
+  on demand and on pull requests that change the platform gate (#20).
 - `run` prints a field-level expected/observed diff for every failed expectation and claim on FAIL.
-- `docs/release-decisions.md` records the six release decisions for `v0.1.0` (decision 1 reopened on
-  2026-11-02: the promised vocabulary is implemented as spec `0.1.0-draft.5`): the implemented
+- `docs/release-decisions.md` records the six release decisions for `v0.1.0` (decisions 1 and 6
+  reopened on 2026-11-02: the promised vocabulary is implemented, and the v0.1 contract is frozen as spec
+  `0.1.0`): the implemented
   draft.3/draft.4 subset ships; `balance`, script-filter selectors and comparators, `expect.cycles`,
   `[setup.scripts]` deployment, pure steps, `accounts = 0`, and `expect.error.group` are v0.3
   proposals; RFC §7 is rewritten to the shipped report and CLI contract; the spec identifiers stay
@@ -77,6 +88,8 @@ the private `version` field of `package.json`, not published packages. Dates are
 
 ### Changed
 
+- `run` refuses platforms other than Linux x64 under Bun before it writes anything. It previously created
+  the run directory and copied the manifest before the runtime-ownership check refused the platform (#20).
 - The shipped OffCKB patch now binds the RPC proxy (`28114`) to `127.0.0.1` instead of every
   interface; the supply-chain gate and the runtime installation check require the loopback-bound
   listen and reject the wildcard one (#15).
@@ -90,6 +103,9 @@ the private `version` field of `package.json`, not published packages. Dates are
 
 ### Fixed
 
+- `scripts/acceptance-matrix.sh` waits for the OffCKB proxy (`28114`) before checking listener scope. The
+  check raced the proxy's startup, which failed the 2026-11-02 consumer rehearsal on `ed41b28`, and could
+  probe the routable address before the proxy existed (#21).
 - `tests/debugger-binary.test.ts` compared unsorted `readdir` results and failed on some runners.
 - The CKB-UGMP showcase harness read system scripts from the pre-`environment/3` report location.
 

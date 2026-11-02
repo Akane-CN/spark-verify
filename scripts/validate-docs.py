@@ -307,7 +307,7 @@ def validate_expect(v: Validation, file: Path, line: int, expect: Any) -> None:
 
 
 def validate_draft5_with_runner(v: Validation, file: Path, line: int, text: str) -> None:
-    """draft.5 examples must be complete manifests the strict runtime parser accepts; no Python re-implementation."""
+    """0.1.0 and draft.5 examples must be complete manifests the strict runtime parser accepts; no Python re-implementation."""
     with tempfile.NamedTemporaryFile("w", suffix=".toml", delete=False, encoding="utf-8") as handle:
         handle.write(text)
         path = handle.name
@@ -318,21 +318,21 @@ def validate_draft5_with_runner(v: Validation, file: Path, line: int, text: str)
     if result.returncode != 0:
         detail = (result.stdout + result.stderr).strip().splitlines()
         problem = next((entry for entry in detail if entry.startswith("problem:")), detail[-1] if detail else "parser rejected the manifest")
-        v.error(file, line, f"draft.5 example rejected by the strict parser: {problem}")
+        v.error(file, line, f"0.1.0/draft.5 example rejected by the strict parser: {problem}")
 
 
 def validate_toml_semantics(v: Validation, file: Path, line: int, obj: dict[str, Any], text: str | None = None) -> None:
     full_manifest = all(key in obj for key in ("meta", "toolchain", "setup"))
     meta = obj.get("meta")
-    if isinstance(meta, dict) and meta.get("spec") == "0.1.0-draft.5":
+    if isinstance(meta, dict) and meta.get("spec") in ("0.1.0-draft.5", "0.1.0"):
         if text is None or not full_manifest:
-            v.error(file, line, "draft.5 examples must be complete manifests")
+            v.error(file, line, "0.1.0 and draft.5 examples must be complete manifests")
         else:
             validate_draft5_with_runner(v, file, line, text)
         return
     draft4 = isinstance(meta, dict) and meta.get("spec") == "0.1.0-draft.4"
     if isinstance(meta, dict) and meta.get("spec") not in ("0.1.0-draft.3", "0.1.0-draft.4"):
-        v.error(file, line, "manifest examples must select spec 0.1.0-draft.3, 0.1.0-draft.4, or 0.1.0-draft.5")
+        v.error(file, line, "manifest examples must select spec 0.1.0, 0.1.0-draft.5, 0.1.0-draft.4, or 0.1.0-draft.3")
 
     toolchain = obj.get("toolchain")
     if isinstance(toolchain, dict):

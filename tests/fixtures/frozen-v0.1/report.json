@@ -1,0 +1,705 @@
+{
+  "schema": "ckb-verify-report/3",
+  "verdict": "PASS",
+  "createdAt": "synthetic-not-executed",
+  "evidence": {
+    "name": "synthetic-v0.1",
+    "spec": "0.1.0",
+    "manifestText": "[meta]\nname = \"synthetic-v0.1\"\nspec = \"0.1.0\"\n[toolchain]\nckb = \"0.209.0\"\noffckb = \"0.4.13\"\n[replay]\ndependencies = []\n[setup]\naccounts = 2\n[[step]]\nname = \"mint\"\nrun = \"inert-fake-adapter\"\nexpect.tx = \"committed\"\nexpect.cycles = { gte = 1, lt = 1000 }\n[[step.assert.cell]]\nout_point = { step = \"mint\", index = 0 }\nlock = { account = 0 }\ntype = { builtin = \"xudt\", args = \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\" }\ndata = { len = 16 }\ncapacity = { gte = \"142 CKB\" }\n[[assert.cell]]\nlock = { account = 0 }\ntype = { builtin = \"xudt\" }\ncount = { gte = 1, lte = 10 }\ndata = { min_bytes = 16 }\n[[assert.cell_deps]]\nstep = \"mint\"\ncontains = { builtin = \"xudt\" }\n[[assert.balance]]\naccount = 1\ngte = \"99.5 CKB\"\n[[assert.balance]]\naccount = 0\nudt = { type = { builtin = \"xudt\", args = \"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\" } }\ngte = \"1000\"\n",
+    "steps": [
+      {
+        "name": "mint",
+        "expectedStatus": "committed",
+        "expectedCycles": {
+          "gte": 1,
+          "lt": 1000
+        },
+        "observedStatus": "committed",
+        "cycles": 100,
+        "transaction": {
+          "version": "0x0",
+          "header_deps": [],
+          "inputs": [],
+          "witnesses": [
+            "0x"
+          ],
+          "cell_deps": [
+            {
+              "out_point": {
+                "tx_hash": "0x2323232323232323232323232323232323232323232323232323232323232323",
+                "index": "0x0"
+              },
+              "dep_type": "code"
+            },
+            {
+              "out_point": {
+                "tx_hash": "0x4141414141414141414141414141414141414141414141414141414141414141",
+                "index": "0x0"
+              },
+              "dep_type": "dep_group"
+            }
+          ],
+          "outputs": [
+            {
+              "capacity": "0x34e62ce00",
+              "lock": {
+                "code_hash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+                "hash_type": "type",
+                "args": "0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+              },
+              "type": {
+                "code_hash": "0x1313131313131313131313131313131313131313131313131313131313131313",
+                "hash_type": "type",
+                "args": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              }
+            }
+          ],
+          "outputs_data": [
+            "0xe8030000000000000000000000000000"
+          ]
+        },
+        "transactionHash": "0x07a1a8bad26df84526c22a6d19847b737c92f99506fb618a169d3b1d59443d44",
+        "durationMs": 1,
+        "claims": [
+          {
+            "kind": "cell",
+            "target": {
+              "outPoint": {
+                "step": "mint",
+                "index": 0
+              },
+              "lock": {
+                "kind": "account",
+                "index": 0
+              },
+              "type": {
+                "kind": "builtin",
+                "name": "xudt",
+                "args": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              }
+            },
+            "expected": {
+              "count": {
+                "gte": 1
+              },
+              "data": {
+                "len": 16
+              },
+              "capacity": {
+                "gte": "14200000000"
+              }
+            },
+            "observed": {
+              "state": "selected",
+              "count": 1,
+              "cells": [
+                {
+                  "outPoint": {
+                    "txHash": "0x07a1a8bad26df84526c22a6d19847b737c92f99506fb618a169d3b1d59443d44",
+                    "index": 0
+                  },
+                  "capacity": "14200000000",
+                  "dataBytes": 16,
+                  "dataHash": "0xeefb2c33839ab728e8ed014f79453e053d395af8cdf5ff05abbda313a54eebed"
+                }
+              ]
+            },
+            "observationValid": true,
+            "ok": true,
+            "input": {
+              "kind": "query",
+              "outPoint": {
+                "tx_hash": "0x07a1a8bad26df84526c22a6d19847b737c92f99506fb618a169d3b1d59443d44",
+                "index": "0x0"
+              },
+              "response": {
+                "status": "live",
+                "cell": {
+                  "output": {
+                    "capacity": "0x34e62ce00",
+                    "lock": {
+                      "code_hash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+                      "hash_type": "type",
+                      "args": "0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+                    },
+                    "type": {
+                      "code_hash": "0x1313131313131313131313131313131313131313131313131313131313131313",
+                      "hash_type": "type",
+                      "args": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                    }
+                  },
+                  "data": {
+                    "content": "0xe8030000000000000000000000000000",
+                    "hash": "0xeefb2c33839ab728e8ed014f79453e053d395af8cdf5ff05abbda313a54eebed"
+                  }
+                },
+                "block_hash": null
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "assertions": [
+      {
+        "kind": "cell",
+        "target": {
+          "lock": {
+            "kind": "account",
+            "index": 0
+          },
+          "type": {
+            "kind": "builtin",
+            "name": "xudt",
+            "args": null
+          }
+        },
+        "expected": {
+          "count": {
+            "gte": 1,
+            "lte": 10
+          },
+          "data": {
+            "minBytes": 16
+          }
+        },
+        "observed": {
+          "state": "selected",
+          "count": 1,
+          "cells": [
+            {
+              "outPoint": {
+                "txHash": "0x07a1a8bad26df84526c22a6d19847b737c92f99506fb618a169d3b1d59443d44",
+                "index": 0
+              },
+              "capacity": "14200000000",
+              "dataBytes": 16,
+              "dataHash": "0xeefb2c33839ab728e8ed014f79453e053d395af8cdf5ff05abbda313a54eebed"
+            }
+          ]
+        },
+        "observationValid": true,
+        "ok": true,
+        "input": {
+          "kind": "indexer",
+          "search_key": {
+            "script": {
+              "code_hash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+              "hash_type": "type",
+              "args": "0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+            },
+            "script_type": "lock",
+            "script_search_mode": "exact",
+            "filter": {
+              "script": {
+                "code_hash": "0x1313131313131313131313131313131313131313131313131313131313131313",
+                "hash_type": "type",
+                "args": "0x"
+              }
+            },
+            "with_data": true
+          },
+          "pages": [
+            {
+              "after_cursor": null,
+              "response": {
+                "objects": [
+                  {
+                    "output": {
+                      "capacity": "0x34e62ce00",
+                      "lock": {
+                        "code_hash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+                        "hash_type": "type",
+                        "args": "0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+                      },
+                      "type": {
+                        "code_hash": "0x1313131313131313131313131313131313131313131313131313131313131313",
+                        "hash_type": "type",
+                        "args": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                      }
+                    },
+                    "output_data": "0xe8030000000000000000000000000000",
+                    "out_point": {
+                      "tx_hash": "0x07a1a8bad26df84526c22a6d19847b737c92f99506fb618a169d3b1d59443d44",
+                      "index": "0x0"
+                    },
+                    "block_number": "0x1",
+                    "tx_index": "0x1"
+                  }
+                ],
+                "last_cursor": "0x01"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "cell_deps",
+        "target": {
+          "step": "mint"
+        },
+        "expected": {
+          "contains": {
+            "kind": "builtin",
+            "name": "xudt"
+          }
+        },
+        "observed": {
+          "present": [
+            true
+          ]
+        },
+        "observationValid": true,
+        "ok": true
+      },
+      {
+        "kind": "balance",
+        "target": {
+          "kind": "account",
+          "index": 1
+        },
+        "expected": {
+          "amount": {
+            "gte": "9950000000"
+          }
+        },
+        "observed": {
+          "cells": 1,
+          "total": "10000000000",
+          "malformed": []
+        },
+        "observationValid": true,
+        "ok": true,
+        "input": {
+          "kind": "indexer",
+          "search_key": {
+            "script": {
+              "code_hash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+              "hash_type": "type",
+              "args": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+            },
+            "script_type": "lock",
+            "script_search_mode": "exact",
+            "with_data": false
+          },
+          "pages": [
+            {
+              "after_cursor": null,
+              "response": {
+                "objects": [
+                  {
+                    "output": {
+                      "capacity": "0x2540be400",
+                      "lock": {
+                        "code_hash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+                        "hash_type": "type",
+                        "args": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+                      },
+                      "type": null
+                    },
+                    "output_data": null,
+                    "out_point": {
+                      "tx_hash": "0x6161616161616161616161616161616161616161616161616161616161616161",
+                      "index": "0x0"
+                    },
+                    "block_number": "0x1",
+                    "tx_index": "0x0"
+                  }
+                ],
+                "last_cursor": "0x01"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "kind": "balance",
+        "target": {
+          "kind": "account",
+          "index": 0
+        },
+        "expected": {
+          "udt": {
+            "type": {
+              "kind": "builtin",
+              "name": "xudt",
+              "args": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+            }
+          },
+          "amount": {
+            "gte": "1000"
+          }
+        },
+        "observed": {
+          "cells": 1,
+          "total": "1000",
+          "malformed": []
+        },
+        "observationValid": true,
+        "ok": true,
+        "input": {
+          "kind": "indexer",
+          "search_key": {
+            "script": {
+              "code_hash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+              "hash_type": "type",
+              "args": "0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+            },
+            "script_type": "lock",
+            "script_search_mode": "exact",
+            "filter": {
+              "script": {
+                "code_hash": "0x1313131313131313131313131313131313131313131313131313131313131313",
+                "hash_type": "type",
+                "args": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              }
+            },
+            "with_data": true
+          },
+          "pages": [
+            {
+              "after_cursor": null,
+              "response": {
+                "objects": [
+                  {
+                    "output": {
+                      "capacity": "0x34e62ce00",
+                      "lock": {
+                        "code_hash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+                        "hash_type": "type",
+                        "args": "0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+                      },
+                      "type": {
+                        "code_hash": "0x1313131313131313131313131313131313131313131313131313131313131313",
+                        "hash_type": "type",
+                        "args": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                      }
+                    },
+                    "output_data": "0xe8030000000000000000000000000000",
+                    "out_point": {
+                      "tx_hash": "0x07a1a8bad26df84526c22a6d19847b737c92f99506fb618a169d3b1d59443d44",
+                      "index": "0x0"
+                    },
+                    "block_number": "0x1",
+                    "tx_index": "0x1"
+                  }
+                ],
+                "last_cursor": "0x01"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "outcomeClaims": {
+    "schema": "ckb-verify-outcome/3",
+    "name": "synthetic-v0.1",
+    "spec": "0.1.0",
+    "steps": [
+      {
+        "name": "mint",
+        "expectedStatus": "committed",
+        "expectedCycles": {
+          "lt": 1000,
+          "gte": 1
+        },
+        "observedStatus": "committed",
+        "cycles": 100,
+        "claims": [
+          {
+            "kind": "cell",
+            "target": {
+              "outPoint": {
+                "step": "mint",
+                "index": 0
+              },
+              "lock": {
+                "kind": "account",
+                "index": 0
+              },
+              "type": {
+                "kind": "builtin",
+                "name": "xudt",
+                "args": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+              }
+            },
+            "expected": {
+              "count": {
+                "gte": 1
+              },
+              "data": {
+                "len": 16
+              },
+              "capacity": {
+                "gte": "14200000000"
+              }
+            },
+            "observed": {
+              "state": "selected",
+              "count": 1,
+              "cells": [
+                {
+                  "outPoint": {
+                    "txHash": "0x07a1a8bad26df84526c22a6d19847b737c92f99506fb618a169d3b1d59443d44",
+                    "index": 0
+                  },
+                  "capacity": "14200000000",
+                  "dataBytes": 16,
+                  "dataHash": "0xeefb2c33839ab728e8ed014f79453e053d395af8cdf5ff05abbda313a54eebed"
+                }
+              ]
+            },
+            "observationValid": true,
+            "ok": true
+          }
+        ]
+      }
+    ],
+    "assertions": [
+      {
+        "kind": "cell",
+        "target": {
+          "lock": {
+            "kind": "account",
+            "index": 0
+          },
+          "type": {
+            "kind": "builtin",
+            "name": "xudt",
+            "args": null
+          }
+        },
+        "expected": {
+          "count": {
+            "gte": 1,
+            "lte": 10
+          },
+          "data": {
+            "minBytes": 16
+          }
+        },
+        "observed": {
+          "state": "selected",
+          "count": 1,
+          "cells": [
+            {
+              "outPoint": {
+                "txHash": "0x07a1a8bad26df84526c22a6d19847b737c92f99506fb618a169d3b1d59443d44",
+                "index": 0
+              },
+              "capacity": "14200000000",
+              "dataBytes": 16,
+              "dataHash": "0xeefb2c33839ab728e8ed014f79453e053d395af8cdf5ff05abbda313a54eebed"
+            }
+          ]
+        },
+        "observationValid": true,
+        "ok": true
+      },
+      {
+        "kind": "cell_deps",
+        "target": {
+          "step": "mint"
+        },
+        "expected": {
+          "contains": {
+            "kind": "builtin",
+            "name": "xudt"
+          }
+        },
+        "observed": {
+          "present": [
+            true
+          ]
+        },
+        "observationValid": true,
+        "ok": true
+      },
+      {
+        "kind": "balance",
+        "target": {
+          "kind": "account",
+          "index": 1
+        },
+        "expected": {
+          "amount": {
+            "gte": "9950000000"
+          }
+        },
+        "observed": {
+          "cells": 1,
+          "total": "10000000000",
+          "malformed": []
+        },
+        "observationValid": true,
+        "ok": true
+      },
+      {
+        "kind": "balance",
+        "target": {
+          "kind": "account",
+          "index": 0
+        },
+        "expected": {
+          "udt": {
+            "type": {
+              "kind": "builtin",
+              "name": "xudt",
+              "args": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+            }
+          },
+          "amount": {
+            "gte": "1000"
+          }
+        },
+        "observed": {
+          "cells": 1,
+          "total": "1000",
+          "malformed": []
+        },
+        "observationValid": true,
+        "ok": true
+      }
+    ]
+  },
+  "environment": {
+    "schema": "ckb-verify-environment/4",
+    "runner": {
+      "name": "ckb-verify",
+      "version": "0.0.2"
+    },
+    "toolchain": {
+      "requested": {
+        "ckb": "0.209.0",
+        "offckb": "0.4.13"
+      },
+      "observed": {
+        "ckb": "0.209.0",
+        "offckb": "0.4.13"
+      }
+    },
+    "platform": {
+      "os": "linux",
+      "arch": "x64"
+    },
+    "devnet": {
+      "network": "devnet",
+      "genesisHash": "0x5151515151515151515151515151515151515151515151515151515151515151",
+      "systemScripts": {
+        "secp256k1_blake160_sighash_all": {
+          "codeHash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4141414141414141414141414141414141414141414141414141414141414141",
+                "index": 0
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "xudt": {
+          "codeHash": "0x1313131313131313131313131313131313131313131313131313131313131313",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x2323232323232323232323232323232323232323232323232323232323232323",
+                "index": 0
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "dao": {
+          "codeHash": "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x2121212121212121212121212121212121212121212121212121212121212121",
+                "index": 0
+              },
+              "depType": "code"
+            }
+          ]
+        }
+      },
+      "accounts": [
+        {
+          "index": 0,
+          "address": "ckt1qqcnzvf3xycnzvf3xycnzvf3xycnzvf3xycnzvf3xycnzvf3xycnzqdq5zs2pg9q5zs2pg9q5zs2pg9q5zs2pgq23mcsl",
+          "lock": {
+            "codeHash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+            "hashType": "type",
+            "args": "0xa0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+          }
+        },
+        {
+          "index": 1,
+          "address": "ckt1qqcnzvf3xycnzvf3xycnzvf3xycnzvf3xycnzvf3xycnzvf3xycnzqdp5xs6rgdp5xs6rgdp5xs6rgdp5xs6rgg9ewfn6",
+          "lock": {
+            "codeHash": "0x3131313131313131313131313131313131313131313131313131313131313131",
+            "hashType": "type",
+            "args": "0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1"
+          }
+        }
+      ]
+    },
+    "provenance": {
+      "schema": "ckb-verify-provenance/3",
+      "toolchain": {
+        "ckb": {
+          "requested": "0.209.0",
+          "observed": "0.209.0",
+          "driftAllowed": false
+        }
+      },
+      "manifest": {
+        "sha256": "sha256:c6677f42e0942c6350902a0dfb537b23225db8576ba1cd1fd03ffab4d9079cb2"
+      },
+      "source": {
+        "gitCommit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "dirty": false,
+        "dirtyDigest": null
+      },
+      "lockfile": {
+        "path": "bun.lock",
+        "sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "replay": {
+        "declaredDependencies": [],
+        "status": "stable",
+        "reasons": []
+      },
+      "runtime": {
+        "name": "bun",
+        "requestedVersion": "1.2.19",
+        "observedVersion": "1.2.19",
+        "metadata": {
+          "path": "package.json",
+          "sha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      },
+      "binaries": {
+        "ckbDebugger": null,
+        "ckb": {
+          "version": "0.209.0",
+          "platform": "linux",
+          "architecture": "x64",
+          "asset": "synthetic.tar.gz",
+          "sourceUrl": "https://example.invalid/synthetic.tar.gz",
+          "expectedArchiveSha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "archiveSha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "binarySha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      }
+    }
+  },
+  "digests": {
+    "outcome": "sha256:585ff2390ebfcce361c341869f69fcec40416635eb2779c3c4ae3ef96947ddb4",
+    "environment": "sha256:8c7da2179e0407d32f9e8e42f82921c61d12154f796c2937628422bb60d6132a"
+  }
+}

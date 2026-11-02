@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Trusted-code harness for the draft.5 vocabulary fixture. Each status is collected before deciding case success.
+# Trusted-code harness for the v0.1 (spec 0.1.0) vocabulary fixture. Each status is collected before deciding case success.
 set -uo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$ROOT" || exit 1

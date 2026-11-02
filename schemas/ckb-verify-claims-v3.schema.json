@@ -1,8 +1,8 @@
 {
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://spark-verify.invalid/schemas/ckb-verify-claims-v3.schema.json",
- "title": "draft.5 / outcome3 semantic claims fragment",
- "$comment": "Bounded semantic fragment for the 0.1.0-draft.5 vocabulary (RFC §4.2 cycles, §5.1 Cell selectors and property checks, §5.2 balance, §5.3 script references). Select a $defs reference. Shape validation does not verify hashes, target existence, indexer page consistency, binding membership, truth, manifest cross-links or provenance. Parser-only rules: exactly one balance target; data.len/min_bytes agreement with data.eq; count zero incompatible with property checks; out_point selects at most one Cell; account indices below setup.accounts; gte/lte ordering. MAX_BYTES and MAX_SELECTED_CELLS are runner resource policy, not consensus.",
+ "title": "v0.1 (0.1.0 and 0.1.0-draft.5) / outcome3 semantic claims fragment",
+ "$comment": "Bounded semantic fragment for the v0.1 vocabulary, written as spec 0.1.0 or 0.1.0-draft.5 (RFC §4.2 cycles, §5.1 Cell selectors and property checks, §5.2 balance, §5.3 script references). Select a $defs reference. Shape validation does not verify hashes, target existence, indexer page consistency, binding membership, truth, manifest cross-links or provenance. Parser-only rules: exactly one balance target; data.len/min_bytes agreement with data.eq; count zero incompatible with property checks; out_point selects at most one Cell; account indices below setup.accounts; gte/lte ordering. MAX_BYTES and MAX_SELECTED_CELLS are runner resource policy, not consensus.",
  "not": {},
  "$defs": {
   "systemScript": {

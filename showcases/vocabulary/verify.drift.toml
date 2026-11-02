@@ -1,6 +1,6 @@
 [meta]
 name = "vocabulary-xudt-mint-drift"
-spec = "0.1.0-draft.5"
+spec = "0.1.0"
 description = "The committed vocabulary fixture requesting CKB 0.208.0: refused by default, allowed only with --allow-version-drift, which records and taints."
 
 [toolchain]

@@ -1321,7 +1321,10 @@
        "pattern": "\\S"
       },
       "spec": {
-       "const": "0.1.0-draft.5"
+       "enum": [
+        "0.1.0-draft.5",
+        "0.1.0"
+       ]
       },
       "manifestText": {
        "type": "string"
@@ -1493,7 +1496,10 @@
        "pattern": "\\S"
       },
       "spec": {
-       "const": "0.1.0-draft.5"
+       "enum": [
+        "0.1.0-draft.5",
+        "0.1.0"
+       ]
       },
       "steps": {
        "type": "array",

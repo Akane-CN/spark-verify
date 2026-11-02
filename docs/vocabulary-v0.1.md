@@ -1,6 +1,8 @@
-# Assertion vocabulary: `0.1.0-draft.5`
+# Assertion vocabulary: v0.1 (`0.1.0`, also written `0.1.0-draft.5`)
 
-The private `0.0.2` runner accepts this manifest spec next to `0.1.0-draft.3` and `0.1.0-draft.4`. It implements the vocabulary the [proposal](spark-proposal.md#8-deliverables--how-to-verify) promised as funded deliverable 2 and the RFC describes in §4.2, §5.1, §5.2, and §5.3: cycles comparators, Cell selection by script filter with count, data, and capacity checks, CKB and UDT balance claims, and explicit, builtin, and wildcard-args script references. The repository-owned [vocabulary fixture](../showcases/vocabulary/README.md) exercises every form on a fresh devnet. Reports are `ckb-verify-report/3` with `ckb-verify-outcome/3`, `ckb-verify-environment/4`, and `ckb-verify-provenance/3`.
+This is the vocabulary of the frozen v0.1 contract. A manifest selects it with `spec = "0.1.0"`, the release identifier, or with `spec = "0.1.0-draft.5"`, the identifier it was first published under; the grammar, the claims, and the report tuple are identical, and only the identifier recorded in the report differs. What "frozen" means and how it is checked is in the [version policy](version-policy.md#the-frozen-v01-contract). The private `0.0.2` runner also reads and writes `0.1.0-draft.3` and `0.1.0-draft.4`.
+
+It implements the vocabulary the [proposal](spark-proposal.md#8-deliverables--how-to-verify) promised as funded deliverable 2 and the RFC describes in §4.2, §5.1, §5.2, and §5.3: cycles comparators, Cell selection by script filter with count, data, and capacity checks, CKB and UDT balance claims, and explicit, builtin, and wildcard-args script references. The repository-owned [vocabulary fixture](../showcases/vocabulary/README.md) exercises every form on a fresh devnet. Reports are `ckb-verify-report/3` with `ckb-verify-outcome/3`, `ckb-verify-environment/4`, and `ckb-verify-provenance/3`.
 
 `PASS` means exactly: **All declared claims passed in the recorded environment.**
 
@@ -11,7 +13,7 @@ The following is the literal [committed fixture](../showcases/vocabulary/verify.
 ```toml
 [meta]
 name = "vocabulary-xudt-mint"
-spec = "0.1.0-draft.5"
+spec = "0.1.0"
 description = "An owner-mode xUDT mint plus a 100 CKB transfer, checked with cycles, script-filtered Cells, properties, and balances."
 
 [toolchain]
@@ -96,7 +98,7 @@ Observations are bounded: `cells` lists at most 1000 `{ outPoint, capacity, data
 
 ## Tool-version drift
 
-`run --allow-version-drift` (draft.5 only) runs a manifest that requests an exact `toolchain.ckb` without a pinned archive on the pinned `0.209.0`. By default such a manifest is refused before any runtime mutation. When allowed, `environment.toolchain.requested` keeps the manifest's version, `observed` the binary's, `provenance/3` records `toolchain.ckb = { requested, observed, driftAllowed: true }`, replay is tainted with `tool_version_drift`, and the environment fingerprint differs from a non-drifted run. A report that records a difference without `driftAllowed` is inconsistent. `scripts/verify-release.sh` item 7 demonstrates both paths.
+`run --allow-version-drift` (`0.1.0` and `0.1.0-draft.5` only) runs a manifest that requests an exact `toolchain.ckb` without a pinned archive on the pinned `0.209.0`. By default such a manifest is refused before any runtime mutation. When allowed, `environment.toolchain.requested` keeps the manifest's version, `observed` the binary's, `provenance/3` records `toolchain.ckb = { requested, observed, driftAllowed: true }`, replay is tainted with `tool_version_drift`, and the environment fingerprint differs from a non-drifted run. A report that records a difference without `driftAllowed` is inconsistent. `scripts/verify-release.sh` item 7 demonstrates both paths.
 
 ## What it does not do
 

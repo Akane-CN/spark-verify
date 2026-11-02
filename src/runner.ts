@@ -7,6 +7,7 @@ import type { OffckbRunContext, OffckbPaths, PreparedDebugger } from "./offckb";
 import { OffckbDevnet } from "./offckb";
 import { runCommand, runProcess, type CommandResult, type RunCommandOptions } from "./process";
 import { collectProvenance, type SourceRevision } from "./provenance";
+import { assertSupportedRuntimePlatform } from "./runtime-ownership";
 import {
   buildEvidenceDigests,
   buildOutcomeClaims,
@@ -92,7 +93,7 @@ export interface RunManifestOptions {
   runStep?: StepCommandRunner;
   rpc?: RunnerRpcCaller;
   signal?: AbortSignal;
-  /** draft.5 only: run on the pinned CKB when the manifest requests another exact version; recorded and tainting. */
+  /** 0.1.0 and draft.5 only: run on the pinned CKB when the manifest requests another exact version; recorded and tainting. */
   allowVersionDrift?: boolean;
 }
 
@@ -479,16 +480,20 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const manifestPath = resolve(projectRoot, options.manifestPath);
   const { manifest, bytes: manifestBytes } = await loadManifest(manifestPath);
+  // Refuse unsupported platforms before the run directory, manifest copy, or any cache is written.
+  // An injected devnet (tests) owns no runtime, so the gate applies to the real OffCKB path only.
+  if (options.devnet === undefined) assertSupportedRuntimePlatform();
   if (manifest.toolchain.ckbDebugger !== undefined) {
     resolvePinnedDebuggerAsset(manifest.toolchain.ckbDebugger, process.platform, process.arch);
   }
   const sourceRevision = await collectSourceRevision(projectRoot);
-  // Tool-version drift: only draft.5 manifests may run on the pinned CKB when they request another exact
-  // version, and only when explicitly allowed; the drift is recorded in provenance/3 and taints replay.
+  // Tool-version drift: only draft.5-grammar manifests (0.1.0, 0.1.0-draft.5) may run on the pinned CKB when
+  // they request another exact version, and only when explicitly allowed; the drift is recorded in
+  // provenance/3 and taints replay.
   let ckbVersion = manifest.toolchain.ckb;
   let driftAllowed = false;
   if (options.allowVersionDrift === true) {
-    if (!isManifestV5(manifest)) throw new Error("--allow-version-drift requires a 0.1.0-draft.5 manifest");
+    if (!isManifestV5(manifest)) throw new Error("--allow-version-drift requires a 0.1.0 or 0.1.0-draft.5 manifest");
     driftAllowed = true;
     try { resolvePinnedCkbAsset(ckbVersion, process.platform, process.arch); }
     catch { ckbVersion = PINNED_CKB_VERSION; }

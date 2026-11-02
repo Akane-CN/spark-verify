@@ -38,11 +38,11 @@ function devnet(project: string): DevnetAdapter {
 }
 
 describe("draft.5 runner", () => {
-  test("pages indexer queries, retains them raw, and publishes a verifiable report/3", async () => {
+  test.each(["0.1.0-draft.5", "0.1.0"] as const)("pages indexer queries, retains them raw, and publishes a verifiable report/3 for spec %s", async (spec) => {
     const project = await mkdtemp(join(tmpdir(), "ckb-verify-runner-v5-"));
     directories.push(project);
     const manifestPath = join(project, "verify.toml");
-    await writeFile(manifestPath, manifest5());
+    await writeFile(manifestPath, manifest5("", spec));
     const tx = mintTransaction();
     const calls: string[] = [];
     const plainCell = { output: { capacity: "0x2540be400", lock: { code_hash: accounts3[1]!.lock.codeHash, hash_type: "type", args: accounts3[1]!.lock.args }, type: null },
@@ -75,6 +75,7 @@ describe("draft.5 runner", () => {
     expect(() => verifyReport(stored)).not.toThrow();
     expect(schemaProblems(REPORT_SCHEMA_ID, stored)).toEqual([]);
     expect(stored.environment.schema).toBe("ckb-verify-environment/4");
+    expect([stored.evidence.spec, stored.outcomeClaims.spec]).toEqual([spec, spec]);
     expect(stored.environment.devnet.accounts).toHaveLength(2);
     expect(stored.outcomeClaims.steps[0].expectedCycles).toEqual({ gte: 1, lt: 1000 });
     expect(stored.outcomeClaims.assertions[3].observed.total).toBe("1000");
@@ -170,6 +171,6 @@ describe("draft.5 tool-version drift", () => {
     const manifestPath = join(project, "verify.toml");
     await writeFile(manifestPath, manifest5().replace("draft.5", "draft.4").replace(/expect\.cycles.*\n/, "").replace(/\[\[step\.assert\.cell\]\][\s\S]*$/, '[[step.assert.cell]]\nout_point = { step = "mint", index = 0 }\ncount = 1\n'));
     await expect(runManifest({ manifestPath, projectRoot: project, outputDir: join(project, "evidence"), devnet: devnet(project), runStep: runStep(mintTransaction()), rpc: rpc(mintTransaction()), allowVersionDrift: true }))
-      .rejects.toThrow("requires a 0.1.0-draft.5 manifest");
+      .rejects.toThrow("requires a 0.1.0 or 0.1.0-draft.5 manifest");
   });
 });

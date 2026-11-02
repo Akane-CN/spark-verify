@@ -18,7 +18,7 @@ Status words: **done** (shipped on `main` with executable evidence), **partial**
 | Promise | Status | Evidence |
 | --- | --- | --- |
 | `validate`, `run`, `digest`, `check-digest` | done | plus `check-bundle`; [offline verification](offline-verification.md) |
-| Cycle comparators (`expect.cycles.*`) | done | spec `0.1.0-draft.5` ([vocabulary](vocabulary-draft.5.md)); `showcases/vocabulary/verify.cycles-too-low.toml` fails as declared on a fresh devnet |
+| Cycle comparators (`expect.cycles.*`) | done | spec `0.1.0-draft.5` ([vocabulary](vocabulary-v0.1.md)); `showcases/vocabulary/verify.cycles-too-low.toml` fails as declared on a fresh devnet |
 | Script-filtered Cell selection with `data`, `data.len`, `capacity` checks | done | draft.5 `lock`/`type` selectors through the node indexer with retained raw pages; `data.eq`/`len`/`min_bytes`, `capacity` comparators; wrong-data and wrong-capacity fixtures fail as declared |
 | Native CKB and 16-byte little-endian UDT/xUDT balance claims | done | draft.5 `balance` by account, address, or lock, with `udt` decoding the 16-byte little-endian prefix; the fixture mints an owner-mode xUDT and checks `eq "1000"`, balance-short fails as declared |
 | Field-level terminal diffs | done | `run` prints `failed:` blocks with expected and observed values for every failed expectation and claim |

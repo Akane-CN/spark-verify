@@ -8,7 +8,7 @@
 >
 > **Changes from draft 0.1:** the runner-owned result-file contract is retained; the uploaded `expect.tx` vocabulary is canonical; immediate state checks use `[[step.assert.*]]`; result identity is split into an outcome digest and an environment fingerprint; `[replay].dependencies` makes replay qualification authorable; pure-step/result semantics are explicit; zero-match Cell behavior remains explicit; and the report/replay semantics distinguish a hash from a reproducibility claim.
 >
-> **Implementation note:** the CLI/package name is now `ckb-verify`. §7 describes the shipped report and CLI contract; the [report field guide](evidence-report.md) is the detailed reference. Sections marked **implemented in 0.1.0-draft.5** are available under that spec ([vocabulary](vocabulary-draft.5.md)); sections marked **v0.3 proposal** are not part of `v0.1.0` by the [release decisions](release-decisions.md), and their text is retained as the proposal.
+> **Implementation note:** the CLI/package name is now `ckb-verify`. §7 describes the shipped report and CLI contract; the [report field guide](evidence-report.md) is the detailed reference. Sections marked **implemented in 0.1.0** are available under the frozen v0.1 spec `0.1.0` and under `0.1.0-draft.5`, which has the same grammar ([vocabulary](vocabulary-v0.1.md)); sections marked **v0.3 proposal** are not part of `v0.1.0` by the [release decisions](release-decisions.md), and their text is retained as the proposal.
 
 ## Design goals
 
@@ -176,7 +176,7 @@ Runner-owned submission avoids the ambiguous case where a rejected transaction n
 
 ### 4.2 Transaction expectations
 
-> **Implemented in 0.1.0-draft.5:** `expect.cycles.{lt,lte,eq,gte}` (`eq` alone, or `lt`/`lte` with `gte`). **v0.3 proposal:** `expect.error.group`; `expect.error.code` is the pin ([decision 4](release-decisions.md#4-expecterrorgroup-code-only-pinning)).
+> **Implemented in 0.1.0 (also `0.1.0-draft.5`):** `expect.cycles.{lt,lte,eq,gte}` (`eq` alone, or `lt`/`lte` with `gte`). **v0.3 proposal:** `expect.error.group`; `expect.error.code` is the pin ([decision 4](release-decisions.md#4-expecterrorgroup-code-only-pinning)).
 
 | Key | Values | Meaning |
 | --- | --- | --- |
@@ -207,7 +207,7 @@ expect.error.group = { role = "lock", script = "sample_lock", args = "0x0102" }
 
 ### 5.1 `cell`
 
-> **Implemented in 0.1.0-draft.5:** `out_point`, `lock`, and `type` selectors and their combinations, `count` shorthand and comparators, `data.eq`, `data.len`, `data.min_bytes`, `capacity.{eq,gte,lte}`, the no-vacuous-success rule, and quantity strings; script-only selectors query the node indexer with a 1000-Cell resource bound. Draft.3 and draft.4 keep their narrower grammars.
+> **Implemented in 0.1.0 (also `0.1.0-draft.5`):** `out_point`, `lock`, and `type` selectors and their combinations, `count` shorthand and comparators, `data.eq`, `data.len`, `data.min_bytes`, `capacity.{eq,gte,lte}`, the no-vacuous-success rule, and quantity strings; script-only selectors query the node indexer with a 1000-Cell resource bound. Draft.3 and draft.4 keep their narrower grammars.
 
 A Cell assertion selects live Cells by a specific prior output or by scripts, then checks cardinality and properties.
 
@@ -242,7 +242,7 @@ At least one `count`, `data`, or `capacity` check is required. Property checks a
 
 ### 5.2 `balance`
 
-> **Implemented in 0.1.0-draft.5:** `account`, `address` (full-format bech32m, decoded offline), and `lock` targets; `udt` with an exact type script and 16-byte little-endian decoding; `"N CKB"`, `"N shannon"`, and base-unit string quantities; aggregate semantics as written below.
+> **Implemented in 0.1.0 (also `0.1.0-draft.5`):** `account`, `address` (full-format bech32m, decoded offline), and `lock` targets; `udt` with an exact type script and 16-byte little-endian decoding; `"N CKB"`, `"N shannon"`, and base-unit string quantities; aggregate semantics as written below.
 
 A balance assertion chooses exactly one target:
 
@@ -273,7 +273,7 @@ Floating point is never used. Bare TOML integers are rejected for asset amounts 
 
 ### 5.3 Script references
 
-> **Implemented in 0.1.0-draft.5:** explicit scripts, `{ builtin = "<name>" [, args] }` for every OffCKB system script with omitted args as a recorded wildcard, and `{ account = N }` for locks. **v0.3 proposal:** the named setup-script form (`lock = "sample_lock"`), which depends on `[setup.scripts]` ([decision 2](release-decisions.md#2-repository-script-deployment-a-documented-limitation)).
+> **Implemented in 0.1.0 (also `0.1.0-draft.5`):** explicit scripts, `{ builtin = "<name>" [, args] }` for every OffCKB system script with omitted args as a recorded wildcard, and `{ account = N }` for locks. **v0.3 proposal:** the named setup-script form (`lock = "sample_lock"`), which depends on `[setup.scripts]` ([decision 2](release-decisions.md#2-repository-script-deployment-a-documented-limitation)).
 
 A script-valued field accepts a fully explicit script:
 
@@ -299,7 +299,7 @@ Explicit hashes are normalized and validated as 32 bytes. `hash_type` accepts `t
 
 ### 5.4 Comparator validation
 
-> **Implemented in 0.1.0-draft.5:** the rules below are enforced by the parser and, where expressible, the published manifest schema.
+> **Implemented in 0.1.0 (also `0.1.0-draft.5`):** the rules below are enforced by the parser and, where expressible, the published manifest schema.
 
 - `eq` cannot coexist with another comparator for the same value.
 - `gte` and `lte` may coexist to define a closed range.

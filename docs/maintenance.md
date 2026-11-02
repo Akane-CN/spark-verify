@@ -14,7 +14,7 @@ A small, repeatable maintainer workflow that keeps the verified baseline usable 
 | `ckb-debugger` | 1.1.1 (Linux x64 asset) | required only for manifests that declare `expect.tx = "rejected"` |
 | `@ckb-ccc/core` | 1.14.0 | used by the shipped producers |
 
-Report and manifest compatibility is defined in [offline verification](offline-verification.md#version-compatibility): report `/2` (draft.4) and `/1` (draft.3) with environment `/3` + provenance `/2` are current; `/1` with environment `/2` + provenance `/1` is historical and requires `--allow-legacy`; anything else is rejected as unsupported. The historical sample `docs/examples/secp-transfer-committed-report.json` is retained as the previous-format fixture and is verified by `tests/documentation-evidence.test.ts`.
+Report and manifest compatibility is defined in [offline verification](offline-verification.md#version-compatibility): report `/3` (`0.1.0`, the frozen v0.1 contract, and `0.1.0-draft.5`) with environment `/4` + provenance `/3`, and report `/2` (draft.4) and `/1` (draft.3) with environment `/3` + provenance `/2`, are current; `/1` with environment `/2` + provenance `/1` is historical and requires `--allow-legacy`; anything else is rejected as unsupported. The historical sample `docs/examples/secp-transfer-committed-report.json` is retained as the previous-format fixture and is verified by `tests/documentation-evidence.test.ts`.
 
 ## Reporting a problem
 

@@ -1,0 +1,28 @@
+{
+  "$comment": "The frozen v0.1 contract (docs/version-policy.md#the-frozen-v01-contract). Never edit these values: a change to anything they pin needs a new identifier. tests/frozen-contract.test.ts checks them.",
+  "contract": {
+    "spec": "0.1.0",
+    "report": "ckb-verify-report/3",
+    "outcome": "ckb-verify-outcome/3",
+    "environment": "ckb-verify-environment/4",
+    "provenance": "ckb-verify-provenance/3",
+    "evidenceBundle": "ckb-verify-evidence-bundle/1",
+    "producerProtocol": 1
+  },
+  "frozenOn": "2026-11-02",
+  "schemas": {
+    "manifest-v1 common properties": "sha256:1640f54879e0fcfa4b61199d60654132a1ec09f4e2f28e370763f57bdc1fc364",
+    "manifest-v1 0.1.0 branch": "sha256:1394558bdb8c40a3b7c8119e50473c4e2b74d46653f5d7bb7063dd43ecdcd176",
+    "report report/3 branch": "sha256:aa27ff21ed26f48c7821b11bc2329ce4a33a06e645217f72985e71de805d94da",
+    "claims-v3": "sha256:23f350dc137508b7b7fe3c8df0ca553473d70b0468c09950bb1af3d6b548144d",
+    "provenance-v3": "sha256:289b5f89c1489da21c52ac1e689b034a43fe72418ca43a030e8844b29f1e71f6"
+  },
+  "golden": {
+    "path": "tests/fixtures/frozen-v0.1/report.json",
+    "report": "sha256:cdd2e0f4d662618dd583abe73fca3201eb361aa0cec6722fc013a8494b1fa212",
+    "digests": {
+      "outcome": "sha256:585ff2390ebfcce361c341869f69fcec40416635eb2779c3c4ae3ef96947ddb4",
+      "environment": "sha256:8c7da2179e0407d32f9e8e42f82921c61d12154f796c2937628422bb60d6132a"
+    }
+  }
+}
