@@ -10,17 +10,17 @@ Status words: **done** (shipped on `main` with executable evidence), **partial**
 | --- | --- | --- |
 | Normative document and compatibility policy | done | RFC v0.2 with per-section status lines; [version policy](version-policy.md) |
 | Machine-readable parsed-TOML schema | done | `schemas/ckb-verify-manifest-v1.schema.json`, run by `validate` |
-| Versioned valid/invalid manifests plus report/digest fixtures | done | `tests/fixtures/conformance/manifests/` (26 invalid, paired parser and schema diagnostics), `tests/fixtures/claims-v2/`, the retained historical report |
-| "Frozen" | partial | the identifiers stay `0.1.0-draft.3` / `0.1.0-draft.4` / `0.1.0-draft.5` ([decision 6](release-decisions.md#6-spec-naming-at-release-draft-identifiers-stay)); the grammar is published and strict, but not named as a frozen `0.1.0` |
+| Versioned valid/invalid manifests plus report/digest fixtures | done | `tests/fixtures/conformance/manifests/` (44 invalid, paired parser and schema diagnostics, every draft.5 case re-run under `0.1.0`), `tests/fixtures/claims-v2/`, `tests/fixtures/claims-v3/`, the golden `0.1.0` report in `tests/fixtures/frozen-v0.1/`, the retained historical report |
+| "Frozen" | done | spec `0.1.0` is the frozen v0.1 contract (the draft.5 grammar under its release identifier, report/3 + outcome/3 + environment/4 + provenance/3); what frozen means and how `tests/frozen-contract.test.ts` checks it against a lock is in the [version policy](version-policy.md#the-frozen-v01-contract) ([decision 6, reopened](release-decisions.md#2026-11-02-decision-6-reopened-the-v01-contract-is-frozen-as-spec-010)); the root `verify.toml` and the vocabulary fixture use it. The RFC stays a draft for later specs |
 
 ## Deliverable 2: installable `ckb-verify` CLI
 
 | Promise | Status | Evidence |
 | --- | --- | --- |
 | `validate`, `run`, `digest`, `check-digest` | done | plus `check-bundle`; [offline verification](offline-verification.md) |
-| Cycle comparators (`expect.cycles.*`) | done | spec `0.1.0-draft.5` ([vocabulary](vocabulary-v0.1.md)); `showcases/vocabulary/verify.cycles-too-low.toml` fails as declared on a fresh devnet |
-| Script-filtered Cell selection with `data`, `data.len`, `capacity` checks | done | draft.5 `lock`/`type` selectors through the node indexer with retained raw pages; `data.eq`/`len`/`min_bytes`, `capacity` comparators; wrong-data and wrong-capacity fixtures fail as declared |
-| Native CKB and 16-byte little-endian UDT/xUDT balance claims | done | draft.5 `balance` by account, address, or lock, with `udt` decoding the 16-byte little-endian prefix; the fixture mints an owner-mode xUDT and checks `eq "1000"`, balance-short fails as declared |
+| Cycle comparators (`expect.cycles.*`) | done | spec `0.1.0` ([vocabulary](vocabulary-v0.1.md)); `showcases/vocabulary/verify.cycles-too-low.toml` fails as declared on a fresh devnet |
+| Script-filtered Cell selection with `data`, `data.len`, `capacity` checks | done | `0.1.0` `lock`/`type` selectors through the node indexer (after it reaches the chain tip) with retained raw pages; `data.eq`/`len`/`min_bytes`, `capacity` comparators; wrong-data and wrong-capacity fixtures fail as declared |
+| Native CKB and 16-byte little-endian UDT/xUDT balance claims | done | `0.1.0` `balance` by account, address, or lock, with `udt` decoding the 16-byte little-endian prefix; the fixture mints an owner-mode xUDT and checks `eq "1000"`, balance-short fails as declared |
 | Field-level terminal diffs | done | `run` prints `failed:` blocks with expected and observed values for every failed expectation and claim |
 | Schema-backed JSON evidence | done | `schemas/ckb-verify-report.schema.json`, run by the offline commands |
 
@@ -31,9 +31,9 @@ Status words: **done** (shipped on `main` with executable evidence), **partial**
 | Pinned, evidence-preserving reusable workflow with no production secrets | done | `.github/workflows/ckb-verify-reusable.yml` (`workflow_call`, commit-pinned actions, reports-only artifact); this repository calls it for its root manifest in the `dogfood` job |
 | Repository-root dogfood manifest and clean-checkout harness | done | `verify.toml`; `bun run verify:release` (`scripts/verify-release.sh`) runs the proposal's §8.B items from a clean checkout and writes a record |
 | Ubuntu support statement backed by execution | done | every CI job, the acceptance matrices, the rehearsals |
-| macOS support statement backed by execution | not done | `.github/workflows/macos-boundary.yml` (manual) would prove the offline commands and the platform-independent tests on macOS and that `run` is refused before any runtime mutation, but on 2026-11-01 GitHub cancelled the job before assigning a hosted macOS runner (`runner_id` 0, cancelled within a second), so nothing has executed on macOS yet; macOS stays unsupported and unclaimed until a run completes |
-| Windows support statement | partial | stated unsupported ([supported combinations](maintenance.md#supported-combinations)); not executed |
-| `bun run build`, `bun run verify:release` entry points | done | `package.json` scripts; all nine §8.B items pass on `5cf0d92` (`docs/acceptance/2026-11-02-release-surface.md`) |
+| macOS support statement backed by execution | done | `.github/workflows/platform-boundary.yml` on a hosted macOS 14 arm64 runner (run 41387777640): dependency install, type check, the platform-independent tests (including the frozen-contract test), `validate`, `digest` on the historical and the golden `0.1.0` reports, and `run` refused with exit 2 before anything is written; also manual run 41384894453 on `main`. The statement: offline commands supported on macOS, devnet execution not supported ([supported combinations](maintenance.md#supported-combinations)) |
+| Windows support statement backed by execution | done | the same workflow on a hosted Windows Server 2022 runner (run 41387777640) with the same steps and result. Its first two runs found two Windows defects in offline verification, both fixed in this change: bundle paths compared with `\` separators, and release-evidence extraction hit `EINVAL` from node-tar's Windows file flag under Bun. The statement: offline commands supported on Windows, devnet execution not supported |
+| `bun run build`, `bun run verify:release` entry points | done | `package.json` scripts; all nine §8.B items pass on `904658c` with the manifests on spec `0.1.0` (`docs/acceptance/2026-11-02-release-surface-v0.1.md`), and earlier on `5cf0d92` |
 
 ## Deliverable 4: external pilot and upstream-fit result
 

@@ -26,7 +26,7 @@ None of this is verifiable from the repository and none of it is assumed:
 | --- | --- | --- |
 | Bun | `1.2.19` exercised; `engines.bun >= 1.2.19`; `packageManager: bun@1.2.19` | `package.json`, `bun run check` fails on another version |
 | Node.js | `>= 20` (the OffCKB CLI is a Node program); 22 exercised | `package.json` `engines.node` |
-| OS / architecture | Linux x64 only | runtime ownership and debugger pins refuse other platforms |
+| OS / architecture | Linux x64 for `run`; offline commands also on macOS and Windows | `run` refuses other platforms before writing anything; the platform boundary workflow verifies the offline commands on macOS 14 and Windows Server 2022 |
 
 Other platforms are not supported because binary pins exist for them; see [supported combinations](maintenance.md#supported-combinations).
 

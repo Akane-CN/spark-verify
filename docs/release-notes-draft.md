@@ -20,7 +20,7 @@
 
 Exactly one combination was exercised end to end and is claimed: **Linux x64, Bun 1.2.19, Node.js 22 (any ≥ 20)**, installed from the packed tarball into a separate project per [`docs/install.md`](install.md). Toolchain pins: OffCKB `0.4.13` with the shipped patch, CKB `0.209.0`, `ckb-debugger 1.1.1`, `@ckb-ccc/core 1.14.0`. See [supported combinations](maintenance.md#supported-combinations).
 
-Not supported: macOS, Windows, other architectures, Node-only execution, other Bun versions, testnet or mainnet execution.
+Not supported: devnet execution (`run`) anywhere but Linux x64, other architectures, Node-only execution, other Bun versions, testnet or mainnet execution. On macOS 14 and Windows Server 2022 the offline commands (`validate`, `digest`, `check-digest`, `check-bundle`) are verified by the platform boundary workflow, and `run` is refused before it writes anything.
 
 ## Formats
 

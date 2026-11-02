@@ -63,7 +63,7 @@ The Python validator now checks selected draft.4 grammar/bounds and report-versi
 - redaction tests for logs/reports;
 - unit tests plus real OffCKB integration fixtures;
 - clean-run repeatability: the secp harness compares both digests; the Cell-property harness retains/report differences in raw devnet bindings instead of forcing environment equality;
-- Linux required, macOS targeted, Windows support claimed only after real verification.
+- Linux x64 required for `run`; macOS and Windows claims stay limited to what `.github/workflows/platform-boundary.yml` executes (offline commands, and `run` refused before writing).
 
 ## Security
 

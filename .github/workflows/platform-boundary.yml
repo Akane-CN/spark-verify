@@ -65,6 +65,9 @@ jobs:
           bun run src/cli.ts validate tests/fixtures/conformance/manifests/valid/v0.1.0-vocabulary.toml
           bun run src/cli.ts digest docs/examples/secp-transfer-committed-report.json --allow-legacy
           bun run src/cli.ts digest tests/fixtures/frozen-v0.1/report.json
+          bun run src/cli.ts check-digest tests/fixtures/frozen-v0.1/report.json \
+            --outcome sha256:585ff2390ebfcce361c341869f69fcec40416635eb2779c3c4ae3ef96947ddb4 \
+            --environment sha256:8c7da2179e0407d32f9e8e42f82921c61d12154f796c2937628422bb60d6132a
       - name: Running a manifest is refused before anything is written
         run: |
           test ! -e .ckb-verify

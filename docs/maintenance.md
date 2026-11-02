@@ -6,7 +6,7 @@ A small, repeatable maintainer workflow that keeps the verified baseline usable 
 
 | Component | Exercised pin | Notes |
 | --- | --- | --- |
-| OS / architecture | Linux x64 | the runtime ownership and debugger paths refuse other platforms before touching the runtime. macOS: not executed and not supported; the manual `macos-boundary` workflow would exercise the offline commands and the refusal of `run`, but hosted macOS runners were unavailable to this repository on 2026-11-01. Windows: not executed, not supported |
+| OS / architecture | Linux x64 for `run`; macOS 14 (arm64) and Windows Server 2022 (x64) for the offline commands | `run` refuses every other platform before it writes anything. On macOS and Windows a repository checkout installs, type-checks, passes the platform-independent tests, and runs `validate`, `digest`, `check-digest`, and `check-bundle`, and `run` exits 2 with nothing written; the [platform boundary](../.github/workflows/platform-boundary.yml) workflow executes exactly that on hosted runners (run 41387777640). The packed-tarball installation path is exercised on Linux x64 only |
 | Bun | 1.2.19 | `bun run check` fails fast on any other version; consumers pin it with `packageManager` so provenance records it |
 | Node.js | 22 (any ≥ 20) | required because the OffCKB CLI is a Node program |
 | `@offckb/cli` | 0.4.13 with the shipped patch | runtime gate refuses an unpatched bundle |
