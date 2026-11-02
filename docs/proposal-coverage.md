@@ -31,7 +31,7 @@ Status words: **done** (shipped on `main` with executable evidence), **partial**
 | Pinned, evidence-preserving reusable workflow with no production secrets | done | `.github/workflows/ckb-verify-reusable.yml` (`workflow_call`, commit-pinned actions, reports-only artifact); this repository calls it for its root manifest in the `dogfood` job |
 | Repository-root dogfood manifest and clean-checkout harness | done | `verify.toml`; `bun run verify:release` (`scripts/verify-release.sh`) runs the proposal's §8.B items from a clean checkout and writes a record |
 | Ubuntu support statement backed by execution | done | every CI job, the acceptance matrices, the rehearsals |
-| macOS support statement backed by execution | partial | the `checks-macos` job proves the offline commands and the platform-independent tests on macOS and that `run` is refused before any runtime mutation; devnet execution on macOS is not supported and not claimed |
+| macOS support statement backed by execution | not done | `.github/workflows/macos-boundary.yml` (manual) would prove the offline commands and the platform-independent tests on macOS and that `run` is refused before any runtime mutation, but on 2026-11-01 GitHub cancelled the job before assigning a hosted macOS runner (`runner_id` 0, cancelled within a second), so nothing has executed on macOS yet; macOS stays unsupported and unclaimed until a run completes |
 | Windows support statement | partial | stated unsupported ([supported combinations](maintenance.md#supported-combinations)); not executed |
 | `bun run build`, `bun run verify:release` entry points | done | `package.json` scripts |
 

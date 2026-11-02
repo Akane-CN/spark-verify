@@ -37,8 +37,9 @@ the private `version` field of `package.json`, not published packages. Dates are
   [maintenance loop](docs/maintenance.md), bug report template, `scripts/release-rehearsal.sh` (#20, #21).
 - Repository-root dogfood manifest (`verify.toml`), `bun run verify:release` (the proposal's release
   verification surface with a Markdown record), `bun run build`, the pinned secret-free reusable
-  workflow `.github/workflows/ckb-verify-reusable.yml` (called by the `dogfood` job), a `checks-macos`
-  CI job proving the offline commands on macOS and that `run` is refused there, and
+  workflow `.github/workflows/ckb-verify-reusable.yml` (called by the `dogfood` job), a manual
+  `macos-boundary` workflow for the macOS offline-command and refusal check (hosted macOS runners were
+  unavailable on 2026-11-01, so macOS remains unexecuted), and
   `docs/proposal-coverage.md` mapping every promised deliverable to its status (#20).
 - `run` prints a field-level expected/observed diff for every failed expectation and claim on FAIL.
 - `docs/release-decisions.md` records the six release decisions for `v0.1.0` (decision 1 reopened on
