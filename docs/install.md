@@ -9,7 +9,7 @@ From a clean checkout of the verified revision:
 ```bash
 bun install --frozen-lockfile
 bun pm pack --destination dist
-sha256sum dist/ckb-verify-0.0.2.tgz
+sha256sum dist/ckb-verify-0.1.0.tgz
 ```
 
 The tarball contains only `src/`, `schemas/`, `patches/`, the user-facing docs, `SECURITY.md`, `LICENSE`, `README.md`, and `package.json`. Tests, showcases, CI configuration, and media are not shipped. Record the checksum next to the revision you packed; `ckb-verify --version` reports the packed version.
@@ -26,7 +26,7 @@ Extract the patch from the tarball and declare it explicitly before the first in
 ```bash
 mkdir my-project && cd my-project && git init
 mkdir patches
-tar -xzf ../path/to/ckb-verify-0.0.2.tgz -C patches --strip-components=2 'package/patches/@offckb%2Fcli@0.4.13.patch'
+tar -xzf ../path/to/ckb-verify-0.1.0.tgz -C patches --strip-components=2 'package/patches/@offckb%2Fcli@0.4.13.patch'
 ```
 
 ```jsonc
@@ -37,7 +37,7 @@ tar -xzf ../path/to/ckb-verify-0.0.2.tgz -C patches --strip-components=2 'packag
   "type": "module",
   "packageManager": "bun@1.2.19",
   "dependencies": {
-    "ckb-verify": "file:../path/to/ckb-verify-0.0.2.tgz",
+    "ckb-verify": "file:../path/to/ckb-verify-0.1.0.tgz",
     "@ckb-ccc/core": "1.14.0"
   },
   "patchedDependencies": {

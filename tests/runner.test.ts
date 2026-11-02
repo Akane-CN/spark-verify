@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { VERSION } from "../src/version";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { collectSourceRevision, runManifest, type DevnetAdapter, type StepCommandRunner } from "../src/runner";
@@ -682,7 +683,7 @@ describe("runManifest", () => {
     ]);
     expect(result.report.environment).toMatchObject({
       schema: "ckb-verify-environment/3",
-      runner: { name: "ckb-verify", version: "0.0.2" },
+      runner: { name: "ckb-verify", version: VERSION },
       toolchain: {
         requested: { ckb: "0.209.0", offckb: "0.4.13" },
         observed: { ckb: "0.209.0 (test)", offckb: "0.4.13" },
