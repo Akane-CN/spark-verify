@@ -8,7 +8,7 @@ A small, repeatable maintainer workflow that keeps the verified baseline usable 
 | --- | --- | --- |
 | OS / architecture | Linux x64 for `run`; macOS 14 (arm64) and Windows Server 2022 (x64) for the offline commands | `run` refuses every other platform before it writes anything. On macOS and Windows a repository checkout installs, type-checks, passes the platform-independent tests, and runs `validate`, `digest`, `check-digest`, and `check-bundle`, and `run` exits 2 with nothing written; the [platform boundary](../.github/workflows/platform-boundary.yml) workflow executes exactly that on hosted runners (run 41387777640). The packed-tarball installation path is exercised on Linux x64 only |
 | Bun | 1.2.19 | `bun run check` fails fast on any other version; consumers pin it with `packageManager` so provenance records it |
-| Node.js | 22 (any ≥ 20) | required because the OffCKB CLI is a Node program |
+| Node.js | 22 exercised | the OffCKB CLI is a Node program and declares `>= 20`; only Node 22 has run, and nothing checks the Node version at runtime |
 | `@offckb/cli` | 0.4.13 with the shipped patch | runtime gate refuses an unpatched bundle |
 | CKB | 0.209.0 | pinned release assets with size/SHA-256 verification |
 | `ckb-debugger` | 1.1.1 (Linux x64 asset) | required only for manifests that declare `expect.tx = "rejected"` |
@@ -24,7 +24,7 @@ Use the [bug report template](../.github/ISSUE_TEMPLATE/bug_report.md): runner a
 
 1. `git switch main && git pull --ff-only && bun install --frozen-lockfile`.
 2. `bun run check` and `./scripts/validate-docs.sh --examples`.
-3. `bun run showcase:secp-transfer` (the fastest real-devnet regression); run the other two showcases if anything under `src/` changed.
+3. `bun run showcase:secp-transfer` (the fastest real-devnet regression); run the other three showcases if anything under `src/` changed.
 4. `bun run check:supply-chain`; note any new advisory. A new finding is triaged in an issue, never waived in place.
 5. Triage new issues with the template; label `bug`, `enhancement`, or `rfc`; close duplicates with the reason.
 6. Update roadmap blockers and evidence links on the open milestone issues; confirm the latest `main` CI run is green including `verify-evidence`.

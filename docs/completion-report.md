@@ -1,12 +1,12 @@
 # Completion and budget report (draft)
 
-> **Draft, prepared 2026-11-02 on the frozen v0.1.0 candidate `d99117b`.** The [Spark proposal revision 0.3](spark-proposal.md#12-application-status-and-remaining-gates) asks for a completion report and a budget report with the tagged release. This draft states what exists now; it is finalized when the release is published (release checklist step 8, approval on #20). Fields marked **maintainer** are facts only the maintainer holds and are not inferred here. Nothing in this draft is a billing claim.
+> **Draft, prepared 2026-11-02.** The v0.1.0 candidate `d99117b` passed every gate and was then superseded by the fixes from its [pre-release review](acceptance/2026-11-02-candidate-review.md); the re-frozen candidate is gated the same way. The [Spark proposal revision 0.3](spark-proposal.md#12-application-status-and-remaining-gates) asks for a completion report and a budget report with the tagged release. This draft states what exists now; it is finalized when the release is published (release checklist step 8, approval on #20). Fields marked **maintainer** are facts only the maintainer holds and are not inferred here. Nothing in this draft is a billing claim.
 
 ## Completion report
 
 ### Outcome in one paragraph
 
-`ckb-verify` v0.1.0 is built, frozen, and gated but not yet published. It runs a repository's `verify.toml` on a fresh local OffCKB devnet and writes a report whose claims, verdict, and environment anyone can re-verify offline. The v0.1 contract is frozen as manifest spec `0.1.0`, with the cycles, Cell, CKB balance, and UDT balance vocabulary the proposal promised. The candidate passed every pre-publication gate on its exact commit ([record](acceptance/2026-11-02-candidate-d99117b.md)). The external half of the proposal did not happen: no OffCKB maintainer feedback was sought and no project pilot ran, so neither is claimed.
+`ckb-verify` v0.1.0 is built, frozen, and gated but not yet published. It runs a repository's `verify.toml` on a fresh local OffCKB devnet and writes a report whose claims, verdict, and environment anyone can re-verify offline. The v0.1 contract is frozen as manifest spec `0.1.0`, with the cycles, Cell, CKB balance, and UDT balance vocabulary the proposal promised. The first candidate passed every pre-publication gate on its exact commit ([record](acceptance/2026-11-02-candidate-d99117b.md)). An agent pre-review then found defects, including a high-severity source-guard bypass. They are fixed, and the candidate is re-frozen. The external half of the proposal did not happen: no OffCKB maintainer feedback was sought and no project pilot ran, so neither is claimed.
 
 ### Deliverables
 
@@ -36,12 +36,12 @@ Execution of the gates found and fixed real defects before the freeze, each with
 - `run` writing a run directory before refusing an unsupported platform;
 - a race in the acceptance harness's listener check.
 
-Each is recorded in the `0.1.0` section of the [changelog](../CHANGELOG.md).
+Each is recorded in the `0.1.0` section of the [changelog](../CHANGELOG.md). An agent pre-review of the first candidate found more, the worst a source guard that a nested untracked repository switched off. Each finding and its disposition is in the [review record](acceptance/2026-11-02-candidate-review.md).
 
 ### What was not done
 
 - Public OffCKB maintainer feedback (#2) and a consented project trial or demand/no-go report (#3). Both need outreach, which needs the maintainer's publication approval.
-- Independent review of the candidate by someone other than its authors.
+- Independent review of the candidate by someone other than its authors. The agent pre-review does not count as one.
 - Publication: tag, prerelease, install-back of the published assets, and a registry package if one is chosen.
 - The reviewer-time measurement the proposal asked to replace its 15-minute estimate. It needs an outside reviewer's timing and does not exist yet.
 

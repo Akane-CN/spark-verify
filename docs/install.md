@@ -1,6 +1,6 @@
 # Installing ckb-verify in your own project
 
-This guide covers the one installation path that has been exercised end to end: **Linux x64, Bun 1.2.19, Node.js 20 or newer**, installing the packed tarball into a separate project. Other operating systems, architectures, Node-only execution, and other Bun versions are not supported merely because `engines` metadata or binary pins exist. Nothing here publishes a package; the package is unreleased and `private`.
+This guide covers the one installation path that has been exercised end to end: **Linux x64, Bun 1.2.19, Node.js 22** (the OffCKB CLI declares Node 20 or newer, but only 22 has been exercised), installing the packed tarball into a separate project. Other operating systems, architectures, Node-only execution, and other Bun versions are not supported merely because `engines` metadata or binary pins exist. Nothing here publishes a package; the package is unreleased and `private`.
 
 ## 1. Build or obtain the tarball
 
@@ -25,6 +25,7 @@ Extract the patch from the tarball and declare it explicitly before the first in
 
 ```bash
 mkdir my-project && cd my-project && git init
+printf 'node_modules/\n.ckb-verify/\n' > .gitignore   # dependencies and runner output are not source
 mkdir patches
 tar -xzf ../path/to/ckb-verify-0.1.0.tgz -C patches --strip-components=2 'package/patches/@offckb%2Fcli@0.4.13.patch'
 ```
@@ -77,7 +78,7 @@ The runner executes the `run` command of each step inside your project with `CKB
 ```toml
 [meta]
 name = "my-transfer"
-spec = "0.1.0-draft.4"
+spec = "0.1.0"
 
 [toolchain]
 ckb = "0.209.0"
@@ -101,6 +102,12 @@ out_point = { step = "transfer", index = 0 }
 count = 1
 ```
 
+Commit the project before the first run. Reports record its commit, and the runner compares a snapshot of the source before and after the run. Without a commit there is nothing to compare and every report is marked `tainted`:
+
+```bash
+git add -A && git commit -m "verify.toml and producer"
+```
+
 Read [`SECURITY.md`](../SECURITY.md) first: a manifest executes repository commands and the devnet is not a sandbox. Run only in a disposable environment with no production secrets.
 
 ## 5. Run, then verify offline
@@ -116,7 +123,7 @@ The first run downloads the pinned CKB release (and the pinned debugger when a m
 ## Known limits of the installed path
 
 - `run` needs Linux x64 with Bun 1.2.19 and refuses other platforms before it writes anything. The offline commands also work on macOS and Windows (verified in a repository checkout by the platform boundary workflow); this tarball installation path is exercised on Linux x64 only.
-- Node.js is required because the OffCKB CLI is a Node program; `node --version` must print 20 or newer.
+- Node.js is required because the OffCKB CLI is a Node program. Node 22 is the exercised version; OffCKB declares 20 or newer, and the runner does not check it.
 - Ports `8114` and `28114` must be free; the runner never stops a foreign listener.
 - The devnet cache lives under the project; cold runs need network access to GitHub releases.
 - A `FAIL` report is a valid report. Exit code and verdict are distinct; see the offline verification guide.

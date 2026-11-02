@@ -25,6 +25,7 @@ bun run check                                 # unit tests, typecheck, supply-ch
 bun run showcase:secp-transfer
 bun run showcase:cell-properties
 bun run showcase:ckb-ugmp
+bun run showcase:vocabulary
 scripts/acceptance-matrix.sh --results acceptance-source.md
 bun run verify:release                        # the proposal's §8.B release verification surface, with a record
 ```
@@ -35,7 +36,7 @@ Hosted CI on the candidate must be green for all jobs, including `verify-evidenc
 
 ```bash
 bun pm pack --destination dist
-sha256sum dist/ckb-verify-<version>.tgz > dist/SHA256SUMS
+(cd dist && sha256sum ckb-verify-<version>.tgz > SHA256SUMS)   # bare file names, so `sha256sum -c` works beside the download
 ```
 
 - The tarball contains only the `files` allowlist (`src`, `schemas`, `patches`, user docs, `SECURITY.md`, `LICENSE`, `README.md`, `package.json`).
@@ -66,6 +67,7 @@ bun run scripts/release-evidence.ts verify release-evidence/release-evidence-<sh
 gh run download <run-id> -p 'evidence-*-<sha>' -D bundles
 bun run scripts/release-evidence.ts assemble --out release-evidence-<version>-<sha>.tar.gz \
   --bundle bundles/evidence-secp-transfer-<sha> --bundle bundles/evidence-cell-properties-<sha> --bundle bundles/evidence-ckb-ugmp-<sha> \
+  --bundle bundles/evidence-vocabulary-<sha> \
   --record acceptance-source.md --record acceptance-consumer.md --record rehearsal-<date>.md \
   --repository Akane-CN/spark-verify --source-sha <sha> --run-id <run-id>
 ```
@@ -74,7 +76,7 @@ bun run scripts/release-evidence.ts assemble --out release-evidence-<version>-<s
 
 ## 7. Release notes
 
-- Move the `Unreleased` section of `CHANGELOG.md` under the new version heading with the date.
+- Move the `Unreleased` section of `CHANGELOG.md` under the new version heading with the date (for `0.1.0` this is the release commit, #40).
 - Complete the [release notes draft](release-notes-draft.md): candidate SHA, run id, artifact ids, checksums; the scope decisions are already recorded in [release decisions](release-decisions.md).
 - State known limitations (see [maintenance](maintenance.md#supported-combinations)), the report/manifest versions the runner reads and writes, and the upgrade and rollback notes below.
 - State what was **not** run (platforms, external pilots). Silence from external maintainers is not a gate.
