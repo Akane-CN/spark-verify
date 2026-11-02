@@ -206,11 +206,13 @@ I=$!
 if wait_for_port 8114; then
   # While the node is up: the node RPC (8114) and the patched OffCKB proxy (28114) must answer on
   # loopback only, never on the host's routable address. Listener scope is not a sandbox.
+  # The proxy binds tens of milliseconds after the node, so wait (bounded) for both listeners on
+  # loopback first; probing the routable address before the proxy exists would prove nothing.
   HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
   if [[ -z $HOST_IP ]]; then record loopback-only-listeners "8114/28114 unreachable on the routable address" "no routable address on this host" FAIL
+  elif ! wait_for_port 28114; then record loopback-only-listeners "proxy reachable on 127.0.0.1" "28114 not listening on loopback within 120s" FAIL
   elif port_listening 8114 "$HOST_IP" || port_listening 28114 "$HOST_IP"; then record loopback-only-listeners "8114/28114 unreachable on $HOST_IP" "reachable on $HOST_IP" FAIL
-  elif port_listening 28114; then record loopback-only-listeners "8114/28114 unreachable on $HOST_IP, reachable on 127.0.0.1" "both loopback only" PASS
-  else record loopback-only-listeners "proxy reachable on 127.0.0.1" "28114 not listening on loopback" FAIL; fi
+  else record loopback-only-listeners "8114/28114 unreachable on $HOST_IP, reachable on 127.0.0.1" "both loopback only" PASS; fi
   sleep 1; kill -INT "$I"
 else echo "node never listened" >&2; fi
 wait "$I"; I_STATUS=$?
