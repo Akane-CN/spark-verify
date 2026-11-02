@@ -48,7 +48,7 @@ Status words: **done** (shipped on `main` with executable evidence), **partial**
 | --- | --- | --- |
 | v0.1 reference, security, migration, and integration documentation | done | `README.md`, `SECURITY.md`, `docs/install.md`, `docs/maintenance.md`, `docs/version-policy.md`, `docs/offline-verification.md` |
 | Short demo | done | workflow video shared on the Spark thread on 2026-10-15 |
-| Exact-revision release verification log | partial | `docs/acceptance/` records on named commits; the log on the frozen candidate is produced at release (`bun run verify:release`, the rehearsal, the consumer matrix) |
+| Exact-revision release verification log | done for the candidate | [`2026-11-02-candidate-d99117b.md`](acceptance/2026-11-02-candidate-d99117b.md): release checklist steps 1–6 on the frozen `d99117b`, every gate PASS, with the CI evidence downloaded and verified; step 8 adds the install-back of the published assets |
 | Spark completion report and budget report | gated | written only at publication, under #20 |
 
 ## Beyond the proposal

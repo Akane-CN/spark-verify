@@ -57,4 +57,4 @@ A release changes exactly: `version` in `package.json`, `VERSION` in `src/versio
 - [ ] `curl` check above repeated on the day; result recorded on #20;
 - [x] the six release-blocking decisions on #18 recorded in [release decisions](release-decisions.md);
 - [ ] independent review of the candidate SHA recorded on #20;
-- [ ] the [release notes draft](release-notes-draft.md) completed with the candidate SHA, run id, artifact ids, and checksums.
+- [x] the [release notes draft](release-notes-draft.md) completed with the candidate SHA, run id, artifact ids, and checksums (candidate `d99117b`, [record](acceptance/2026-11-02-candidate-d99117b.md)).
