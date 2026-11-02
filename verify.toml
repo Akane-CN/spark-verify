@@ -2,7 +2,7 @@
 # OffCKB devnet. It is dogfooding, not independent proof; see docs/proposal-coverage.md.
 [meta]
 name = "ckb-verify-dogfood"
-spec = "0.1.0-draft.4"
+spec = "0.1.0"
 description = "The repository's own producer commits a 100 CKB transfer and leaves one live output Cell."
 
 [toolchain]

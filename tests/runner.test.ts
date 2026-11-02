@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { collectSourceRevision, runManifest, type DevnetAdapter, type StepCommandRunner } from "../src/runner";
@@ -573,6 +573,22 @@ describe("runManifest", () => {
       expect(starts).toBe(0);
     } finally { Object.defineProperty(process, "arch", arch); }
   });
+  test.each([["darwin", "arm64"], ["win32", "x64"], ["linux", "arm64"]] as const)(
+    "refuses %s/%s before writing anything when it would own the real runtime", async (platform, arch) => {
+      const { project, manifestPath } = await projectWithManifest(1);
+      const before = (await readdir(project)).sort();
+      const descriptors = { platform: Object.getOwnPropertyDescriptor(process, "platform")!, arch: Object.getOwnPropertyDescriptor(process, "arch")! };
+      Object.defineProperty(process, "platform", { ...descriptors.platform, value: platform });
+      Object.defineProperty(process, "arch", { ...descriptors.arch, value: arch });
+      try {
+        // No devnet is injected, so this is the CLI path; the default output directory lives under the project.
+        await expect(runManifest({ manifestPath, projectRoot: project })).rejects.toThrow(`requires Linux x64 with Bun; ${platform}/${arch}`);
+      } finally {
+        Object.defineProperty(process, "platform", descriptors.platform);
+        Object.defineProperty(process, "arch", descriptors.arch);
+      }
+      expect((await readdir(project)).sort()).toEqual(before);
+    });
   test("preparation failure loads keys first, redacts artifacts and errors, cleans and invalidates reports", async () => {
     const { project, manifestPath, outputDir } = await projectWithRejectedManifest();
     const devnet = fakeDevnet(project, "", LETTERED_KEY);

@@ -6,7 +6,9 @@ export type ReplayDependency =
   | "dynamic_since"
   | "external_network";
 
-export type ManifestSpec = "0.1.0-draft.3" | "0.1.0-draft.4" | "0.1.0-draft.5";
+/** `0.1.0` is the frozen v0.1 contract: the draft.5 grammar under its release identifier. */
+export type V01Spec = "0.1.0-draft.5" | "0.1.0";
+export type ManifestSpec = "0.1.0-draft.3" | "0.1.0-draft.4" | V01Spec;
 export interface ManifestMeta<S extends ManifestSpec = ManifestSpec> {
   name: string;
   spec: S;
@@ -68,13 +70,14 @@ interface VersionedManifest<S extends ManifestSpec, A> {
 }
 export type ManifestV3 = VersionedManifest<"0.1.0-draft.3", CellAssertion>;
 export type ManifestV4 = VersionedManifest<"0.1.0-draft.4", ClaimV4>;
-export type ManifestV5 = VersionedManifest<"0.1.0-draft.5", ClaimV5>;
+export type ManifestV5 = VersionedManifest<V01Spec, ClaimV5>;
 export type Manifest = ManifestV3 | ManifestV4 | ManifestV5;
 export function isManifestV4(manifest: Manifest): manifest is ManifestV4 {
   return manifest.meta.spec === "0.1.0-draft.4";
 }
+/** The draft.5 grammar, written as `0.1.0-draft.5` or as the frozen `0.1.0`. */
 export function isManifestV5(manifest: Manifest): manifest is ManifestV5 {
-  return manifest.meta.spec === "0.1.0-draft.5";
+  return manifest.meta.spec === "0.1.0-draft.5" || manifest.meta.spec === "0.1.0";
 }
 
 // ---- 0.1.0-draft.5: the RFC §4.2 / §5 vocabulary ----

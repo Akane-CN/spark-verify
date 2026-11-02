@@ -267,12 +267,13 @@ export function verifyReport(report: unknown, options: { allowLegacy?: boolean }
       const environment = record(artifact.environment, "environment"), provenance = record(environment.provenance, "provenance");
       retained(environment, ["schema"], "environment");
       retained(provenance, ["schema"], "provenance");
+      // report/3 carries the draft.5 grammar under either identifier; evidence and outcome must agree.
       const tuple = v3
-        ? { outcome: "ckb-verify-outcome/3", spec: "0.1.0-draft.5", environment: "ckb-verify-environment/4", provenance: "ckb-verify-provenance/3" }
-        : { outcome: "ckb-verify-outcome/2", spec: "0.1.0-draft.4", environment: "ckb-verify-environment/3", provenance: "ckb-verify-provenance/2" };
+        ? { outcome: "ckb-verify-outcome/3", specs: ["0.1.0-draft.5", "0.1.0"], environment: "ckb-verify-environment/4", provenance: "ckb-verify-provenance/3" }
+        : { outcome: "ckb-verify-outcome/2", specs: ["0.1.0-draft.4"], environment: "ckb-verify-environment/3", provenance: "ckb-verify-provenance/2" };
       if (!Object.hasOwn(outcome, "schema") || outcome.schema !== tuple.outcome ||
-          !Object.hasOwn(evidence, "spec") || evidence.spec !== tuple.spec ||
-          !Object.hasOwn(outcome, "spec") || outcome.spec !== tuple.spec ||
+          !Object.hasOwn(evidence, "spec") || !tuple.specs.includes(evidence.spec as string) ||
+          !Object.hasOwn(outcome, "spec") || outcome.spec !== evidence.spec ||
           !Object.hasOwn(environment, "schema") || environment.schema !== tuple.environment ||
           !Object.hasOwn(provenance, "schema") || provenance.schema !== tuple.provenance) {
         throw new EvidenceIntegrityError(`unsupported report/${v3 ? 3 : 2} version tuple`);

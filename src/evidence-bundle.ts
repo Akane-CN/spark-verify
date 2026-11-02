@@ -1,7 +1,7 @@
 // Sanitized, checksummed evidence bundles: an allowlist of canonical reports tied to a source revision.
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { basename, join, relative, resolve, sep } from "node:path";
+import nodePath, { basename, join, relative, resolve, sep } from "node:path";
 import { sha256Bytes } from "./canonical";
 import { inspectReport, type DigestPair } from "./offline";
 import { VERSION } from "./version";
@@ -81,6 +81,14 @@ async function regularFile(path: string, label: string): Promise<Buffer> {
   return readFile(path);
 }
 
+/**
+ * A bundle-relative path in the form `bundle.json` and `SHA256SUMS` use: `/`-separated on every platform.
+ * Only the platform separator is converted, so a POSIX file name containing `\` is never rewritten.
+ */
+export function bundleRelativePath(root: string, file: string, path: typeof nodePath.posix = nodePath): string {
+  return path.relative(root, file).split(path.sep).join("/");
+}
+
 export async function assertOnlyRegularEntries(root: string): Promise<string[]> {
   const files: string[] = [];
   const pending = [root];
@@ -89,8 +97,8 @@ export async function assertOnlyRegularEntries(root: string): Promise<string[]> 
     for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) { pending.push(path); continue; }
-      if (!entry.isFile()) throw new EvidenceBundleError(`unsupported filesystem entry (symlink, device, or socket): ${relative(root, path)}`);
-      if ((await lstat(path)).nlink !== 1) throw new EvidenceBundleError(`hard-linked entry refused: ${relative(root, path)}`);
+      if (!entry.isFile()) throw new EvidenceBundleError(`unsupported filesystem entry (symlink, device, or socket): ${bundleRelativePath(root, path)}`);
+      if ((await lstat(path)).nlink !== 1) throw new EvidenceBundleError(`hard-linked entry refused: ${bundleRelativePath(root, path)}`);
       files.push(path);
     }
   }
@@ -256,7 +264,7 @@ export async function verifyBundle(bundleDir: string, options: VerifyBundleOptio
 
   let files: string[];
   try {
-    files = (await assertOnlyRegularEntries(root)).map((file) => relative(root, file));
+    files = (await assertOnlyRegularEntries(root)).map((file) => bundleRelativePath(root, file));
   } catch (error) {
     problems.push(error instanceof Error ? error.message : String(error));
     return result;

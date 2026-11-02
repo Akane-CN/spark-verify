@@ -1,6 +1,8 @@
-# Assertion vocabulary: `0.1.0-draft.5`
+# Assertion vocabulary: v0.1 (`0.1.0`, also written `0.1.0-draft.5`)
 
-The private `0.0.2` runner accepts this manifest spec next to `0.1.0-draft.3` and `0.1.0-draft.4`. It implements the vocabulary the [proposal](spark-proposal.md#8-deliverables--how-to-verify) promised as funded deliverable 2 and the RFC describes in §4.2, §5.1, §5.2, and §5.3: cycles comparators, Cell selection by script filter with count, data, and capacity checks, CKB and UDT balance claims, and explicit, builtin, and wildcard-args script references. The repository-owned [vocabulary fixture](../showcases/vocabulary/README.md) exercises every form on a fresh devnet. Reports are `ckb-verify-report/3` with `ckb-verify-outcome/3`, `ckb-verify-environment/4`, and `ckb-verify-provenance/3`.
+This is the vocabulary of the frozen v0.1 contract. A manifest selects it with `spec = "0.1.0"`, the release identifier, or with `spec = "0.1.0-draft.5"`, the identifier it was first published under; the grammar, the claims, and the report tuple are identical, and only the identifier recorded in the report differs. What "frozen" means and how it is checked is in the [version policy](version-policy.md#the-frozen-v01-contract). The private `0.0.2` runner also reads and writes `0.1.0-draft.3` and `0.1.0-draft.4`.
+
+It implements the vocabulary the [proposal](spark-proposal.md#8-deliverables--how-to-verify) promised as funded deliverable 2 and the RFC describes in §4.2, §5.1, §5.2, and §5.3: cycles comparators, Cell selection by script filter with count, data, and capacity checks, CKB and UDT balance claims, and explicit, builtin, and wildcard-args script references. The repository-owned [vocabulary fixture](../showcases/vocabulary/README.md) exercises every form on a fresh devnet. Reports are `ckb-verify-report/3` with `ckb-verify-outcome/3`, `ckb-verify-environment/4`, and `ckb-verify-provenance/3`.
 
 `PASS` means exactly: **All declared claims passed in the recorded environment.**
 
@@ -11,7 +13,7 @@ The following is the literal [committed fixture](../showcases/vocabulary/verify.
 ```toml
 [meta]
 name = "vocabulary-xudt-mint"
-spec = "0.1.0-draft.5"
+spec = "0.1.0"
 description = "An owner-mode xUDT mint plus a 100 CKB transfer, checked with cycles, script-filtered Cells, properties, and balances."
 
 [toolchain]
@@ -79,7 +81,7 @@ Forms the fixture does not use: `count = N` shorthand, `{ eq }` cycles, explicit
 | --- | --- |
 | `expect.cycles` | `{ lt \| lte, gte }` or `{ eq }` on the step's verification cycles (dry run for committed, debugger for rejected). A missing cycles value never satisfies a comparator. |
 | Script reference | `{ code_hash, hash_type, args }`, `{ builtin = "<name>" [, args] }` with the 19 names OffCKB 0.4.13 exports, or `{ account = N }` (lock positions only). A bare name is refused: there are no named setup scripts ([decision 2](release-decisions.md#2-repository-script-deployment-a-documented-limitation)). Omitted builtin args are a wildcard, visible in the report as `args: null`; balance targets and UDT identities require exact args. |
-| `cell` selector | `out_point` (this or an earlier step; selects at most one Cell), `lock`, `type`, or combinations. Script-only selectors query every live Cell through the node indexer, paged 100 at a time, at most 1000 Cells (a runner resource policy; more is an execution error). |
+| `cell` selector | `out_point` (this or an earlier step; selects at most one Cell), `lock`, `type`, or combinations. Script-only selectors query every live Cell through the node indexer, paged 100 at a time, at most 1000 Cells (a runner resource policy; more is an execution error). Before a phase's first indexer query the runner waits, up to 30 s, until the indexer has reached the chain tip; an indexer that does not catch up ends the run without a verdict instead of recording a stale selection. |
 | `count` | `N` or `{ eq \| gte, lte }` in `0..4294967295`. Property checks (`data`, `capacity`) impose `gte = 1`; `count = 0` with properties is refused; assert absence in a separate claim. |
 | `data` | `eq` exact bytes, `len` exact byte length, `min_bytes` lower bound; combinations must agree. |
 | `capacity` | shannon comparators written as `"N CKB"` (up to eight decimals) or `"N shannon"`; bare numbers are refused. |
@@ -96,7 +98,7 @@ Observations are bounded: `cells` lists at most 1000 `{ outPoint, capacity, data
 
 ## Tool-version drift
 
-`run --allow-version-drift` (draft.5 only) runs a manifest that requests an exact `toolchain.ckb` without a pinned archive on the pinned `0.209.0`. By default such a manifest is refused before any runtime mutation. When allowed, `environment.toolchain.requested` keeps the manifest's version, `observed` the binary's, `provenance/3` records `toolchain.ckb = { requested, observed, driftAllowed: true }`, replay is tainted with `tool_version_drift`, and the environment fingerprint differs from a non-drifted run. A report that records a difference without `driftAllowed` is inconsistent. `scripts/verify-release.sh` item 7 demonstrates both paths.
+`run --allow-version-drift` (`0.1.0` and `0.1.0-draft.5` only) runs a manifest that requests an exact `toolchain.ckb` without a pinned archive on the pinned `0.209.0`. By default such a manifest is refused before any runtime mutation. When allowed, `environment.toolchain.requested` keeps the manifest's version, `observed` the binary's, `provenance/3` records `toolchain.ckb = { requested, observed, driftAllowed: true }`, replay is tainted with `tool_version_drift`, and the environment fingerprint differs from a non-drifted run. A report that records a difference without `driftAllowed` is inconsistent. `scripts/verify-release.sh` item 7 demonstrates both paths.
 
 ## What it does not do
 

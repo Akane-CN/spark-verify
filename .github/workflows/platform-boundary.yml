@@ -1,0 +1,81 @@
+# macOS and Windows support boundary, backed by execution. What each job proves on a hosted runner: the
+# install, the type check, the platform-independent tests, and the offline commands work, and `run` is
+# refused with exit 2 before it writes anything (no run directory, no manifest copy, no cache, no runtime).
+# Devnet execution is supported on Linux x64 only and is not claimed here either way.
+# Kept out of the required verify workflow because hosted macOS runners were once unavailable to this
+# repository (2026-11-01: cancelled before a runner was assigned). It runs on demand and on pull requests
+# that change the platform gate or this file.
+name: Platform boundary
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/platform-boundary.yml
+      - src/runtime-ownership.ts
+      - src/runner.ts
+      - src/cli.ts
+      - package.json
+      - bun.lock
+
+permissions:
+  contents: read
+
+jobs:
+  boundary:
+    name: ${{ matrix.label }} boundary (offline commands only)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS
+            os: macos-14
+          - label: Windows
+            os: windows-2022
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Keep LF line endings (manifest and report bytes are hashed)
+        run: git config --global core.autocrlf false
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@db6bcf6eb8d88a8aa03265b887ec7bd84d64cd68 # v2.1.1
+        with:
+          bun-version: 1.2.19
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Type-check and run the platform-independent tests
+        run: |
+          bun run typecheck
+          bun test tests/canonical.test.ts tests/manifest.test.ts tests/manifest-v5.test.ts tests/schemas.test.ts \
+            tests/offline.test.ts tests/report.test.ts tests/cell-claims.test.ts tests/cell-claims-schema.test.ts \
+            tests/claims-v3.test.ts tests/frozen-contract.test.ts tests/provenance.test.ts tests/transaction.test.ts \
+            tests/evidence-bundle.test.ts tests/release-evidence.test.ts tests/package-layout.test.ts tests/cli.test.ts \
+            tests/documentation-evidence.test.ts
+      - name: Offline commands work
+        run: |
+          set -euo pipefail
+          bun run src/cli.ts validate verify.toml
+          bun run src/cli.ts validate tests/fixtures/conformance/manifests/valid/v0.1.0-vocabulary.toml
+          bun run src/cli.ts digest docs/examples/secp-transfer-committed-report.json --allow-legacy
+          bun run src/cli.ts digest tests/fixtures/frozen-v0.1/report.json
+          bun run src/cli.ts check-digest tests/fixtures/frozen-v0.1/report.json \
+            --outcome sha256:585ff2390ebfcce361c341869f69fcec40416635eb2779c3c4ae3ef96947ddb4 \
+            --environment sha256:8c7da2179e0407d32f9e8e42f82921c61d12154f796c2937628422bb60d6132a
+      - name: Running a manifest is refused before anything is written
+        run: |
+          test ! -e .ckb-verify
+          set +e
+          output=$(bun run src/cli.ts run verify.toml 2>&1); status=$?
+          set -e
+          printf '%s\n' "$output"
+          test "$status" -eq 2
+          grep -q "requires Linux x64 with Bun" <<<"$output"
+          test ! -e .ckb-verify
+          test -z "$(git status --porcelain)"

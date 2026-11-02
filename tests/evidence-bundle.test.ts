@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix, win32 } from "node:path";
 import { canonicalSha256 } from "../src/canonical";
 import { main } from "../src/cli";
-import { BUNDLE_SCHEMA, EvidenceBundleError, packageEvidence, scanForSecrets, verifyBundle } from "../src/evidence-bundle";
+import { BUNDLE_SCHEMA, EvidenceBundleError, bundleRelativePath, packageEvidence, scanForSecrets, verifyBundle } from "../src/evidence-bundle";
 import { syntheticReportV2 } from "./fixtures/claims-v2/synthetic";
 
 const SOURCE = "a".repeat(40);
@@ -32,6 +32,12 @@ function cli(args: string[]) {
 
 const bundleOptions = (root: string, out: string) => ({ projectRoot: root, outDir: out, repository: "example/repo", sourceSha: SOURCE,
   workflow: { name: "Verify", job: "secp-transfer", runId: "1", runAttempt: "1" }, knownSecrets: [DEV_KEY], now: new Date("2026-10-28T00:00:00Z") });
+
+test("bundle-relative paths use / on every platform and never rewrite a POSIX backslash", () => {
+  expect(bundleRelativePath("D:\\a\\bundle", "D:\\a\\bundle\\reports\\run-a\\report.json", win32)).toBe("reports/run-a/report.json");
+  expect(bundleRelativePath("/b", "/b/reports/run-a/report.json", posix)).toBe("reports/run-a/report.json");
+  expect(bundleRelativePath("/b", "/b/reports/odd\\name.json", posix)).toBe("reports/odd\\name.json");
+});
 
 describe("secret scan", () => {
   test("flags generic markers, URL credentials, private-key field names, and known keys", () => {

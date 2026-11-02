@@ -115,7 +115,7 @@ The first run downloads the pinned CKB release (and the pinned debugger when a m
 
 ## Known limits of the installed path
 
-- Linux x64 with Bun 1.2.19 only. The runner refuses other platforms before touching the runtime.
+- `run` needs Linux x64 with Bun 1.2.19 and refuses other platforms before it writes anything. The offline commands also work on macOS and Windows (verified in a repository checkout by the platform boundary workflow); this tarball installation path is exercised on Linux x64 only.
 - Node.js is required because the OffCKB CLI is a Node program; `node --version` must print 20 or newer.
 - Ports `8114` and `28114` must be free; the runner never stops a foreign listener.
 - The devnet cache lives under the project; cold runs need network access to GitHub releases.

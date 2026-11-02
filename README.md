@@ -42,7 +42,7 @@ The acceptance harness runs the committed fixture twice on fresh devnets and req
 
 `PASS` means exactly: **All declared claims passed in the recorded environment.** It does not claim broader contract correctness or a security audit.
 
-The [`vocabulary` showcase](showcases/vocabulary/) exercises the draft.5 assertion vocabulary on an owner-mode xUDT mint plus a transfer: cycles comparators, script-filtered Cells with data and capacity checks, CKB and UDT balances, and the recorded tool-version drift path. The [`ckb-ugmp` showcase](showcases/ckb-ugmp/) adds a bounded, headless adaptation of the Spore mint seam from [`HNO3Miracle/CKB-UGMP@543def6e717b2d67f619a76c3d9283e55b211b83`](https://github.com/HNO3Miracle/CKB-UGMP/tree/543def6e717b2d67f619a76c3d9283e55b211b83). It injects the fresh OffCKB Spore deployment into the upstream project's pinned `@ckb-ccc/spore@1.5.17` construction path, uses deterministic local DOB/0-shaped data, and returns a signed transaction without submitting it. It does not run the browser UI unchanged and carries no CKB-UGMP maintainer endorsement.
+The [`vocabulary` showcase](showcases/vocabulary/) exercises the v0.1 assertion vocabulary (spec `0.1.0`) on an owner-mode xUDT mint plus a transfer: cycles comparators, script-filtered Cells with data and capacity checks, CKB and UDT balances, and the recorded tool-version drift path. The [`ckb-ugmp` showcase](showcases/ckb-ugmp/) adds a bounded, headless adaptation of the Spore mint seam from [`HNO3Miracle/CKB-UGMP@543def6e717b2d67f619a76c3d9283e55b211b83`](https://github.com/HNO3Miracle/CKB-UGMP/tree/543def6e717b2d67f619a76c3d9283e55b211b83). It injects the fresh OffCKB Spore deployment into the upstream project's pinned `@ckb-ccc/spore@1.5.17` construction path, uses deterministic local DOB/0-shaped data, and returns a signed transaction without submitting it. It does not run the browser UI unchanged and carries no CKB-UGMP maintainer endorsement.
 
 ```bash
 bun install --frozen-lockfile
@@ -73,7 +73,7 @@ The new wrapper verifies each complete PASS/FAIL report with `verifyReport`, che
 
 The repository root carries its own [`verify.toml`](verify.toml): the secp256k1 transfer producer run on a fresh devnet with one live-output claim. `bun run verify:release` runs the release verification surface promised in the proposal from a clean checkout (validate every included manifest, run the root manifest, the positive, failing, and script-rejection paths, a repeated clean run with equal digests, a dirty-tree run showing that equal outcomes do not imply equal environments, and an offline recomputation of every report) and writes a Markdown record. `bun run build` type-checks and packs the distributable.
 
-[`.github/workflows/ckb-verify-reusable.yml`](.github/workflows/ckb-verify-reusable.yml) is a pinned, secret-free reusable workflow (`workflow_call`) that validates and runs one manifest on a fresh devnet and keeps only the canonical `report.json` files as an artifact. This repository calls it for its root manifest in the `dogfood` job (the manual `macos-boundary` workflow records the macOS state separately); a consumer that installed the package per the [installation guide](docs/install.md) calls it with `uses: Akane-CN/spark-verify/.github/workflows/ckb-verify-reusable.yml@<commit>`. The [proposal coverage](docs/proposal-coverage.md) record maps every promised deliverable to its status.
+[`.github/workflows/ckb-verify-reusable.yml`](.github/workflows/ckb-verify-reusable.yml) is a pinned, secret-free reusable workflow (`workflow_call`) that validates and runs one manifest on a fresh devnet and keeps only the canonical `report.json` files as an artifact. This repository calls it for its root manifest in the `dogfood` job (the `platform-boundary` workflow backs the macOS and Windows statements: offline commands work there, and `run` is refused before it writes anything); a consumer that installed the package per the [installation guide](docs/install.md) calls it with `uses: Akane-CN/spark-verify/.github/workflows/ckb-verify-reusable.yml@<commit>`. The [proposal coverage](docs/proposal-coverage.md) record maps every promised deliverable to its status.
 
 ## Installing into your own project
 
@@ -153,7 +153,7 @@ count = 1
 
 The feasibility implementation supports only:
 
-- exact spec `0.1.0-draft.3`, `0.1.0-draft.4`, or `0.1.0-draft.5`;
+- exact spec `0.1.0` (the frozen v0.1 contract), `0.1.0-draft.5` (the same grammar), `0.1.0-draft.4`, or `0.1.0-draft.3`;
 - exact CKB and OffCKB versions accepted by the current adapter;
 - ckb-debugger `1.1.1` when requested, mandatory for every declared rejected transaction (Linux/x64 only);
 - a required replay dependency list containing zero or more unique RFC dependency codes;
@@ -163,7 +163,7 @@ The feasibility implementation supports only:
 - optional `expect.error.code` for a rejected script;
 - exact live-Cell count assertions targeting `{ step, index }`;
 - draft.4 only: count 0/1, type builtin `dao`/`spore` plus `args_bytes`, data `min_bytes`, and separate `cell_deps.contains` **table** membership. Properties require count 1. See [bounds and semantics](docs/cell-claims-draft.4.md).
-- draft.5 only: `expect.cycles` comparators; Cell selection by `out_point`, `lock`, and `type` script filters (explicit, any OffCKB built-in with optional wildcard args, or an exported account) with `count` comparators, `data.eq`/`len`/`min_bytes`, and `capacity` comparators; `balance` claims by account, full-format address, or lock, with or without a 16-byte little-endian UDT; and `run --allow-version-drift`. See the [draft.5 vocabulary](docs/vocabulary-draft.5.md) and the [vocabulary fixture](showcases/vocabulary/README.md).
+- `0.1.0` and draft.5 only: `expect.cycles` comparators; Cell selection by `out_point`, `lock`, and `type` script filters (explicit, any OffCKB built-in with optional wildcard args, or an exported account) with `count` comparators, `data.eq`/`len`/`min_bytes`, and `capacity` comparators; `balance` claims by account, full-format address, or lock, with or without a 16-byte little-endian UDT; and `run --allow-version-drift`. See the [v0.1 vocabulary](docs/vocabulary-v0.1.md) and the [vocabulary fixture](showcases/vocabulary/README.md).
 
 Unknown keys fail closed. A non-empty replay dependency list is accepted but makes the report explicitly `tainted`; it never silently claims stable replay. Script deployment declarations, balance/UDT assertions, script filters, cycle comparators, and multi-transaction steps remain RFC targets and are not silently accepted.
 

@@ -17,6 +17,8 @@
     "docs/evidence-report.md",
     "docs/annotated-manifest.md",
     "docs/cell-claims-draft.4.md",
+    "docs/vocabulary-v0.1.md",
+    "docs/version-policy.md",
     "SECURITY.md"
   ],
   "scripts": {

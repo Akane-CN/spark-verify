@@ -1,4 +1,4 @@
-// Repository-owned draft.5 vocabulary fixture: one transaction that mints an owner-mode xUDT Cell to the
+// Repository-owned v0.1 (spec 0.1.0) vocabulary fixture: one transaction that mints an owner-mode xUDT Cell to the
 // development signer and transfers 100 CKB to the second account. Trusted-code producer; never broadcasts.
 import { ccc } from "@ckb-ccc/core";
 import { cccA } from "@ckb-ccc/core/advanced";
@@ -25,7 +25,7 @@ export function clientFromContext(context: ProducerContext, rpcUrl: string): ccc
   } as Record<ccc.KnownScript, ccc.ScriptInfoLike | undefined> });
 }
 
-/** 16-byte little-endian unsigned amount, the UDT data prefix the draft.5 balance claim decodes. */
+/** 16-byte little-endian unsigned amount, the UDT data prefix the v0.1 balance claim decodes. */
 export function udtAmountData(amount: bigint): string {
   return `0x${Buffer.from(amount.toString(16).padStart(32, "0"), "hex").reverse().toString("hex")}`;
 }

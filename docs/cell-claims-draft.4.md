@@ -66,7 +66,7 @@ All cases expect commitment. Assertion failures need no debugger pin. Unexpected
 
 | Manifest | Report | Outcome | Environment | Provenance |
 | --- | --- | --- | --- | --- |
-| `0.1.0-draft.5` ([vocabulary](vocabulary-draft.5.md)) | `ckb-verify-report/3` | `ckb-verify-outcome/3` | `/4` | `/3` |
+| `0.1.0` (frozen) and `0.1.0-draft.5` ([vocabulary](vocabulary-v0.1.md)) | `ckb-verify-report/3` | `ckb-verify-outcome/3` | `/4` | `/3` |
 | `0.1.0-draft.4` | `ckb-verify-report/2` | `ckb-verify-outcome/2` | `/3` | `/2` |
 | `0.1.0-draft.3` | `ckb-verify-report/1` | `ckb-verify-outcome/1` | `/3` | `/2` |
 | Historical draft.3, explicit legacy opt-in | `/1` | `/1` | `/2` | `/1` |

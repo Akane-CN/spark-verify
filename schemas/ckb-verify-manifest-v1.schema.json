@@ -2,7 +2,7 @@
  "$schema": "https://json-schema.org/draft/2020-12/schema",
  "$id": "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-manifest-v1.schema.json",
  "title": "CKB Verify manifest (parsed verify.toml)",
- "description": "Structural validation of a parsed verify.toml for manifest specs 0.1.0-draft.3, 0.1.0-draft.4, and 0.1.0-draft.5, mirroring the strict parser in src/manifest.ts: unknown keys are rejected everywhere. The parser additionally enforces rules a JSON Schema cannot express portably: out_point.step and cell_deps.step must name this or an earlier step, step names must be unique, at least one expectation or assertion must exist, a rejected expectation requires toolchain.ckb-debugger, and draft.4 manifests must be valid UTF-8 that round-trips byte for byte.",
+ "description": "Structural validation of a parsed verify.toml for manifest specs 0.1.0-draft.3, 0.1.0-draft.4, 0.1.0-draft.5, and 0.1.0 (the frozen v0.1 contract, the draft.5 grammar under its release identifier), mirroring the strict parser in src/manifest.ts: unknown keys are rejected everywhere. The parser additionally enforces rules a JSON Schema cannot express portably: out_point.step and cell_deps.step must name this or an earlier step, step names must be unique, at least one expectation or assertion must exist, a rejected expectation requires toolchain.ckb-debugger, and draft.4 and later manifests must be valid UTF-8 that round-trips byte for byte.",
  "$comment": "Dotted TOML keys and explicit tables normalize to the same parsed object before validation. Numeric bounds are runner policy, not consensus.",
  "type": "object",
  "additionalProperties": false,
@@ -31,7 +31,8 @@
      "enum": [
       "0.1.0-draft.3",
       "0.1.0-draft.4",
-      "0.1.0-draft.5"
+      "0.1.0-draft.5",
+      "0.1.0"
      ]
     },
     "description": {
@@ -225,7 +226,10 @@
       "type": "object",
       "properties": {
        "spec": {
-        "const": "0.1.0-draft.5"
+        "enum": [
+         "0.1.0-draft.5",
+         "0.1.0"
+        ]
        }
       },
       "required": [
