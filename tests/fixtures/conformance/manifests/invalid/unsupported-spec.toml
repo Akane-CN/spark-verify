@@ -1,6 +1,6 @@
 [meta]
 name = "conformance-draft3"
-spec = "0.1.0"
+spec = "0.2.0"
 
 [toolchain]
 ckb = "0.209.0"

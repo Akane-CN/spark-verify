@@ -1,10 +1,11 @@
-// Synthetic draft.5 inputs only: never devnet output or execution evidence.
+// Synthetic draft.5-grammar inputs (spec 0.1.0-draft.5 or the frozen 0.1.0) only: never devnet output or execution evidence.
 import { ccc } from "@ckb-ccc/core";
 import type { CkbJsonRpcTransaction } from "../../../src/rpc";
 import type { OutputV4 } from "../../../src/cell-claims";
 import type { ResolvedSystemScripts } from "../../../src/offckb";
 import type { CkbVerifyReportV3 } from "../../../src/runner";
 import type { EnvironmentEvidenceV4 } from "../../../src/report";
+import type { V01Spec } from "../../../src/types";
 import { canonicalSha256, sha256Bytes } from "../../../src/canonical";
 import { deriveOutcomeV3, populateEvidenceV3, verdictForOutcomeV3, type IndexerInput, type RunInputV3 } from "../../../src/claims-v3";
 import { transactionHash } from "../../../src/transaction";
@@ -25,8 +26,11 @@ export const UDT_AMOUNT = 1000n;
 export const udtData = (amount: bigint): string => `0x${Buffer.from(amount.toString(16).padStart(32, "0"), "hex").reverse().toString("hex")}`;
 const rpcScript = (lock: { codeHash: string; hashType: "data" | "type" | "data1" | "data2"; args: string }) => ({ code_hash: lock.codeHash, hash_type: lock.hashType, args: lock.args });
 
-export function manifest5(extraFinal = ""): string {
-  return `[meta]\nname = "synthetic-draft5"\nspec = "0.1.0-draft.5"\n[toolchain]\nckb = "0.209.0"\noffckb = "0.4.13"\n[replay]\ndependencies = []\n[setup]\naccounts = 2\n` +
+/** The synthetic manifest's name under each identifier; the grammar and claims are identical. */
+export const syntheticName = (spec: V01Spec): string => spec === "0.1.0" ? "synthetic-v0.1" : "synthetic-draft5";
+
+export function manifest5(extraFinal = "", spec: V01Spec = "0.1.0-draft.5"): string {
+  return `[meta]\nname = "${syntheticName(spec)}"\nspec = "${spec}"\n[toolchain]\nckb = "0.209.0"\noffckb = "0.4.13"\n[replay]\ndependencies = []\n[setup]\naccounts = 2\n` +
     `[[step]]\nname = "mint"\nrun = "inert-fake-adapter"\nexpect.tx = "committed"\nexpect.cycles = { gte = 1, lt = 1000 }\n` +
     `[[step.assert.cell]]\nout_point = { step = "mint", index = 0 }\nlock = { account = 0 }\ntype = { builtin = "xudt", args = "${OWNER_ARGS}" }\ndata = { len = 16 }\ncapacity = { gte = "142 CKB" }\n` +
     `[[assert.cell]]\nlock = { account = 0 }\ntype = { builtin = "xudt" }\ncount = { gte = 1, lte = 10 }\ndata = { min_bytes = 16 }\n` +
@@ -70,8 +74,9 @@ export function environment4(text: string): EnvironmentEvidenceV4 {
 }
 
 /** The raw run input for the manifest above: one committed step with 100 cycles, every claim's retained query. */
-export function syntheticInputV3(options: { cycles?: number; ckbBalanceCapacity?: string; udtData?: string; extraFinal?: string } = {}): { input: RunInputV3; environment: EnvironmentEvidenceV4 } {
-  const text = manifest5(options.extraFinal ?? "");
+export function syntheticInputV3(options: { cycles?: number; ckbBalanceCapacity?: string; udtData?: string; extraFinal?: string; spec?: V01Spec } = {}): { input: RunInputV3; environment: EnvironmentEvidenceV4 } {
+  const spec = options.spec ?? "0.1.0-draft.5";
+  const text = manifest5(options.extraFinal ?? "", spec);
   const tx = mintTransaction();
   if (options.udtData !== undefined) tx.outputs_data = [options.udtData];
   const hash = transactionHash(tx);
@@ -93,7 +98,7 @@ export function syntheticInputV3(options: { cycles?: number; ckbBalanceCapacity?
     { kind: "balance", target: { kind: "account", index: 0 }, expected: { udt: { type: { kind: "builtin", name: "xudt", args: OWNER_ARGS } }, amount: { gte: "1000" } },
       input: indexerInput({ script: rpcScript(accounts3[0]!.lock), script_type: "lock", script_search_mode: "exact", filter: { script: owner }, with_data: true }, [mintCell]) },
   ];
-  return { input: { name: "synthetic-draft5", spec: "0.1.0-draft.5", manifestText: text, steps: [step], assertions }, environment: environment4(text) };
+  return { input: { name: syntheticName(spec), spec, manifestText: text, steps: [step], assertions }, environment: environment4(text) };
 }
 
 export function syntheticReportV3(options: Parameters<typeof syntheticInputV3>[0] = {}): CkbVerifyReportV3 {

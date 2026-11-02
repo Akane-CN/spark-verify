@@ -72,8 +72,8 @@ function parseMeta(value: unknown, source: string): ManifestMeta {
   exactKeys(table, ["name", "spec", "description"], "meta", source);
   const name = requiredString(table.name, "meta.name", source);
   if (name.length > 100) fail(source, "meta.name must not exceed 100 characters");
-  if (table.spec !== SPEC_VERSION && table.spec !== "0.1.0-draft.4" && table.spec !== "0.1.0-draft.5") {
-    fail(source, 'meta.spec must equal "0.1.0-draft.3", "0.1.0-draft.4", or "0.1.0-draft.5"');
+  if (table.spec !== SPEC_VERSION && table.spec !== "0.1.0-draft.4" && table.spec !== "0.1.0-draft.5" && table.spec !== "0.1.0") {
+    fail(source, 'meta.spec must equal "0.1.0", "0.1.0-draft.5", "0.1.0-draft.4", or "0.1.0-draft.3"');
   }
 
   let description: string | undefined;
@@ -344,8 +344,8 @@ export function parseManifestText(text: string, source = "verify.toml"): Manifes
     }
     return { steps, assertions };
   };
-  if (meta.spec === "0.1.0-draft.5") {
-    return { meta: { ...meta, spec: "0.1.0-draft.5" }, ...common, ...parseBody(parseAssertionsV5(common.setup.accounts), parseExpectationV5) };
+  if (meta.spec === "0.1.0-draft.5" || meta.spec === "0.1.0") {
+    return { meta: { ...meta, spec: meta.spec }, ...common, ...parseBody(parseAssertionsV5(common.setup.accounts), parseExpectationV5) };
   }
   return meta.spec === "0.1.0-draft.4"
     ? { meta: { ...meta, spec: "0.1.0-draft.4" }, ...common, ...parseBody(parseAssertionsV4) }

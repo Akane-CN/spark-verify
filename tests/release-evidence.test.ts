@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as tar from "tar";
@@ -179,6 +179,8 @@ describe("release evidence", () => {
       await tar.c({ gzip: true, cwd: join(root, "source"), file: linked, portable: true }, [RELEASE_EVIDENCE_ROOT]);
       await mkdir(join(root, "out-a"));
       await expect(extractReleaseEvidence(linked, join(root, "out-a"))).rejects.toThrow("unsafe archive entry type symlink");
+      // Every entry is validated before anything is written: the regular file listed first is not extracted either.
+      expect(await readdir(join(root, "out-a"))).toEqual([]);
 
       await rm(join(source, "link"));
       await mkdir(join(root, "source", "other"));
@@ -190,6 +192,13 @@ describe("release evidence", () => {
       expect(await Bun.file(join(root, "out-b", "other", "file.txt")).exists()).toBe(false);
 
       await expect(extractReleaseEvidence(join(root, "missing.tar.gz"), join(root, "out-b"))).rejects.toThrow("archive is missing");
+
+      const duplicated = join(root, "duplicated.tar.gz");
+      await tar.c({ gzip: true, cwd: join(root, "source"), file: duplicated, portable: true },
+        [`${RELEASE_EVIDENCE_ROOT}/release-evidence.json`, `${RELEASE_EVIDENCE_ROOT}/release-evidence.json`]);
+      await mkdir(join(root, "out-c"));
+      await expect(extractReleaseEvidence(duplicated, join(root, "out-c"))).rejects.toThrow("duplicate archive entry");
+      expect(await readdir(join(root, "out-c"))).toEqual([]);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 

@@ -107,13 +107,13 @@ The policy behind this table, including what changes each identifier and the no-
 
 | Report `schema` | Nested tuple | Supported by | Notes |
 | --- | --- | --- | --- |
-| `ckb-verify-report/3` | outcome `/3`, specs `0.1.0-draft.5`, environment `/4`, provenance `/3` | `digest`, `check-digest` | current draft.5 envelope: raw indexer pages, exported accounts, tool-version drift record ([vocabulary](vocabulary-draft.5.md)) |
+| `ckb-verify-report/3` | outcome `/3`, specs both `0.1.0` or both `0.1.0-draft.5`, environment `/4`, provenance `/3` | `digest`, `check-digest` | the frozen v0.1 envelope: raw indexer pages, exported accounts, tool-version drift record ([vocabulary](vocabulary-v0.1.md)) |
 | `ckb-verify-report/2` | outcome `/2`, specs `0.1.0-draft.4`, environment `/3`, provenance `/2` | `digest`, `check-digest` | current draft.4 envelope |
 | `ckb-verify-report/1` | outcome `/1`, specs `0.1.0-draft.3`, environment `/3`, provenance `/2` | `digest`, `check-digest` | current draft.3 envelope |
 | `ckb-verify-report/1` | outcome `/1`, specs `0.1.0-draft.3`, environment `/2`, provenance `/1` | only with `--allow-legacy` | historical reports predate debugger identity; no retroactive debugger guarantee |
 | anything else | — | rejected as `unsupported …` (exit `1`) | missing, mixed, or unknown versions are never inferred |
 
-Manifest specs `0.1.0-draft.3`, `0.1.0-draft.4`, and `0.1.0-draft.5` are accepted by `validate`; the spec string selects the grammar and there is no automatic migration. A historical report is verified against the rules that applied when it was written; `--allow-legacy` never widens what report `/2` accepts.
+Manifest specs `0.1.0` (frozen), `0.1.0-draft.5`, `0.1.0-draft.4`, and `0.1.0-draft.3` are accepted by `validate`; the spec string selects the grammar and there is no automatic migration. A historical report is verified against the rules that applied when it was written; `--allow-legacy` never widens what report `/2` accepts.
 
 ## Published schemas
 

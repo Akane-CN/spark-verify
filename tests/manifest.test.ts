@@ -193,7 +193,7 @@ describe("parseManifestText", () => {
   test("requires the implemented spec and OffCKB adapter versions", () => {
     expectManifestError(
       replace(VALID, 'spec = "0.1.0-draft.3"', 'spec = "0.1.0-draft.9"'),
-      'meta.spec must equal "0.1.0-draft.3"',
+      'meta.spec must equal "0.1.0", "0.1.0-draft.5", "0.1.0-draft.4", or "0.1.0-draft.3"',
     );
     expectManifestError(
       replace(VALID, 'offckb = "0.4.13"', 'offckb = "0.4.12"'),

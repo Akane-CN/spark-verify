@@ -144,6 +144,14 @@ test("adapter preflight failure leaves runtime files untouched and releases owne
   expect(await contender(repositoryRoot)).toMatchObject({ code: 0 });
 });
 
+test("the platform gate admits only Linux x64 under Bun", () => {
+  expect(() => ownership.assertSupportedRuntimePlatform("linux", "x64", true)).not.toThrow();
+  for (const [platform, arch] of [["darwin", "arm64"], ["darwin", "x64"], ["win32", "x64"], ["linux", "arm64"]] as const) {
+    expect(() => ownership.assertSupportedRuntimePlatform(platform, arch, true)).toThrow(`${platform}/${arch} is not supported`);
+  }
+  expect(() => ownership.assertSupportedRuntimePlatform("linux", "x64", false)).toThrow("linux/x64 without Bun");
+});
+
 test.each([['platform', 'darwin'], ['arch', 'arm64']] as const)(
   "ownership rejects unsupported %s=%s before binding", async (field, value) => {
     const child = Bun.spawn([process.execPath, "-e", `

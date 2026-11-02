@@ -1,6 +1,6 @@
 [meta]
 name = "vocabulary-xudt-mint"
-spec = "0.1.0-draft.5"
+spec = "0.1.0"
 description = "An owner-mode xUDT mint plus a 100 CKB transfer, checked with cycles, script-filtered Cells, properties, and balances."
 
 [toolchain]

@@ -45,10 +45,23 @@ export async function assertRuntimePortsAvailable(ports: readonly number[] = [81
   }
 }
 
-export async function acquireRuntimeOwnership(): Promise<RuntimeOwnership> {
-  if (process.platform !== "linux" || process.arch !== "x64" || typeof Bun === "undefined") {
-    throw new Error("OffCKB runtime ownership requires Linux x64 with Bun; other runtimes/platforms are not supported.");
+/**
+ * The only platform `run` supports. Called by the runner before it writes anything (run directory,
+ * manifest copy, caches) and again when taking runtime ownership, so other platforms are refused
+ * with no file or runtime mutation.
+ */
+export function assertSupportedRuntimePlatform(
+  platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch,
+  bun: boolean = typeof Bun !== "undefined",
+): void {
+  if (platform !== "linux" || arch !== "x64" || !bun) {
+    throw new Error(`OffCKB runtime ownership requires Linux x64 with Bun; ${platform}/${arch}${bun ? "" : " without Bun"} is not supported.`);
   }
+}
+
+export async function acquireRuntimeOwnership(): Promise<RuntimeOwnership> {
+  assertSupportedRuntimePlatform();
   const server = createServer((socket) => socket.destroy());
   await new Promise<void>((resolve, reject) => {
     server.once("error", (error: NodeJS.ErrnoException) => {

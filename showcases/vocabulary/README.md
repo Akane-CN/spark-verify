@@ -1,6 +1,6 @@
 # Draft.5 vocabulary fixture
 
-Repository-owned fixture for the [draft.5 assertion vocabulary](../../docs/vocabulary-draft.5.md): one transaction mints an owner-mode xUDT Cell (150 CKB, 1000 units as 16 little-endian bytes) to the development signer and transfers 100 CKB to the second account. It uses the exported OffCKB `xudt`, `secp256k1_blake160_sighash_all`, and `dao` identities from the runner context; nothing is deployed or endorsed.
+Repository-owned fixture for the [v0.1 assertion vocabulary](../../docs/vocabulary-v0.1.md): one transaction mints an owner-mode xUDT Cell (150 CKB, 1000 units as 16 little-endian bytes) to the development signer and transfers 100 CKB to the second account. It uses the exported OffCKB `xudt`, `secp256k1_blake160_sighash_all`, and `dao` identities from the runner context; nothing is deployed or endorsed.
 
 ## Producer
 

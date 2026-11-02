@@ -17,12 +17,13 @@ import type { CkbJsonRpcTransaction } from "./rpc";
 import type { RejectionEvidence, StepEvidence } from "./report";
 import { transactionHash } from "./transaction";
 import {
-  isManifestV5, type BalanceAssertionV5, type BalanceTarget, type CellAssertionV5, type ClaimV5, type CountRange,
+  isManifestV5, type V01Spec, type BalanceAssertionV5, type BalanceTarget, type CellAssertionV5, type ClaimV5, type CountRange,
   type CyclesCheck, type ManifestV5, type QuantityRange, type ScriptRef, type ScriptHashType,
 } from "./types";
 
 export const OUTCOME_V3 = "ckb-verify-outcome/3" as const;
-export const SPEC_V5 = "0.1.0-draft.5" as const;
+/** Manifest specs written with the draft.5 grammar: the draft identifier and the frozen `0.1.0`. */
+export const SPECS_V5: readonly V01Spec[] = ["0.1.0-draft.5", "0.1.0"];
 
 // ---- raw inputs ----
 export interface IndexerSearchKey {
@@ -84,12 +85,12 @@ export interface StepOutcomeV3 {
 export type StepInputV3 = Omit<StepEvidence, "claims" | "transactionHash"> & {
   transactionHash: string; transaction: CkbJsonRpcTransaction; claims: ClaimInputV3[];
 };
-export interface RunInputV3 { name: string; spec: typeof SPEC_V5; manifestText: string; steps: StepInputV3[]; assertions: ClaimInputV3[] }
+export interface RunInputV3 { name: string; spec: V01Spec; manifestText: string; steps: StepInputV3[]; assertions: ClaimInputV3[] }
 export interface RunEvidenceV3 extends Omit<RunInputV3, "steps" | "assertions"> {
   steps: Array<Omit<StepInputV3, "claims"> & { claims: ClaimEvidenceV3[] }>;
   assertions: ClaimEvidenceV3[];
 }
-export interface OutcomeV3 { schema: typeof OUTCOME_V3; name: string; spec: typeof SPEC_V5; steps: StepOutcomeV3[]; assertions: ClaimOutcomeV3[] }
+export interface OutcomeV3 { schema: typeof OUTCOME_V3; name: string; spec: V01Spec; steps: StepOutcomeV3[]; assertions: ClaimOutcomeV3[] }
 
 function fail(path: string, message: string): never { throw new Error(`${path}: ${message}`); }
 const EMPTY_HASH = `0x${"00".repeat(32)}`;
@@ -249,7 +250,7 @@ export function bindManifestV3(evidence: unknown, environment: unknown): Manifes
   retainedMembers(object(prov.manifest, "provenance.manifest"), ["sha256"], "provenance.manifest");
   equalSemantic(sha256Bytes(encoded), object(prov.manifest, "provenance.manifest").sha256, "evidence.manifestText hash");
   const m = parseManifestText(e.manifestText, "evidence.manifestText");
-  if (!isManifestV5(m)) fail("evidence.manifestText.meta.spec", "requires draft.5");
+  if (!isManifestV5(m)) fail("evidence.manifestText.meta.spec", "requires the draft.5 grammar (0.1.0-draft.5 or 0.1.0)");
   equalSemantic(e.name, m.meta.name, "evidence.name"); equalSemantic(e.spec, m.meta.spec, "evidence.spec");
   const toolchain = object(env.toolchain, "environment.toolchain"), replay = object(prov.replay, "provenance.replay");
   retainedMembers(toolchain, ["requested"], "environment.toolchain");
@@ -428,7 +429,7 @@ export function deriveOutcomeV3(evidence: unknown, environment: unknown): Outcom
       return { ...definition, observed: { state: "selected", count: cells.length, cells }, observationValid: true, ok: cellOk(definition, cells, rawData) };
     });
   }
-  return { schema: OUTCOME_V3, name: m.meta.name, spec: SPEC_V5,
+  return { schema: OUTCOME_V3, name: m.meta.name, spec: m.meta.spec,
     steps: rawSteps.map((s, i) => ({ name: m.steps[i]!.name,
       ...(m.steps[i]!.expect === undefined ? {} : { expectedStatus: m.steps[i]!.expect!.tx }),
       ...(m.steps[i]!.expect?.error?.code === undefined ? {} : { expectedErrorCode: m.steps[i]!.expect!.error!.code! }),

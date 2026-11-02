@@ -21,7 +21,7 @@ Usage:
 
 Commands:
   run [manifest]         Execute declared CKB acceptance claims (default: verify.toml)
-                         --allow-version-drift: draft.5 only; run on the pinned CKB when another exact
+                         --allow-version-drift: 0.1.0/draft.5 only; run on the pinned CKB when another exact
                          version is requested, recorded in provenance/3 and tainting replay
   validate [manifest]    Parse a manifest with the strict grammar; runs nothing (default: verify.toml)
   digest <report>        Re-derive a report's outcome and environment digests offline
