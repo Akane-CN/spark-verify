@@ -1,4 +1,5 @@
 import { canonicalSha256 } from "./canonical";
+import { assertRejectionEvidence, errorCodeSatisfied } from "./rejection";
 import { bindManifestV2, deriveOutcomeV2, equalSemantic, verdictForOutcomeV2, verifyStoredClaimsV2 } from "./cell-claims";
 import { bindManifestV3, deriveOutcomeV3, verdictForOutcomeV3, verifyStoredClaimsV3, type PublicAccount } from "./claims-v3";
 import type { ResolvedSystemScripts } from "./offckb";
@@ -167,7 +168,7 @@ export function verdictForOutcomeClaims(outcomeClaims: OutcomeClaims): "PASS" | 
     outcomeClaims.steps.every(
       (step, index) =>
         (step.expectedStatus === undefined || step.expectedStatus === step.observedStatus) &&
-        (step.expectedErrorCode === undefined || step.expectedErrorCode === step.rejection?.code) &&
+        errorCodeSatisfied(step.expectedErrorCode, step.rejection) &&
         stepClaimsPassed[index] === true,
     ) && assertionsPassed;
   return passed ? "PASS" : "FAIL";
@@ -194,6 +195,27 @@ function verifyEnvironmentContract(value: unknown, evidence: { steps: Array<Pick
   const toolchain = record(environment.toolchain, "toolchain");
   const requested = record(toolchain.requested, "requested toolchain");
   const observed = record(toolchain.observed, "observed toolchain");
+  // The executed CKB binary is the anchor: the recorded platform, the observed node version, and the
+  // requested version (or, with provenance/3, the drift record) must agree with it, so drift cannot be
+  // hidden by editing one field and recomputing the fingerprint.
+  const ckbBinary = record(record(provenance.binaries, "provenance.binaries").ckb, "provenance.binaries.ckb");
+  const recordedPlatform = record(environment.platform, "recorded platform");
+  if (recordedPlatform.os !== ckbBinary.platform || recordedPlatform.arch !== ckbBinary.architecture) {
+    throw new Error("recorded platform contradicts the CKB binary identity");
+  }
+  const binaryVersion = ckbBinary.version;
+  if (typeof binaryVersion !== "string" || typeof observed.ckb !== "string" ||
+      (observed.ckb !== binaryVersion && !observed.ckb.startsWith(`${binaryVersion} `))) {
+    throw new Error("observed CKB version contradicts the CKB binary identity");
+  }
+  if (provenance.schema === "ckb-verify-provenance/3") {
+    const drift = record(record(provenance.toolchain, "provenance.toolchain").ckb, "provenance.toolchain.ckb");
+    if (drift.requested !== requested.ckb || drift.observed !== binaryVersion) {
+      throw new Error("tool-version record contradicts the requested toolchain or the CKB binary identity");
+    }
+  } else if (requested.ckb !== binaryVersion) {
+    throw new Error("requested CKB differs from the executed binary, and this provenance version cannot record drift");
+  }
   const binary = provenance.binaries.ckbDebugger;
   if (binary === null) {
     if ("ckbDebugger" in requested || "ckbDebugger" in observed ||
@@ -334,12 +356,19 @@ export function verifyEvidenceDigests(report: {
     throw new EvidenceIntegrityError(`provenance integrity mismatch: ${detail}`);
   }
   rejectV1Markers(evidence, "evidence", ["manifestText"]);
+  // Historical environment/2 reports predate the rejection-evidence checks and gain no new guarantees.
+  const historical = record(report.environment, "environment").schema === "ckb-verify-environment/2";
   for (const [label, material] of [["evidence", evidence], ["outcomeClaims", outcome]] as const) {
     const rawEvidence = label === "evidence";
     array(material.steps, `${label}.steps`).forEach((value, index) => {
       const path = `${label}.steps[${index}]`;
       const step = record(value, path);
       if (rawEvidence) rejectV1Markers(step, path, ["transaction"]);
+      if (rawEvidence && !historical) {
+        try { assertRejectionEvidence({ observedStatus: step.observedStatus, rejection: step.rejection }, path); } catch (error) {
+          throw new EvidenceIntegrityError(error instanceof Error ? error.message : String(error));
+        }
+      }
       verifyV1Claims(step.claims, `${path}.claims`, rawEvidence);
     });
     verifyV1Claims(material.assertions, `${label}.assertions`, rawEvidence);

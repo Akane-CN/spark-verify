@@ -4,6 +4,7 @@ import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import * as tar from "tar";
+import { parseJsonStrict } from "./json-strict";
 import { assertSafeArchiveEntry, tarEntryKind } from "./ckb-binary";
 import { assertOnlyRegularEntries, scanForSecrets, verifyBundle, type BundleManifest } from "./evidence-bundle";
 import type { DigestPair } from "./offline";
@@ -257,7 +258,7 @@ export async function verifyReleaseEvidence(rootDir: string, options: VerifyRele
     return result;
   }
   let parsed: unknown;
-  try { parsed = JSON.parse(manifestBytes.toString("utf8")); } catch { problems.push("release-evidence.json is not valid JSON"); return result; }
+  try { parsed = parseJsonStrict(manifestBytes.toString("utf8")); } catch (error) { problems.push(`release-evidence.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`); return result; }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) { problems.push("release-evidence.json is not an object"); return result; }
   const manifest = parsed as Record<string, unknown>;
   if (manifest.schema !== RELEASE_EVIDENCE_SCHEMA) { problems.push(`unsupported release-evidence schema: ${String(manifest.schema)}`); return result; }

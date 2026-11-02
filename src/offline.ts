@@ -2,6 +2,7 @@
 import { readFile, lstat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { canonicalSha256, sha256Bytes } from "./canonical";
+import { parseJsonStrict } from "./json-strict";
 import { deriveOutcomeV2 } from "./cell-claims";
 import { deriveOutcomeV3 } from "./claims-v3";
 import { ManifestError } from "./errors";
@@ -273,7 +274,7 @@ export async function inspectReportFile(
   const bytes = await readFile(absolute);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(bytes.toString("utf8"));
+    parsed = parseJsonStrict(bytes.toString("utf8"));
   } catch (error) {
     const base = inspectReport(null, { ...options, path: absolute, sha256: sha256Bytes(bytes) });
     return { ...base, problems: [`report is not valid JSON: ${error instanceof Error ? error.message : String(error)}`] };
