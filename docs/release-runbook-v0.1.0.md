@@ -5,7 +5,7 @@ The exact commands for [release checklist](release-checklist.md#8-publication-se
 ## Before you start
 
 - The **independent review** of `e311ad3` is recorded on #20 with no blocking finding (see the [review guide](independent-review-guide.md)). A blocking finding means a fix, a new candidate, new gates, and a new runbook.
-- **Date:** the run must finish by **2026-11-24**. The `elliptic` waiver expires on 2026-11-25, and the supply-chain gate fails after that. A later release first needs a reviewed waiver renewal, which means a new candidate.
+- **Date:** the run must finish by **2026-11-24**. The `elliptic` waiver expires on 2026-11-25, and the supply-chain gate fails after that. A later release first needs a reviewed waiver renewal, which means a new candidate. The renewal, its evidence, and the re-candidate steps are prepared in the [waiver renewal fallback](waiver-renewal-fallback.md).
 - **Host:** Linux x64 with Bun `1.2.19`, Node 22, `git`, and `gh` signed in as an account with write access to `Akane-CN/spark-verify`. Run `gh auth setup-git` once, so `git push` of the tag uses the same credentials.
 
 ```bash
