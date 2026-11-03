@@ -1,0 +1,63 @@
+diff --git a/SECURITY.md b/SECURITY.md
+index 2b9009e..fa67bb9 100644
+--- a/SECURITY.md
++++ b/SECURITY.md
+@@ -66,7 +66,7 @@ OffCKB `0.4.13` bundles vulnerable archive-library versions and `follow-redirect
+ 
+ The `ajv@8.20.0` dependency (a runtime dependency since the published schemas are checked by the offline commands) declares `fast-uri@^3.0.1`; an exact override selects the patched `3.1.9`, not the unsupported-for-this-parent `4.x` major. `http-proxy@1.18.1` declares `follow-redirects@^1.0.0`, so `1.16.2` is also within its supported range. `fast-uri@3.1.9` is the first patched version in its release line for the finding assessed on 2026-10-26; `follow-redirects@1.16.2` is the first release fixing [GHSA-mrwp-f3q8-3g9p](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p) (high, `>=1.16.0 <=1.16.1`, discarded cross-realm `sensitiveHeaders` arrays), which the audit reported on 2026-10-31 and which replaced the `1.16.1` pin the same day. `bun run check:supply-chain` checks the exact installed versions from the consumers' resolution contexts (OffCKB for the three patched imports, Ajv for `fast-uri`), requires all five patch markers, the loopback-bound proxy listen, and zero old import or wildcard listen calls, and validates the audit process status before evaluating its advisory data. Local loopback regression tests exercise the redirect import without running OffCKB or a devnet.
+ 
+-The audit gate fails on every finding except the exact low-severity `elliptic` advisory [GHSA-848j-6mx2-7j84](https://github.com/advisories/GHSA-848j-6mx2-7j84), audit ID `1112030`, while its waiver is unexpired. `elliptic@6.6.1` is a transitive dependency through `@ckb-ccc/core` → `@joyid/ckb` → `@nervosnetwork/ckb-sdk-utils`; the registry still has no fixed release as of 2026-10-26. This temporary waiver is limited to the current feasibility runner and its disposable devnet keys; it does not permit production-wallet use. A changed severity, advisory identity, URL, package, or any additional finding fails the gate and requires a new review.
++The audit gate fails on every finding except the exact low-severity `elliptic` advisory [GHSA-848j-6mx2-7j84](https://github.com/advisories/GHSA-848j-6mx2-7j84), audit ID `1112030`, while its waiver is unexpired. `elliptic@6.6.1` is a transitive dependency through `@ckb-ccc/core` → `@joyid/ckb` → `@nervosnetwork/ckb-sdk-utils`; the registry still has no fixed release as of 2026-11-03. This temporary waiver is limited to the current feasibility runner and its disposable devnet keys; it does not permit production-wallet use. A changed severity, advisory identity, URL, package, or any additional finding fails the gate and requires a new review.
+ 
+ ### Debugger integrity
+ 
+@@ -79,8 +79,8 @@ These checks assume trusted code and caller-controlled directories; private copi
+ ### Elliptic waiver governance
+ 
+ - **Owner:** Akane-CN, through the security contact below.
+-- **Review date:** 2026-10-26 (dependency and reachability assessment, not an independent security audit). The advisory concerns risky cryptographic primitives used for signing/verification; disposable devnet keys bound the accepted impact, not the underlying defect. A forced unrelated cryptographic implementation would require compatibility review, not an audit-only override.
+-- **Expiry and schedule:** 2026-11-25 at 00:00:00 UTC, a 30-day window. Reassess no later than expiry, and sooner on any affected dependency/advisory change, fixed upstream release, or proposed expansion beyond disposable devnet keys. The gate uses the current clock; only tests inject a clock.
++- **Review date:** 2026-11-03, renewing the 2026-10-26 review (dependency and reachability assessment, not an independent security audit; [renewal record](docs/waiver-renewal-fallback.md#reassessment-2026-11-03)). The advisory concerns risky cryptographic primitives used for signing/verification; disposable devnet keys bound the accepted impact, not the underlying defect. A forced unrelated cryptographic implementation would require compatibility review, not an audit-only override.
++- **Expiry and schedule:** 2026-12-25 at 00:00:00 UTC. This is the first renewal; the original window ended 2026-11-25. Reassess no later than expiry, and sooner on any affected dependency/advisory change, fixed upstream release, or proposed expansion beyond disposable devnet keys. The gate uses the current clock; only tests inject a clock.
+ - **Replacement/removal:** when a fixed `elliptic` release exists and is compatible with the parent, update the exact dependency path; otherwise migrate to a compatible upstream CCC/JoyID/CKB SDK release that removes the affected implementation. After frozen installation, full audit, and signing/verification regression checks prove that this advisory no longer affects the graph, delete the allowlist entry. An expanded trust boundary requires removal or separate security review before use, not inheritance of this exception.
+ - **Expired disposition:** if this advisory remains at or after expiry, `check:supply-chain` and `bun run check` fail closed and the candidate must not be released. There is no automatic renewal. Any time-bounded renewal requires the owner's explicit review of current advisory metadata, dependency paths, reachability, and upstream replacement options, with recorded rationale and updated dates in both this policy and the gate. A clean audit can pass after expiry; it does not renew the waiver.
+ 
+diff --git a/src/supply-chain.ts b/src/supply-chain.ts
+index 0107ca0..eac212c 100644
+--- a/src/supply-chain.ts
++++ b/src/supply-chain.ts
+@@ -16,8 +16,8 @@ const ALLOWED_AUDIT_FINDINGS = new Map<string, {
+       severity: "low",
+       url: "https://github.com/advisories/GHSA-848j-6mx2-7j84",
+       owner: "Akane-CN",
+-      reviewedOn: "2026-10-26",
+-      expiresAt: "2026-11-25T00:00:00Z",
++      reviewedOn: "2026-11-03",
++      expiresAt: "2026-12-25T00:00:00Z",
+     },
+   ],
+ ]);
+diff --git a/tests/supply-chain.test.ts b/tests/supply-chain.test.ts
+index 587c16e..67caca7 100644
+--- a/tests/supply-chain.test.ts
++++ b/tests/supply-chain.test.ts
+@@ -13,7 +13,7 @@ const ELLIPTIC_WAIVER = {
+   severity: "low",
+   vulnerable_versions: "<=6.6.1",
+ };
+-const REVIEW_DATE = new Date("2026-10-26T00:00:00Z");
++const REVIEW_DATE = new Date("2026-11-03T00:00:00Z");
+ 
+ describe("supply-chain release gate", () => {
+   test("rejects package-name/version drift and malformed installed metadata", () => {
+@@ -36,8 +36,8 @@ describe("supply-chain release gate", () => {
+ 
+   test("expires the elliptic waiver at its UTC deadline without rejecting a clean audit", () => {
+     const report = { elliptic: [ELLIPTIC_WAIVER] };
+-    expect(() => assertAllowedAuditReport(report, new Date("2026-11-24T23:59:59.999Z"))).not.toThrow();
+-    for (const now of [new Date("2026-11-25T00:00:00Z"), new Date("2026-12-01T00:00:00Z")]) {
++    expect(() => assertAllowedAuditReport(report, new Date("2026-12-24T23:59:59.999Z"))).not.toThrow();
++    for (const now of [new Date("2026-12-25T00:00:00Z"), new Date("2027-01-01T00:00:00Z")]) {
+       expect(() => assertAllowedAuditReport(report, now)).toThrow("waiver expired");
+       expect(() => assertAuditCommandResult(report, 1, now)).toThrow("waiver expired");
+       expect(() => assertAuditCommandResult({}, 0, now)).not.toThrow();
