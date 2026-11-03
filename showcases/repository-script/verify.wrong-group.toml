@@ -1,0 +1,47 @@
+[meta]
+name = "repository-script-wrong-group"
+spec = "0.2.0"
+description = "Negative control: the same rejection and error code, pinned to a different script group, must FAIL."
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.13"
+ckb-debugger = "1.1.1"
+
+[replay]
+dependencies = []
+
+[setup]
+accounts = 2
+
+[setup.scripts.witness_lock]
+binary = "showcases/repository-script/build/witness_lock"
+hash_type = "type"
+
+[setup.scripts.witness_lock_v1]
+binary = "showcases/repository-script/build/witness_lock"
+hash_type = "data1"
+
+[[step]]
+name = "create protected cells"
+run = "bun run showcases/repository-script/produce.ts create"
+expect.tx = "committed"
+
+[[step.assert.cell]]
+out_point = { step = "create protected cells", index = 0 }
+lock = { script = "witness_lock", args = "0x01" }
+count = 1
+capacity.eq = "300 CKB"
+
+[[step.assert.cell]]
+out_point = { step = "create protected cells", index = 1 }
+lock = { script = "witness_lock_v1", args = "0x02" }
+count = 1
+
+[[step]]
+name = "spend with wrong witness"
+run = "bun run showcases/repository-script/produce.ts spend-wrong"
+expect.tx = "rejected"
+expect.error.code = 42
+
+expect.error.group = { role = "lock", script = "witness_lock_v1" }

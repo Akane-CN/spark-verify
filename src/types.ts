@@ -8,7 +8,10 @@ export type ReplayDependency =
 
 /** `0.1.0` is the frozen v0.1 contract: the draft.5 grammar under its release identifier. */
 export type V01Spec = "0.1.0-draft.5" | "0.1.0";
-export type ManifestSpec = "0.1.0-draft.3" | "0.1.0-draft.4" | V01Spec;
+/** `0.2.0`: the v0.1 grammar plus repository scripts, named script references, pure steps, zero steps and
+ * accounts, and `expect.error.group` — the parts of the proposal's target v0.1 the frozen `0.1.0` lacks. */
+export type V02Spec = "0.2.0";
+export type ManifestSpec = "0.1.0-draft.3" | "0.1.0-draft.4" | V01Spec | V02Spec;
 export interface ManifestMeta<S extends ManifestSpec = ManifestSpec> {
   name: string;
   spec: S;
@@ -71,13 +74,17 @@ interface VersionedManifest<S extends ManifestSpec, A> {
 export type ManifestV3 = VersionedManifest<"0.1.0-draft.3", CellAssertion>;
 export type ManifestV4 = VersionedManifest<"0.1.0-draft.4", ClaimV4>;
 export type ManifestV5 = VersionedManifest<V01Spec, ClaimV5>;
-export type Manifest = ManifestV3 | ManifestV4 | ManifestV5;
+export type Manifest = ManifestV3 | ManifestV4 | ManifestV5 | ManifestV6;
 export function isManifestV4(manifest: Manifest): manifest is ManifestV4 {
   return manifest.meta.spec === "0.1.0-draft.4";
 }
 /** The draft.5 grammar, written as `0.1.0-draft.5` or as the frozen `0.1.0`. */
 export function isManifestV5(manifest: Manifest): manifest is ManifestV5 {
   return manifest.meta.spec === "0.1.0-draft.5" || manifest.meta.spec === "0.1.0";
+}
+/** The `0.2.0` grammar. */
+export function isManifestV6(manifest: Manifest): manifest is ManifestV6 {
+  return manifest.meta.spec === "0.2.0";
 }
 
 // ---- 0.1.0-draft.5: the RFC §4.2 / §5 vocabulary ----
@@ -91,11 +98,13 @@ export const SYSTEM_SCRIPT_NAMES = [
 ] as const;
 export type SystemScriptName = (typeof SYSTEM_SCRIPT_NAMES)[number];
 export type ScriptHashType = "data" | "type" | "data1" | "data2";
-/** A script reference: explicit, an OffCKB built-in (args `null` = wildcard), or an exported account's lock. */
+/** A script reference: explicit, an OffCKB built-in (args `null` = wildcard), an exported account's lock, or
+ * (`0.2.0` only) a named `[setup.scripts.<name>]` entry (args `null` = wildcard). */
 export type ScriptRef =
   | { kind: "explicit"; codeHash: string; hashType: ScriptHashType; args: string }
   | { kind: "builtin"; name: SystemScriptName; args: string | null }
-  | { kind: "account"; index: number };
+  | { kind: "account"; index: number }
+  | { kind: "setup"; name: string; args: string | null };
 export interface CountRange { eq?: number; gte?: number; lte?: number }
 /** Decimal strings of base units (shannons for CKB, token units for UDT); never floating point. */
 export interface QuantityRange { eq?: string; gte?: string; lte?: string }
@@ -107,7 +116,7 @@ export interface CellAssertionV5 {
   data?: { eq?: string; len?: number; minBytes?: number };
   capacity?: QuantityRange;
 }
-export interface CellDepsAssertionV5 { kind: "cell_deps"; step: string; contains: { kind: "builtin"; name: SystemScriptName } }
+export interface CellDepsAssertionV5 { kind: "cell_deps"; step: string; contains: { kind: "builtin"; name: SystemScriptName } | { kind: "setup"; name: string } }
 export type BalanceTarget =
   | { kind: "account"; index: number }
   | { kind: "address"; address: string; lock: { codeHash: string; hashType: ScriptHashType; args: string } }
@@ -119,3 +128,27 @@ export interface BalanceAssertionV5 {
   amount: QuantityRange;
 }
 export type ClaimV5 = CellAssertionV5 | CellDepsAssertionV5 | BalanceAssertionV5;
+
+// ---- 0.2.0: repository scripts, pure steps, error groups ----
+
+/** `[setup.scripts.<name>]`: a repository binary the runner deploys, or an alias of an OffCKB built-in. */
+export type SetupScript =
+  | { name: string; kind: "binary"; path: string; hashType: ScriptHashType }
+  | { name: string; kind: "builtin"; builtin: SystemScriptName };
+/** `expect.error.group`: the lock or type script group the rejection must come from. */
+export interface ErrorGroupExpectation { role: "lock" | "type"; script: ScriptRef }
+export interface StepExpectationV6 extends Omit<StepExpectation, "error"> {
+  error?: { code?: number; group?: ErrorGroupExpectation };
+}
+/** A transaction step declares `expect`; a pure step does not, writes no result file, and only checks state. */
+export type ManifestStepV6 =
+  | { name: string; run: string; timeoutMs: number; kind: "transaction"; expect: StepExpectationV6; assertions: ClaimV5[] }
+  | { name: string; run: string; timeoutMs: number; kind: "pure"; expect?: undefined; assertions: ClaimV5[] };
+export interface ManifestV6 {
+  meta: ManifestMeta<V02Spec>;
+  toolchain: ManifestToolchain;
+  replay: { dependencies: ReplayDependency[] };
+  setup: { accounts: number; scripts: SetupScript[] };
+  steps: ManifestStepV6[];
+  assertions: ClaimV5[];
+}

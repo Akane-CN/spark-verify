@@ -73,7 +73,7 @@ Fix the patch declaration and reinstall; the runner does not repair installs. Th
 
 ## 4. Write a producer and a manifest
 
-The runner executes the `run` command of each step inside your project with `CKB_VERIFY_RESULT`, `CKB_VERIFY_RPC_URL`, `CKB_VERIFY_ACCOUNTS`, `CKB_VERIFY_SYSTEM_SCRIPTS`, and `CKB_VERIFY_CONTEXT` set. The command builds and signs a transaction and writes a protocol-1 envelope to `CKB_VERIFY_RESULT` without submitting it; the runner submits it. The secp transfer producer from this repository (`showcases/secp-transfer/produce.ts`) is a complete example and is what the consumer acceptance script installs.
+The runner executes the `run` command of each step inside your project with `CKB_VERIFY_RESULT`, `CKB_VERIFY_RPC_URL`, `CKB_VERIFY_ACCOUNTS`, `CKB_VERIFY_SYSTEM_SCRIPTS`, and `CKB_VERIFY_CONTEXT` set, plus `CKB_VERIFY_SCRIPTS` for a spec `0.2.0` manifest (its deployed `[setup.scripts]`). A `0.2.0` step without `expect` is pure: it writes no result. The command builds and signs a transaction and writes a protocol-1 envelope to `CKB_VERIFY_RESULT` without submitting it; the runner submits it. The secp transfer producer from this repository (`showcases/secp-transfer/produce.ts`) is a complete example and is what the consumer acceptance script installs.
 
 ```toml
 [meta]

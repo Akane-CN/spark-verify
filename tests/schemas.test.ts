@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { canonicalSha256 } from "../src/canonical";
 import { inspectReport, validateManifestFile } from "../src/offline";
 import { parseManifestText } from "../src/manifest";
-import { MANIFEST_SCHEMA_ID, REPORT_SCHEMA_ID, SCHEMA_FILES, schemaProblems } from "../src/schemas";
+import { MANIFEST_SCHEMA_ID, MANIFEST_V2_SCHEMA_ID, REPORT_SCHEMA_ID, SCHEMA_FILES, schemaProblems } from "../src/schemas";
 import { syntheticReportV2 } from "./fixtures/claims-v2/synthetic";
 
 const root = join(import.meta.dir, "..");
@@ -24,7 +24,8 @@ describe("published schemas", () => {
     expect(files.length).toBeGreaterThanOrEqual(14);
     for (const file of files) {
       const text = await readFile(file, "utf8");
-      expect(schemaProblems(MANIFEST_SCHEMA_ID, Bun.TOML.parse(text)), file).toEqual([]);
+      const parsed = Bun.TOML.parse(text) as { meta?: { spec?: unknown } };
+      expect(schemaProblems(parsed.meta?.spec === "0.2.0" ? MANIFEST_V2_SCHEMA_ID : MANIFEST_SCHEMA_ID, parsed), file).toEqual([]);
       expect(() => parseManifestText(text, file)).not.toThrow();
       const validation = await validateManifestFile(file);
       expect(validation.ok, file).toBe(true);

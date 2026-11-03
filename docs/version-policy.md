@@ -6,11 +6,11 @@
 
 | Identifier | Where | Current | Names |
 | --- | --- | --- | --- |
-| Manifest spec | `meta.spec` in `verify.toml` | `0.1.0` (frozen), `0.1.0-draft.5` (the same grammar), `0.1.0-draft.4`, `0.1.0-draft.3` | the grammar and claim vocabulary the author wrote against |
-| Report envelope | `schema` in `report.json` | `ckb-verify-report/1` (draft.3), `ckb-verify-report/2` (draft.4), `ckb-verify-report/3` (`0.1.0` and draft.5) | the top-level artifact layout and which verifier branch applies |
-| Outcome claims | `outcomeClaims.schema` | `ckb-verify-outcome/1`, `ckb-verify-outcome/2`, `ckb-verify-outcome/3` | the normalized object whose RFC 8785 hash is the outcome digest |
-| Environment | `environment.schema` | `ckb-verify-environment/3`, `ckb-verify-environment/4` (`0.1.0` and draft.5: adds the exported accounts) (historical `/2`) | the object whose hash is the environment fingerprint |
-| Provenance | `environment.provenance.schema` | `ckb-verify-provenance/2`, `ckb-verify-provenance/3` (`0.1.0` and draft.5: adds the tool-version drift record) (historical `/1`) | source, runtime, lockfile, binary, and replay provenance inside the environment |
+| Manifest spec | `meta.spec` in `verify.toml` | `0.2.0` (frozen; [vocabulary](vocabulary-v0.2.md)), `0.1.0` (frozen), `0.1.0-draft.5` (the same grammar as `0.1.0`), `0.1.0-draft.4`, `0.1.0-draft.3` | the grammar and claim vocabulary the author wrote against |
+| Report envelope | `schema` in `report.json` | `ckb-verify-report/1` (draft.3), `ckb-verify-report/2` (draft.4), `ckb-verify-report/3` (`0.1.0` and draft.5), `ckb-verify-report/4` (`0.2.0`) | the top-level artifact layout and which verifier branch applies |
+| Outcome claims | `outcomeClaims.schema` | `ckb-verify-outcome/1` to `/4` (`/4`: setup scripts, step kinds, error groups) | the normalized object whose RFC 8785 hash is the outcome digest |
+| Environment | `environment.schema` | `ckb-verify-environment/3`, `/4` (`0.1.0` and draft.5: adds the exported accounts), `/5` (`0.2.0`: adds deployed scripts and the sealing configuration) (historical `/2`) | the object whose hash is the environment fingerprint |
+| Provenance | `environment.provenance.schema` | `ckb-verify-provenance/2`, `/3` (`0.1.0` and draft.5: adds the tool-version drift record), `/4` (`0.2.0`: repository identity, every lockfile, runtime pins, sealing fingerprint) (historical `/1`) | source, runtime, lockfile, binary, and replay provenance inside the environment |
 | Evidence bundle | `bundle.json` `schema` | `ckb-verify-evidence-bundle/1` | the CI bundle layout and its checksum manifest |
 | Runner | `ckb-verify --version`, `environment.runner.version`, `package.json` | `0.1.0` (frozen release candidate; unpublished, private) | the code that produced or verified an artifact |
 | Producer result | `protocol` in the file written to `CKB_VERIFY_RESULT` | `1` | the envelope a step command hands to the runner |
@@ -23,6 +23,7 @@ A report is accepted only as a whole tuple. The verifier does not accept a repor
 
 | Report | Outcome | Specs (`evidence.spec`, `outcomeClaims.spec`) | Environment | Provenance | Accepted by |
 | --- | --- | --- | --- | --- | --- |
+| `report/4` | `outcome/4` | both `0.2.0` | `environment/5` | `provenance/4` | current runner, `digest`, `check-digest`, `check-bundle` |
 | `report/3` | `outcome/3` | both `0.1.0`, or both `0.1.0-draft.5` | `environment/4` | `provenance/3` | current runner, `digest`, `check-digest`, `check-bundle` |
 | `report/2` | `outcome/2` | both `0.1.0-draft.4` | `environment/3` | `provenance/2` | current runner, `digest`, `check-digest`, `check-bundle` |
 | `report/1` | `outcome/1` | both `0.1.0-draft.3` | `environment/3` | `provenance/2` | current runner, `digest`, `check-digest`, `check-bundle` |
@@ -41,7 +42,7 @@ Legacy acceptance is an explicit reader opt-in and never widens what `report/2` 
 
 ## Reading and writing rules
 
-- The runner **writes** exactly one tuple per manifest spec: draft.3 → report/1 and draft.4 → report/2, both with environment/3 + provenance/2; `0.1.0` and draft.5 → report/3 with environment/4 + provenance/3, recording the manifest's own identifier in `evidence.spec` and `outcomeClaims.spec`. It never writes historical tuples.
+- The runner **writes** exactly one tuple per manifest spec: draft.3 → report/1 and draft.4 → report/2, both with environment/3 + provenance/2; `0.1.0` and draft.5 → report/3 with environment/4 + provenance/3, recording the manifest's own identifier in `evidence.spec` and `outcomeClaims.spec`; `0.2.0` → report/4 with outcome/4, environment/5, and provenance/4. It never writes historical tuples.
 - A verifier **reads** every tuple listed as accepted and nothing else. Unsupported, missing, mixed, or inferred-from-content versions fail closed with an explicit message naming the identifier; a report is never reinterpreted under a different version to make it pass.
 - There is **no automatic migration** of manifests or reports. A manifest written for a retired spec is rejected by `validate` with the exact spec string; a report of a retired version is rejected by `digest` as unsupported, and the previous runner release remains the way to read it. A migration tool, if one is ever written, produces a new artifact with new digests; it never rewrites hashes inside an existing one.
 - Digest comparison across versions is undefined: an outcome digest from `outcome/1` and one from `outcome/2` are different objects and must not be compared, even for the same manifest. Repeatability claims are made within one tuple.
@@ -59,7 +60,7 @@ The proposal's first deliverable is a frozen `verify.toml` v0.1 contract. It is 
 
 **Frozen means:** none of these identifiers will ever accept, reject, or normalize anything differently than it does today. A change to the grammar, a claim's meaning, a schema field, or a digest's normalization gets a new identifier under the rules above, and the frozen ones keep being read. Fixes that change no observable behaviour remain possible; a fix that changes what a frozen identifier accepts is a new identifier, not a fix. The one exception applies only before first publication ([decision 6, amended](release-decisions.md#2026-11-02-decision-6-amended-the-verifier-may-refuse-more-before-the-contract-is-published)): a verifier fix may refuse an artifact that no released or candidate runner can write, if the schemas, the lock, and the golden report are unchanged.
 
-The RFC is broader than the contract on purpose. The proposal asked to "reconcile the draft RFC with the deliberately smaller implemented subset", and the RFC sections deferred by [release decisions 2–4](release-decisions.md) (`[setup.scripts]`, pure steps, `expect.error.group`) stay drafts for a later spec. They are not part of `0.1.0` and will never be added to it.
+The RFC is broader than the `0.1.0` contract on purpose. The proposal asked to "reconcile the draft RFC with the deliberately smaller implemented subset", and the RFC sections deferred by [release decisions 2–4](release-decisions.md) (`[setup.scripts]`, pure steps, `expect.error.group`) are not part of `0.1.0` and will never be added to it. Since 2026-11-03 they ship as the separate spec `0.2.0`, frozen below.
 
 **How it is checked.** `tests/frozen-contract.test.ts` runs in `bun run check`, in CI, and in the [platform boundary](../.github/workflows/platform-boundary.yml) jobs, against `tests/fixtures/frozen-v0.1/lock.json`:
 
@@ -70,6 +71,24 @@ The RFC is broader than the contract on purpose. The proposal asked to "reconcil
 `lock.json` is never edited to make a change pass.
 
 **Relationship to the drafts.** `0.1.0-draft.5` stays readable and writable with exactly the `0.1.0` grammar; a report records which of the two identifiers its manifest used, so their outcome digests differ even for the same claims and are not compared (see above). `0.1.0-draft.3` and `0.1.0-draft.4` keep their own grammars and tuples. Draft identifiers may be retired after the first release as described above; `0.1.0` is not a draft: it is read by every `v0.1.x` runner, and only a major release may stop reading it, under the runner rule above.
+
+## The frozen 0.2.0 contract
+
+Spec `0.2.0` carries the parts of the proposal's target v0.1 that `0.1.0` lacks ([decision](release-decisions.md#2026-11-03-decisions-2-3-and-4-reopened-the-rest-of-the-proposals-target-v01-ships-as-spec-020), [vocabulary](vocabulary-v0.2.md)). It is frozen on the same terms as `0.1.0`:
+
+| Identifier | Frozen value |
+| --- | --- |
+| Manifest spec | `0.2.0` |
+| Report, outcome, environment, provenance | `ckb-verify-report/4`, `ckb-verify-outcome/4`, `ckb-verify-environment/5`, `ckb-verify-provenance/4` |
+| Evidence bundle, producer protocol | `ckb-verify-evidence-bundle/1`, protocol `1`; `CKB_VERIFY_SCRIPTS` is the one added command input |
+
+**How it is checked.** `tests/frozen-contract-v0.2.test.ts` checks it against `tests/fixtures/frozen-v0.2/lock.json`, in the same three ways as for `0.1.0`:
+
+- The schema parts this tuple uses are pinned by RFC 8785 digest. These are the whole `ckb-verify-manifest-v2`, `ckb-verify-claims-v4`, and `ckb-verify-provenance-v4` files, and the `report/4` branch.
+- A committed real report from the repository-script showcase (`tests/fixtures/report-v4/committed.json`) must re-verify offline with its locked digests.
+- The pinned default devnet identity (genesis hash and sealing fingerprint per CKB release) is locked too, because it decides what the verifier accepts.
+
+`lock.json` is never edited to make a change pass. The `0.1.0` lock is untouched by `0.2.0`: its schema parts are separate files or separate branches.
 
 ## Fixtures that pin the policy
 

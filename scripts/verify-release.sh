@@ -61,8 +61,16 @@ if [[ $S -eq 0 && $REJECTED == PASS:* && -f $REJECTED_REPORT ]]; then
   CODE=$(report_field "$REJECTED_REPORT" 'r.evidence.steps[0].rejection.code')
   ROLE=$(report_field "$REJECTED_REPORT" 'r.evidence.steps[0].rejection.role')
   SCRIPT=$(report_field "$REJECTED_REPORT" 'r.evidence.steps[0].rejection.script.codeHash')
-  if [[ $CODE == -11 && $ROLE == '"lock"' && $SCRIPT == '"0x'* ]]; then row "5 script rejection" PASS "code $CODE, group role $ROLE, script $SCRIPT"
-  else row "5 script rejection" FAIL "rejection evidence $REJ"; fi
+  # Spec 0.2.0 pins the group in the manifest itself: same code from the declared lock group passes, and the
+  # same code pinned to another group fails.
+  GROUPED=$("${CLI[@]}" run showcases/repository-script/verify.rejected.toml 2>&1); SG=$?
+  GROUPED_REPORT=$(field report "$GROUPED" || true)
+  WRONG=$("${CLI[@]}" run showcases/repository-script/verify.wrong-group.toml 2>&1); SW=$?
+  if [[ $CODE == -11 && $ROLE == '"lock"' && $SCRIPT == '"0x'* && $SG -eq 0 && -f $GROUPED_REPORT &&
+        $(report_field "$GROUPED_REPORT" 'r.outcomeClaims.steps[1].expectedErrorGroup.role') == '"lock"' &&
+        $(report_field "$GROUPED_REPORT" 'r.outcomeClaims.steps[1].rejection.code') == 42 && $SW -eq 1 && $WRONG == *"expect.error.group"* ]]; then
+    row "5 script rejection" PASS "code $CODE, group role $ROLE, script $SCRIPT; spec 0.2.0 expect.error.group pinned (code 42, lock witness_lock) PASS, wrong group FAIL"
+  else row "5 script rejection" FAIL "rejection evidence $REJ; 0.2.0 group exit $SG, wrong-group exit $SW"; fi
 else row "5 script rejection" FAIL "exit $S: $(printf '%s' "$REJECTED" | tail -3 | tr '\n' ' ')"; fi
 
 # 6. the clean positive case twice: equal outcome digests and environment fingerprints
@@ -99,11 +107,11 @@ else row "8 cross-environment case" FAIL "exit $S; outcome $(field outcome "$DIR
 
 # 9. recompute both hashes of every report offline
 BAD=()
-for r in "$POSITIVE_REPORT" "$FAILING_REPORT" "$REJECTED_REPORT" "$SECOND_REPORT" "$DRIFT_REPORT" "$BASELINE_REPORT" "$DIRTY_REPORT"; do
+for r in "$POSITIVE_REPORT" "$FAILING_REPORT" "$REJECTED_REPORT" "${GROUPED_REPORT:-}" "$SECOND_REPORT" "$DRIFT_REPORT" "$BASELINE_REPORT" "$DIRTY_REPORT"; do
   [[ -f $r ]] || { BAD+=("missing:$r"); continue; }
   "${CLI[@]}" digest "$r" >/dev/null 2>&1 || BAD+=("$r")
 done
-if (( ${#BAD[@]} == 0 )); then row "9 recompute report hashes" PASS "7 reports re-derived offline (digest exit 0), including the FAIL and the drifted report"
+if (( ${#BAD[@]} == 0 )); then row "9 recompute report hashes" PASS "8 reports re-derived offline (digest exit 0), including the FAIL and the drifted report"
 else row "9 recompute report hashes" FAIL "${BAD[*]}"; fi
 
 {

@@ -11,7 +11,7 @@ The six decisions the [RFC-to-implementation matrix](rfc-implementation-matrix.m
 | 5 | RFC §7 report and CLI sketch | rewritten to the shipped contract |
 | 6 | Spec naming at release | `0.1.0-draft.3` and `0.1.0-draft.4` stay the only identifiers; no `0.1.0` spec string at `v0.1.0` |
 
-Decisions 1 and 6 were reopened on 2026-11-02. Their [reopened entries](#reopened-entries) supersede the two rows above, which stay as the original record: `v0.1.0` ships the promised vocabulary, and its contract is frozen as spec `0.1.0`.
+Decisions 1 and 6 were reopened on 2026-11-02. Their [reopened entries](#reopened-entries) supersede the two rows above, which stay as the original record: `v0.1.0` ships the promised vocabulary, and its contract is frozen as spec `0.1.0`. Decisions 2, 3, and 4 were reopened on 2026-11-03 ([entry](#2026-11-03-decisions-2-3-and-4-reopened-the-rest-of-the-proposals-target-v01-ships-as-spec-020)): `[setup.scripts]`, pure steps, `accounts = 0`, and `expect.error.group` ship in `v0.1.0` under spec `0.2.0`, with the frozen `0.1.0` unchanged.
 
 ## 1. First-release vocabulary: the implemented subset
 
@@ -94,6 +94,35 @@ Reopening a decision is a dated entry here, not an edit of the original text abo
 **Decision (maintainer, on #20).** `v0.1.0` is published as a GitHub release with the tarball, `SHA256SUMS`, and the evidence archive as assets. It is not published to the npm registry. The package name stays `ckb-verify`, and `private: true` stays. The maintainer creates the tag and release (step 8 is approved) by following the [v0.1.0 release runbook](release-runbook-v0.1.0.md), after the independent review of the candidate is recorded.
 
 **Why.** The exercised installation path is the tarball, so no new candidate is needed. Registry publication would add an account, two-factor authentication, and a credential surface the repository has no use for yet.
+
+### 2026-11-03: decisions 2, 3, and 4 reopened; the rest of the proposal's target v0.1 ships as spec `0.2.0`
+
+**Correction first.** The decision 1 entry of 2026-11-02 calls `[setup.scripts]` deployment something "the proposal does not promise". That is wrong. [Spark proposal revision 0.3 §4](spark-proposal.md#4-solution) describes the target v0.1 runner as one that "exposes deterministic devnet accounts and deployed/built-in script metadata" and "runs each project command as either a declared pure step or a transaction-producing step". Its example manifest declares `[setup.scripts.sample_lock]` with `binary` and `hash_type = "type"`, and its vocabulary lists "script group and error code for negative tests". [§5](spark-proposal.md#5-technical-approach) puts "repository binary and OffCKB built-in script resolution" in the execution adapter. The earlier text is kept as written; this entry supersedes it. Deferring these items narrowed the promised scope by decision, as decision 1 had before.
+
+**New decision.** These ship in `v0.1.0` under a new manifest spec, `0.2.0`, written as `ckb-verify-report/4` with `outcome/4`, `environment/5`, and `provenance/4`:
+
+- **[`[setup.scripts]`](verify-toml-rfc-v0.2.md#3-setup) (reverses decision 2):** repository binaries deployed by the runner through `offckb deploy`, with `type` (Type ID), `data`, `data1`, or `data2`. Each code Cell is verified on chain against the binary's bytes, and the binary hash enters the outcome. Built-in aliases are also supported.
+- **Named script references** of the form `"name"` and `{ script = "name", args }`.
+- **Pure steps and zero accounts** (reverse decision 3).
+- **`expect.error.group`** (reverses decision 4), satisfied only by script evidence from the named lock or type group, and refused when the reference matches more than one group of the transaction.
+
+The maintainer also chose on 2026-11-03 to implement the RFC items the proposal does not name:
+
+- zero steps;
+- terminal node rejections from `send_transaction`, recorded with their RPC code;
+- every common lockfile and runtime pin (npm, pnpm, yarn, Cargo, `.tool-versions`, `mise.toml`, `.nvmrc`), with the versions the step environment actually has;
+- a sanitized repository identity;
+- the devnet sealing-configuration fingerprint, with `nondefault_devnet`;
+- the genesis checked against a pinned allowlist;
+- `run --report <file>` and `run --json`.
+
+Spec `0.1.0` and its tuple are frozen and unchanged; nothing above is added to them.
+
+**Consequences.**
+
+- **Code:** parser `src/manifest-v6.ts`, claims and verification in `src/claims-v4.ts` (sharing the 0.1.0 claim derivation), `src/provenance-v4.ts`, `src/devnet-identity.ts`, deployment in the OffCKB adapter, and schema files `ckb-verify-manifest-v2`, `ckb-verify-claims-v4`, and `ckb-verify-provenance-v4`, plus a `report/4` branch.
+- **Showcase:** the [repository-script showcase](../showcases/repository-script/README.md) deploys a lock script assembled from this repository and runs the full flow on fresh devnets: create, legal spend, group-pinned illegal spend, node rejection, negative controls, repeat, and a variant binary.
+- **Release:** `e311ad3` is no longer the release candidate. A new candidate must be frozen and re-gated, and the independent review covers it.
 
 ## What this record does not do
 

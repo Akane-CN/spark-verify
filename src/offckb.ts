@@ -10,6 +10,7 @@ import { rpcCall } from "./rpc";
 import { acquireRuntimeOwnership, assertRuntimePortsAvailable, type RuntimeOwnership } from "./runtime-ownership";
 import { assertInstalledOffckb, resolveOffckbPackage } from "./supply-chain";
 import { runProcess, type CommandResult, type RunCommandOptions } from "./process";
+import { readSealingConfiguration, type SealingConfiguration } from "./devnet-identity";
 
 export const OFFCKB_VERSION = "0.4.13";
 
@@ -374,8 +375,8 @@ export class OffckbDevnet {
     if (!/^\d+\.\d+\.\d+$/.test(options.ckbVersion)) {
       throw new OffckbProtocolError("CKB version must be an exact semantic version");
     }
-    if (!Number.isInteger(options.accountCount) || options.accountCount < 1 || options.accountCount > 20) {
-      throw new OffckbProtocolError("OffCKB account count must be between 1 and 20");
+    if (!Number.isInteger(options.accountCount) || options.accountCount < 0 || options.accountCount > 20) {
+      throw new OffckbProtocolError("OffCKB account count must be between 0 and 20");
     }
     this.repositoryRoot = resolve(options.repositoryRoot);
     this.ckbVersion = options.ckbVersion;
@@ -710,6 +711,50 @@ export class OffckbDevnet {
       if (result.timedOut) throw new OffckbProtocolError(`offckb debug timed out for ${script}`);
       return result;
     });
+  }
+
+  /**
+   * Deploys one repository binary with `offckb deploy` (OffCKB's own deployer account and Type ID support)
+   * and returns the code Cell OffCKB reports. The caller verifies that Cell on chain against the bytes.
+   */
+  async deployBinary(name: string, bytes: Uint8Array, typeId: boolean): Promise<{ txHash: string; index: number }> {
+    this.assertDebuggerReady();
+    if (!/^[a-z_][a-z0-9_]{0,63}$/.test(name)) throw new OffckbProtocolError("deployment name is invalid");
+    const directory = join(this.paths.root, "deployments", name);
+    return this.runOwnedTask(async () => {
+      await rm(directory, { recursive: true, force: true });
+      await mkdir(join(directory, "bin"), { recursive: true });
+      const target = join(directory, "bin", name);
+      await writeFile(target, bytes, { mode: 0o600 });
+      const output = join(directory, "out");
+      this.assertNotStopping();
+      const result = await this.run([this.paths.offckbBinary, "--json", "deploy", "--network", "devnet", "--target", target, "--output", output, "-y", ...(typeId ? ["--type-id"] : [])], {
+        cwd: this.repositoryRoot, env: this.environment(), timeoutMs: 180_000,
+        ...(this.signal === undefined ? {} : { signal: this.signal }),
+      });
+      this.assertNotStopping();
+      if (result.timedOut || result.exitCode !== 0) {
+        throw new OffckbProtocolError(`offckb deploy ${name} ${result.timedOut ? "timed out" : `exited ${String(result.exitCode)}`}: ${result.stderr.trim().slice(-2_000)}`);
+      }
+      parseOffckbResult(result.stdout, "deploy");
+      let info: unknown;
+      try { info = JSON.parse(await readFile(join(output, "scripts.json"), "utf8")); } catch (error) {
+        throw new OffckbProtocolError(`offckb deploy ${name} wrote no readable scripts.json`, error instanceof Error ? { cause: error } : undefined);
+      }
+      const entry = requiredObject(requiredObject(requiredObject(info, "deployment").devnet, "deployment.devnet")[name], `deployment.devnet.${name}`);
+      if (!Array.isArray(entry.cellDeps) || entry.cellDeps.length !== 1) throw new OffckbProtocolError(`deployment ${name} must report exactly one cell dep`);
+      const dep = requiredObject(requiredObject(entry.cellDeps[0], `deployment ${name} cellDeps[0]`).cellDep, `deployment ${name} cellDep`);
+      if (dep.depType !== "code") throw new OffckbProtocolError(`deployment ${name} must be a code cell dep`);
+      const outPoint = requiredObject(dep.outPoint, `deployment ${name} outPoint`);
+      if (!Number.isInteger(outPoint.index) || (outPoint.index as number) < 0) throw new OffckbProtocolError(`deployment ${name} outPoint.index is invalid`);
+      return { txHash: hash(outPoint.txHash, `deployment ${name} outPoint.txHash`), index: outPoint.index as number };
+    });
+  }
+
+  /** The node, miner, and chain-spec files the running devnet was started with. */
+  async sealing(): Promise<SealingConfiguration> {
+    this.assertDebuggerReady();
+    return readSealingConfiguration(join(this.paths.dataHome, "offckb-nodejs", "devnet"));
   }
 
   stop(): Promise<void> {

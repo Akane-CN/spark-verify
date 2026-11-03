@@ -1,0 +1,498 @@
+{
+  "schema": "ckb-verify-report/4",
+  "verdict": "PASS",
+  "createdAt": "2026-11-03T18:30:41.136Z",
+  "evidence": {
+    "name": "repository-script-zero",
+    "spec": "0.2.0",
+    "manifestText": "[meta]\nname = \"repository-script-zero\"\nspec = \"0.2.0\"\ndescription = \"Zero accounts and zero steps: only the deployment and final assertions.\"\n\n[toolchain]\nckb = \"0.209.0\"\noffckb = \"0.4.13\"\n\n[replay]\ndependencies = []\n\n[setup]\naccounts = 0\n\n[setup.scripts.witness_lock]\nbinary = \"showcases/repository-script/build/witness_lock\"\nhash_type = \"data2\"\n\n[[assert.cell]]\nlock = \"witness_lock\"\ncount = 0\n",
+    "steps": [],
+    "assertions": [
+      {
+        "kind": "cell",
+        "target": {
+          "lock": {
+            "kind": "setup",
+            "name": "witness_lock",
+            "args": null
+          }
+        },
+        "expected": {
+          "count": {
+            "eq": 0
+          }
+        },
+        "observed": {
+          "state": "selected",
+          "count": 0,
+          "cells": []
+        },
+        "observationValid": true,
+        "ok": true,
+        "input": {
+          "kind": "indexer",
+          "search_key": {
+            "script": {
+              "code_hash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273",
+              "hash_type": "data2",
+              "args": "0x"
+            },
+            "script_type": "lock",
+            "script_search_mode": "prefix",
+            "with_data": false
+          },
+          "pages": [
+            {
+              "after_cursor": null,
+              "response": {
+                "objects": [],
+                "last_cursor": "0x"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "outcomeClaims": {
+    "schema": "ckb-verify-outcome/4",
+    "name": "repository-script-zero",
+    "spec": "0.2.0",
+    "setup": {
+      "accounts": 0,
+      "scripts": [
+        {
+          "name": "witness_lock",
+          "kind": "binary",
+          "hashType": "data2",
+          "codeHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273",
+          "binarySha256": "sha256:4b84d34447f4ddc27a141e8c7a4c394be07eb599084b822103432e01db048787",
+          "dataHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273"
+        }
+      ]
+    },
+    "steps": [],
+    "assertions": [
+      {
+        "kind": "cell",
+        "target": {
+          "lock": {
+            "kind": "setup",
+            "name": "witness_lock",
+            "args": null
+          }
+        },
+        "expected": {
+          "count": {
+            "eq": 0
+          }
+        },
+        "observed": {
+          "state": "selected",
+          "count": 0,
+          "cells": []
+        },
+        "observationValid": true,
+        "ok": true
+      }
+    ]
+  },
+  "environment": {
+    "schema": "ckb-verify-environment/5",
+    "runner": {
+      "name": "ckb-verify",
+      "version": "0.1.0"
+    },
+    "toolchain": {
+      "requested": {
+        "ckb": "0.209.0",
+        "offckb": "0.4.13"
+      },
+      "observed": {
+        "ckb": "0.209.0 (d166e28 2026-07-29)",
+        "offckb": "0.4.13"
+      }
+    },
+    "provenance": {
+      "schema": "ckb-verify-provenance/4",
+      "replay": {
+        "declaredDependencies": [],
+        "status": "stable",
+        "reasons": []
+      },
+      "source": {
+        "gitCommit": "3c9ec611abfa0464987afea982e046ff14c72ced",
+        "dirty": false,
+        "dirtyDigest": null
+      },
+      "repository": {
+        "remote": "origin",
+        "url": "https://github.com/Akane-CN/spark-verify"
+      },
+      "manifest": {
+        "sha256": "sha256:d92e6639bfd8409895d711254f7d9df1f6aa0dc52fdce24e42b544755c7ceac2"
+      },
+      "lockfiles": [
+        {
+          "path": "bun.lock",
+          "sha256": "sha256:38a5c80ceb71f35b9565f9a07d3ccb0d3d63359b2ec7668f24ecdd106bb9bc83"
+        }
+      ],
+      "runtime": {
+        "metadata": [
+          {
+            "path": "package.json",
+            "sha256": "sha256:bd53082e5701e982e8cbf5eed3bcfcfccacc8cdf4f2e6069258223c267c6934e"
+          }
+        ],
+        "pins": [
+          {
+            "tool": "bun",
+            "requested": "1.2.19",
+            "source": "package.json#packageManager"
+          }
+        ],
+        "observed": [
+          {
+            "tool": "bun",
+            "version": "1.2.19"
+          }
+        ]
+      },
+      "binaries": {
+        "ckb": {
+          "version": "0.209.0",
+          "platform": "linux",
+          "architecture": "x64",
+          "asset": "ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+          "sourceUrl": "https://github.com/nervosnetwork/ckb/releases/download/v0.209.0/ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+          "expectedArchiveSha256": "sha256:11c29c752293dbad1504ead2ec14f85e9b732f09e51a87d318d9ccf46d3f5e34",
+          "archiveSha256": "sha256:11c29c752293dbad1504ead2ec14f85e9b732f09e51a87d318d9ccf46d3f5e34",
+          "binarySha256": "sha256:47bc7260302035135f49f000c6734c9e55830e1da750dde64ec81086db44b7e4"
+        },
+        "ckbDebugger": null
+      },
+      "toolchain": {
+        "ckb": {
+          "requested": "0.209.0",
+          "observed": "0.209.0",
+          "driftAllowed": false
+        }
+      },
+      "devnet": {
+        "sealingFingerprint": "sha256:ef45c0329135f660c47a4a5bab92f8ea26c2ec2ba48b393f6223721381b17f3f",
+        "defaultSealingFingerprint": "sha256:ef45c0329135f660c47a4a5bab92f8ea26c2ec2ba48b393f6223721381b17f3f"
+      }
+    },
+    "platform": {
+      "os": "linux",
+      "arch": "x64"
+    },
+    "devnet": {
+      "network": "devnet",
+      "genesisHash": "0xb15fa8a50781f3a8bf84759682e2ce4027b7ae5361df45e8b68855ee413104be",
+      "systemScripts": {
+        "secp256k1_blake160_sighash_all": {
+          "codeHash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 0
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "dao": {
+          "codeHash": "0x82d76d1b75fe2fd9a27dfbaa65a039221a380d76c926f378d3f81cf3e7e13f2e",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 2
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "secp256k1_blake160_multisig_all": {
+          "codeHash": "0x5c5069eb0857efc65e1bca0c07df34c31663b3622fd3876c876320fc9634e2a8",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 1
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "sudt": {
+          "codeHash": "0x6283a479a3cf5d4276cd93594de9f1827ab9b55c7b05b3d28e4c2e0a696cfefd",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 5
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "xudt": {
+          "codeHash": "0x1a1e4fef34f5982906f745b048fe7b1089647e82346074e0f32c2ece26cf6b1e",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 6
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "omnilock": {
+          "codeHash": "0x9c6933d977360f115a3e9cd5a2e0e475853681b80d775d93ad0f8969da343e56",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 7
+              },
+              "depType": "code"
+            },
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 0
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "anyone_can_pay": {
+          "codeHash": "0xe09352af0066f3162287763ce4ddba9af6bfaeab198dc7ab37f8c71c9e68bb5b",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 8
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "always_success": {
+          "codeHash": "0xbb4469004225b39e983929db71fe2253cba1d49a76223e9e1d212cdca1f79f28",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 9
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "spore": {
+          "codeHash": "0x7e8bf78a62232caa2f5d47e691e8db1a90d05e93dc6828ad3cb935c01ec6d208",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 10
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "spore_cluster": {
+          "codeHash": "0x7366a61534fa7c7e6225ecc0d828ea3b5366adec2b58206f2ee84995fe030075",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 11
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "spore_cluster_agent": {
+          "codeHash": "0xc986099b41d79ca1b2a56ce5874bcda8175440a17298ea5e2bbc3897736b8c21",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 12
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "spore_cluster_proxy": {
+          "codeHash": "0xbe8b9ce3d05a32c4bb26fe71cd5fc1407ce91e3a8b9e8719be2ab072cef1454b",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 13
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "spore_extension_lua": {
+          "codeHash": "0x94a9b875911ace20f1f0d063a26495d14e4b04e32fd218261bb747f34e71ae47",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 14
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "ckb_js_vm": {
+          "codeHash": "0xac4db0d0c028ba0d73dec9ee5e6a3c0c98fcdfca895402a3285d680e964dcb46",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 15
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "nostr_lock": {
+          "codeHash": "0x97bb42c154a4fda179e0cd891c94efd0ed5eb7fa5371135122ed58deb39d94b0",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 16
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "secp256k1_keccak256_sighash_all": {
+          "codeHash": "0xf3d9b5e8eff7bce00731be767a65f58cc5707c2b6ee8e732d56f383a47f77abd",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 3
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "secp256k1_keccak256_sighash_all_acpl": {
+          "codeHash": "0xf7c7fedcb0cbf549095f5b1ad6c267a141e96282b0f5308cad2d0af2901cfc48",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 4
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "secp256k1_blake160_multisig_all_v2": {
+          "codeHash": "0x36c971b8d41fbd94aabca77dc75e826729ac98447b46f91e00796155dddb0d29",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 2
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "type_id": {
+          "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+          "hashType": "type",
+          "cellDeps": []
+        }
+      },
+      "accounts": [],
+      "scripts": [
+        {
+          "name": "witness_lock",
+          "kind": "binary",
+          "path": "showcases/repository-script/build/witness_lock",
+          "size": 308,
+          "binarySha256": "sha256:4b84d34447f4ddc27a141e8c7a4c394be07eb599084b822103432e01db048787",
+          "dataHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273",
+          "hashType": "data2",
+          "codeHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273",
+          "cellDep": {
+            "outPoint": {
+              "txHash": "0xcdffb2580c550b4a904ba16477074580e575183132c06aa69c3bc72d061d9b83",
+              "index": 0
+            },
+            "depType": "code"
+          },
+          "typeId": null,
+          "deployment": {
+            "output": {
+              "capacity": "0x897695100",
+              "lock": {
+                "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+                "hash_type": "type",
+                "args": "0x4118c8c16749bf126b22468d030bf9de7da3717b"
+              },
+              "type": null
+            },
+            "dataHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273"
+          }
+        }
+      ],
+      "sealing": {
+        "files": [
+          {
+            "path": "ckb.toml",
+            "sha256": "sha256:b4ded7e417fa04313dbb6508d135e419e75d446923d064d2e8c6ddab9af842ac"
+          },
+          {
+            "path": "ckb-miner.toml",
+            "sha256": "sha256:39533dbbc460b53fbe61c6567dd2362e053a70765a3a59e49053ab37e36d6f58"
+          },
+          {
+            "path": "specs/dev.toml",
+            "sha256": "sha256:755921e6dc2f6365fcf0c72e8c2ecd08bc48bd9f5793c02f40246091b4b2298a"
+          }
+        ],
+        "fingerprint": "sha256:ef45c0329135f660c47a4a5bab92f8ea26c2ec2ba48b393f6223721381b17f3f"
+      }
+    }
+  },
+  "digests": {
+    "outcome": "sha256:43679b5e4f30a085412acfa1fcbc75812857d483d0d8b77bf044487abfadf731",
+    "environment": "sha256:6302108353275440063281b2802d9543170609070141e3a2f0a17d8afe677c50"
+  }
+}

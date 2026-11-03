@@ -8,7 +8,7 @@
 >
 > **Changes from draft 0.1:** the runner-owned result-file contract is retained; the uploaded `expect.tx` vocabulary is canonical; immediate state checks use `[[step.assert.*]]`; result identity is split into an outcome digest and an environment fingerprint; `[replay].dependencies` makes replay qualification authorable; pure-step/result semantics are explicit; zero-match Cell behavior remains explicit; and the report/replay semantics distinguish a hash from a reproducibility claim.
 >
-> **Implementation note:** the CLI/package name is now `ckb-verify`. §7 describes the shipped report and CLI contract; the [report field guide](evidence-report.md) is the detailed reference. Sections marked **implemented in 0.1.0** are available under the frozen v0.1 spec `0.1.0` and under `0.1.0-draft.5`, which has the same grammar ([vocabulary](vocabulary-v0.1.md)); sections marked **v0.3 proposal** are not part of `v0.1.0` by the [release decisions](release-decisions.md), and their text is retained as the proposal.
+> **Implementation note:** the CLI/package name is now `ckb-verify`. §7 describes the shipped report and CLI contract; the [report field guide](evidence-report.md) is the detailed reference. Sections marked **implemented in 0.1.0** are available under the frozen v0.1 spec `0.1.0` and under `0.1.0-draft.5`, which has the same grammar ([vocabulary](vocabulary-v0.1.md)). Sections marked **implemented in 0.2.0** are available under spec `0.2.0` only ([vocabulary](vocabulary-v0.2.md)); they were "v0.3 proposals" until the [2026-11-03 decision](release-decisions.md#2026-11-03-decisions-2-3-and-4-reopened-the-rest-of-the-proposals-target-v01-ships-as-spec-020), and `0.1.0` never gains them.
 
 ## Design goals
 
@@ -91,7 +91,7 @@ builtin = "spore"
 
 ### 3.1 Accounts
 
-> **v0.3 proposal:** `accounts = 0` is not accepted by v0.1 (`1..20`); [decision 3](release-decisions.md#3-pure-steps-and-setupaccounts--0-not-in-v01).
+> **Implemented in 0.2.0:** `accounts` is `0..20` (at most 19 when a repository binary is deployed, because OffCKB 0.4.13 deploys from its development account 19). `0.1.0` and earlier keep `1..20`.
 
 `accounts` is an integer in `0..20`. The runner exports the first N deterministic, pre-funded OffCKB devnet accounts.
 
@@ -99,7 +99,7 @@ Assertions can refer to them as `account = 0`, `account = 1`, and so on. This is
 
 ### 3.2 Repository binaries
 
-> **v0.3 proposal:** `[setup.scripts]` deployment is not in v0.1; flows use OffCKB built-ins referenced from claims; [decision 2](release-decisions.md#2-repository-script-deployment-a-documented-limitation).
+> **Implemented in 0.2.0:** binaries are read and hashed before the devnet starts and deployed in declaration order with `offckb deploy` (`--type-id` for `"type"`); each code Cell is then checked on chain against the bytes. A binary must be a regular file inside the repository, 1–512000 bytes, and contain a byte above `0x7f` (OffCKB 0.4.13 refuses or silently skips anything else). Commands read the result from `CKB_VERIFY_SCRIPTS`. `builtin` entries are aliases of OffCKB system scripts.
 
 Each `[setup.scripts.<name>]` must define exactly one of `binary` or `builtin`.
 
@@ -176,7 +176,7 @@ Runner-owned submission avoids the ambiguous case where a rejected transaction n
 
 ### 4.2 Transaction expectations
 
-> **Implemented in 0.1.0 (also `0.1.0-draft.5`):** `expect.cycles.{lt,lte,eq,gte}` (`eq` alone, or `lt`/`lte` with `gte`). **v0.3 proposal:** `expect.error.group`; `expect.error.code` is the pin ([decision 4](release-decisions.md#4-expecterrorgroup-code-only-pinning)).
+> **Implemented in 0.1.0 (also `0.1.0-draft.5`):** `expect.cycles.{lt,lte,eq,gte}` (`eq` alone, or `lt`/`lte` with `gte`). **Implemented in 0.2.0:** `expect.error.group = { role, … }` with a named, built-in, explicit, or (lock only) account reference; the satisfying evidence is the script group the node and the pinned debugger report, and the reference must match exactly one group of the transaction's retained inputs and outputs. 0.2.0 also records terminal node rejections from `send_transaction` (dead or unknown inputs, failed non-script verification, fee or size limits) as `kind = "node"` with their RPC code.
 
 | Key | Values | Meaning |
 | --- | --- | --- |
@@ -199,7 +199,7 @@ expect.error.group = { role = "lock", script = "sample_lock", args = "0x0102" }
 
 ### 4.3 Immediate state assertions
 
-> **v0.3 proposal:** pure steps are not in v0.1; every step produces one transaction; [decision 3](release-decisions.md#3-pure-steps-and-setupaccounts--0-not-in-v01).
+> **Implemented in 0.2.0:** a step without `expect` is pure, runs its immediate claims without a transaction, and must not create `CKB_VERIFY_RESULT`. Out-point and dependency claims cannot target a pure step. In `0.1.0` every step produces one transaction.
 
 `[[step.assert.cell]]` and `[[step.assert.balance]]` use the same syntax as final assertions. They run after a submitted transaction reaches its terminal status, or immediately after a declared pure step exits successfully. A rejected transaction does not advance chain state, but immediate assertions may verify that prior Cells remain live. This keeps transaction expectations under `step.expect` and state assertions under `step.assert`.
 
@@ -273,7 +273,7 @@ Floating point is never used. Bare TOML integers are rejected for asset amounts 
 
 ### 5.3 Script references
 
-> **Implemented in 0.1.0 (also `0.1.0-draft.5`):** explicit scripts, `{ builtin = "<name>" [, args] }` for every OffCKB system script with omitted args as a recorded wildcard, and `{ account = N }` for locks. **v0.3 proposal:** the named setup-script form (`lock = "sample_lock"`), which depends on `[setup.scripts]` ([decision 2](release-decisions.md#2-repository-script-deployment-a-documented-limitation)).
+> **Implemented in 0.1.0 (also `0.1.0-draft.5`):** explicit scripts, `{ builtin = "<name>" [, args] }` for every OffCKB system script with omitted args as a recorded wildcard, and `{ account = N }` for locks. **Implemented in 0.2.0:** the named setup-script forms `"sample_lock"` (wildcard args) and `{ script = "sample_lock", args = "0x…" }`, also accepted as `cell_deps.contains = { script = "…" }`.
 
 A script-valued field accepts a fully explicit script:
 
@@ -386,12 +386,12 @@ A report is one JSON object with exactly these top-level fields:
 
 | Field | Content |
 | --- | --- |
-| `schema` | `ckb-verify-report/1` (manifests with `spec = "0.1.0-draft.3"`) or `ckb-verify-report/2` (`0.1.0-draft.4`) |
+| `schema` | `ckb-verify-report/1` (`0.1.0-draft.3`), `/2` (`0.1.0-draft.4`), `/3` (`0.1.0`, `0.1.0-draft.5`), or `/4` (`0.2.0`) |
 | `verdict` | `"PASS"` or `"FAIL"`; a report is never written without a verdict |
 | `createdAt` | RFC 3339 timestamp |
 | `evidence` | manifest name and spec, per-step transaction hash, terminal status, cycles, and normalized rejection evidence (`kind`, `code`, `role`, `source`, `script`, `scriptHash`) |
-| `outcomeClaims` | `ckb-verify-outcome/1` or `/2`: the normalized claims with target, expected, observed, and result per claim; its RFC 8785 hash is `digests.outcome` |
-| `environment` | `ckb-verify-environment/3`: requested and observed CKB, OffCKB, debugger and Bun identities, OS and architecture, genesis hash, resolved system scripts, and `provenance` (`ckb-verify-provenance/2`: source commit and dirty digest, manifest hash, lockfile hash, binary identities, and `replay` with the declared dependencies, status and reasons); its hash is `digests.environment` |
+| `outcomeClaims` | `ckb-verify-outcome/1` to `/4`: the normalized claims with target, expected, observed, and result per claim (`/4` adds the setup scripts with their binary and code hashes, step kinds, and resolved error groups); its RFC 8785 hash is `digests.outcome` |
+| `environment` | `ckb-verify-environment/3` to `/5`: requested and observed CKB, OffCKB, debugger and Bun identities, OS and architecture, genesis hash, resolved system scripts (`/4`: exported accounts; `/5`: deployed scripts and the sealing configuration), and `provenance` (`/2` to `/4`: source commit and dirty digest, manifest hash, lockfile hashes, binary identities, tool-version drift, and `replay`; `/4` adds the sanitized repository URL, every lockfile, runtime pins with observed versions, and the sealing fingerprint); its hash is `digests.environment` |
 | `digests` | `outcome` and `environment`, both `sha256:` hex |
 
 Field names are camelCase and schema identifiers are `ckb-verify-*`; earlier drafts of this section sketched `spark-verify-*` snake_case names, which were never written by any runner. A checked `report/1` example is `docs/examples/secp-transfer-committed-report.json` (a historical `environment/2` artifact, verified with `--allow-legacy`).
@@ -399,14 +399,15 @@ Field names are camelCase and schema identifiers are `ckb-verify-*`; earlier dra
 Implemented CLI:
 
 ```text
-ckb-verify run [path]                                   run a manifest on a fresh devnet; writes .ckb-verify/runs/<run>/report.json
+ckb-verify run [path] [--allow-version-drift] [--report <file>] [--json]
+                                                        run a manifest on a fresh devnet; writes .ckb-verify/runs/<run>/report.json
 ckb-verify validate [path] [--json]                     strict parse plus the published manifest schema; executes nothing
 ckb-verify digest <report.json> [--json] [--allow-legacy]
 ckb-verify check-digest <report.json> --outcome <sha256:…> --environment <sha256:…>
 ckb-verify check-bundle <dir> [--source-sha <commit>] [--repository owner/repo]
 ```
 
-`digest` always re-derives both digests from the report's own content and compares them with the stored values; `check-digest` additionally compares them with the supplied ones. `run --report <file>`, `run --json`, and `--allow-version-drift` from earlier drafts are not implemented; the report path is fixed and tool pins are exact.
+`digest` always re-derives both digests from the report's own content and compares them with the stored values; `check-digest` additionally compares them with the supplied ones. `run --report <file>` also writes the published report bytes to `<file>`; `run --json` prints `{ verdict, report, digests, failures }` (or `{ verdict: null, error }` with exit 2); `--allow-version-drift` runs a `0.2.0`, `0.1.0`, or `0.1.0-draft.5` manifest on the pinned CKB when another exact version is requested, recorded and tainting.
 
 Exit codes for `run`:
 
@@ -414,7 +415,7 @@ Exit codes for `run`:
 - `1`: one or more claims were evaluated and failed;
 - `2`: invalid manifest, setup error, command failure, timeout, unavailable tooling, or any other condition that prevented a verdict.
 
-The offline commands use `0` valid (and every supplied digest matched), `1` invalid or mismatch, `2` usage or I/O; validity is reported separately from the recorded verdict ([offline verification](offline-verification.md)). Output is a terminal summary, with `--json` on the offline commands; HTML output is deliberately deferred.
+The offline commands use `0` valid (and every supplied digest matched), `1` invalid or mismatch, `2` usage or I/O; validity is reported separately from the recorded verdict ([offline verification](offline-verification.md)). Output is a terminal summary, with `--json` on `run` and the offline commands; HTML output is deliberately deferred.
 
 ## 8. Validation and conformance
 

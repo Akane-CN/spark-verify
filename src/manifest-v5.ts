@@ -4,7 +4,7 @@ import { ManifestError } from "./errors";
 import { decodeFullAddress } from "./address";
 import { MAX_BYTES } from "./limits";
 import {
-  SYSTEM_SCRIPT_NAMES, type BalanceAssertionV5, type CellAssertionV5, type ClaimV5, type CountRange, type CyclesCheck,
+  SYSTEM_SCRIPT_NAMES, type BalanceAssertionV5, type CellAssertionV5, type CellDepsAssertionV5, type ClaimV5, type CountRange, type CyclesCheck,
   type QuantityRange, type ScriptRef, type StepExpectation, type SystemScriptName, type TransactionExpectation,
 } from "./types";
 
@@ -80,6 +80,22 @@ export function parseScriptRef(value: unknown, path: string, source: string, opt
   fail(source, `${path} must be an explicit script { code_hash, hash_type, args }, a builtin reference { builtin }, or an account { account }`);
 }
 
+/** Parses one script-valued field; `0.2.0` supplies a parser that also accepts named setup scripts. */
+export type ScriptRefParser = (value: unknown, path: string, source: string, options: { allowAccount: boolean; allowWildcard: boolean }) => ScriptRef;
+/** Parses a `cell_deps.contains` table; `0.2.0` also accepts `{ script = "<setup name>" }`. */
+export type ContainsParser = (value: unknown, path: string, source: string) => CellDepsAssertionV5["contains"];
+export function parseBuiltinContains(value: unknown, path: string, source: string): CellDepsAssertionV5["contains"] {
+  const contains = asObject(value, path, source);
+  exactKeys(contains, ["builtin"], path, source);
+  const name = contains.builtin;
+  if (typeof name !== "string" || !(SYSTEM_SCRIPT_NAMES as readonly string[]).includes(name)) {
+    fail(source, `${path}.builtin must be one of the OffCKB system scripts: ${SYSTEM_SCRIPT_NAMES.join(", ")}`);
+  }
+  return { kind: "builtin", name: name as SystemScriptName };
+}
+export interface AssertionParsers { scriptRef: ScriptRefParser; contains: ContainsParser }
+const V5_PARSERS: AssertionParsers = { scriptRef: parseScriptRef, contains: parseBuiltinContains };
+
 export function parseCountRange(value: unknown, path: string, source: string): CountRange {
   if (typeof value === "number") return { eq: integer(value, 0, U32, path, source) };
   const table = asObject(value, path, source);
@@ -154,7 +170,7 @@ export function parseExpectationV5(value: unknown, path: string, source: string)
   return { tx, ...(error === undefined ? {} : { error }), ...(cycles === undefined ? {} : { cycles }) };
 }
 
-function parseCell(raw: unknown, p: string, names: ReadonlySet<string>, accounts: number, source: string): CellAssertionV5 {
+function parseCell(raw: unknown, p: string, names: ReadonlySet<string>, accounts: number, source: string, parsers: AssertionParsers): CellAssertionV5 {
   const item = asObject(raw, p, source);
   exactKeys(item, ["out_point", "lock", "type", "count", "data", "capacity"], p, source);
   const selector: CellAssertionV5["selector"] = {};
@@ -166,11 +182,11 @@ function parseCell(raw: unknown, p: string, names: ReadonlySet<string>, accounts
     selector.outPoint = { step, index: integer(out.index, 0, U32, `${p}.out_point.index`, source) };
   }
   if (Object.hasOwn(item, "lock")) {
-    const lock = parseScriptRef(item.lock, `${p}.lock`, source, { allowAccount: true, allowWildcard: true });
+    const lock = parsers.scriptRef(item.lock, `${p}.lock`, source, { allowAccount: true, allowWildcard: true });
     if (lock.kind === "account" && lock.index >= accounts) fail(source, `${p}.lock.account must be below setup.accounts (${accounts})`);
     selector.lock = lock;
   }
-  if (Object.hasOwn(item, "type")) selector.type = parseScriptRef(item.type, `${p}.type`, source, { allowAccount: false, allowWildcard: true });
+  if (Object.hasOwn(item, "type")) selector.type = parsers.scriptRef(item.type, `${p}.type`, source, { allowAccount: false, allowWildcard: true });
   if (selector.outPoint === undefined && selector.lock === undefined && selector.type === undefined) {
     fail(source, `${p} requires a selector: out_point, lock, or type`);
   }
@@ -210,7 +226,7 @@ function parseCell(raw: unknown, p: string, names: ReadonlySet<string>, accounts
   return { kind: "cell", selector, count, ...(data === undefined ? {} : { data }), ...(capacity === undefined ? {} : { capacity }) };
 }
 
-function parseBalance(raw: unknown, p: string, accounts: number, source: string): BalanceAssertionV5 {
+function parseBalance(raw: unknown, p: string, accounts: number, source: string, parsers: AssertionParsers): BalanceAssertionV5 {
   const item = asObject(raw, p, source);
   exactKeys(item, ["account", "address", "lock", "udt", "eq", "gte", "lte"], p, source);
   const targets = ["account", "address", "lock"].filter((key) => Object.hasOwn(item, key));
@@ -227,7 +243,7 @@ function parseBalance(raw: unknown, p: string, accounts: number, source: string)
       target = { kind: "address", address, lock: { codeHash: decoded.codeHash, hashType: decoded.hashType, args: decoded.args } };
     } catch (error) { fail(source, `${p}.address is not a full-format bech32m CKB address: ${error instanceof Error ? error.message : String(error)}`); }
   } else {
-    const script = parseScriptRef(item.lock, `${p}.lock`, source, { allowAccount: true, allowWildcard: false });
+    const script = parsers.scriptRef(item.lock, `${p}.lock`, source, { allowAccount: true, allowWildcard: false });
     if (script.kind === "account" && script.index >= accounts) fail(source, `${p}.lock.account must be below setup.accounts (${accounts})`);
     target = { kind: "lock", script };
   }
@@ -235,7 +251,7 @@ function parseBalance(raw: unknown, p: string, accounts: number, source: string)
   if (Object.hasOwn(item, "udt")) {
     const table = asObject(item.udt, `${p}.udt`, source);
     exactKeys(table, ["type"], `${p}.udt`, source);
-    udt = { type: parseScriptRef(table.type, `${p}.udt.type`, source, { allowAccount: false, allowWildcard: false }) };
+    udt = { type: parsers.scriptRef(table.type, `${p}.udt.type`, source, { allowAccount: false, allowWildcard: false }) };
   }
   const amounts: TomlObject = {};
   for (const key of ["eq", "gte", "lte"]) if (Object.hasOwn(item, key)) amounts[key] = item[key];
@@ -243,7 +259,7 @@ function parseBalance(raw: unknown, p: string, accounts: number, source: string)
   return { kind: "balance", target, ...(udt === undefined ? {} : { udt }), amount };
 }
 
-export function parseAssertionsV5(accounts: number): (value: unknown, path: string, names: ReadonlySet<string>, source: string) => ClaimV5[] {
+export function parseAssertionsV5(accounts: number, parsers: AssertionParsers = V5_PARSERS): (value: unknown, path: string, names: ReadonlySet<string>, source: string) => ClaimV5[] {
   return (value, path, names, source) => {
     if (value === undefined) return [];
     const container = asObject(value, path, source);
@@ -251,7 +267,7 @@ export function parseAssertionsV5(accounts: number): (value: unknown, path: stri
     const claims: ClaimV5[] = [];
     const cells = container.cell ?? [];
     if (!Array.isArray(cells)) fail(source, `${path}.cell must be an array of tables`);
-    cells.forEach((raw, i) => claims.push(parseCell(raw, `${path}.cell[${i}]`, names, accounts, source)));
+    cells.forEach((raw, i) => claims.push(parseCell(raw, `${path}.cell[${i}]`, names, accounts, source, parsers)));
     const deps = container.cell_deps ?? [];
     if (!Array.isArray(deps)) fail(source, `${path}.cell_deps must be an array of tables`);
     deps.forEach((raw, i) => {
@@ -259,17 +275,11 @@ export function parseAssertionsV5(accounts: number): (value: unknown, path: stri
       exactKeys(d, ["step", "contains"], p, source);
       const step = requiredString(d.step, `${p}.step`, source);
       if (!names.has(step)) fail(source, `${p}.step must reference this or an earlier step`);
-      const contains = asObject(d.contains, `${p}.contains`, source);
-      exactKeys(contains, ["builtin"], `${p}.contains`, source);
-      const name = contains.builtin;
-      if (typeof name !== "string" || !(SYSTEM_SCRIPT_NAMES as readonly string[]).includes(name)) {
-        fail(source, `${p}.contains.builtin must be one of the OffCKB system scripts: ${SYSTEM_SCRIPT_NAMES.join(", ")}`);
-      }
-      claims.push({ kind: "cell_deps", step, contains: { kind: "builtin", name: name as SystemScriptName } });
+      claims.push({ kind: "cell_deps", step, contains: parsers.contains(d.contains, `${p}.contains`, source) });
     });
     const balances = container.balance ?? [];
     if (!Array.isArray(balances)) fail(source, `${path}.balance must be an array of tables`);
-    balances.forEach((raw, i) => claims.push(parseBalance(raw, `${path}.balance[${i}]`, accounts, source)));
+    balances.forEach((raw, i) => claims.push(parseBalance(raw, `${path}.balance[${i}]`, accounts, source, parsers)));
     return claims;
   };
 }

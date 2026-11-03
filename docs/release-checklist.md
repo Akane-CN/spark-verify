@@ -26,6 +26,7 @@ bun run showcase:secp-transfer
 bun run showcase:cell-properties
 bun run showcase:ckb-ugmp
 bun run showcase:vocabulary
+bun run showcase:repository-script
 scripts/acceptance-matrix.sh --results acceptance-source.md
 bun run verify:release                        # the proposal's §8.B release verification surface, with a record
 ```
