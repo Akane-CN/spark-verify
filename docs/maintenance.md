@@ -6,7 +6,7 @@ A small, repeatable maintainer workflow that keeps the verified baseline usable 
 
 | Component | Exercised pin | Notes |
 | --- | --- | --- |
-| OS / architecture | Linux x64 for `run`; macOS 14 (arm64) and Windows Server 2022 (x64) for the offline commands | `run` refuses every other platform before it writes anything. On macOS and Windows a repository checkout installs, type-checks, passes the platform-independent tests, and runs `validate`, `digest`, `check-digest`, and `check-bundle`, and `run` exits 2 with nothing written; the [platform boundary](../.github/workflows/platform-boundary.yml) workflow executes exactly that on hosted runners (run 41387777640). The packed-tarball installation path is exercised on Linux x64 only |
+| OS / architecture | Linux x64 for `run`; macOS 14 (arm64) and Windows Server 2022 (x64) for the offline commands | `run` refuses every other platform before it writes anything. On macOS and Windows a repository checkout installs, type-checks, passes the platform-independent tests, and runs `validate`, `digest`, `check-digest`, and `check-bundle`, and `run` exits 2 with nothing written; the [platform boundary](../.github/workflows/platform-boundary.yml) workflow executes exactly that on hosted runners (run 41387777640, and run 41507336019 on the v0.1.0 candidate `e311ad3`). The packed-tarball installation path is exercised on Linux x64 only |
 | Bun | 1.2.19 | `bun run check` fails fast on any other version; consumers pin it with `packageManager` so provenance records it |
 | Node.js | 22 exercised | the OffCKB CLI is a Node program and declares `>= 20`; only Node 22 has run, and nothing checks the Node version at runtime |
 | `@offckb/cli` | 0.4.13 with the shipped patch | runtime gate refuses an unpatched bundle |
@@ -28,7 +28,8 @@ Use the [bug report template](../.github/ISSUE_TEMPLATE/bug_report.md): runner a
 4. `bun run check:supply-chain`; note any new advisory. A new finding is triaged in an issue, never waived in place.
 5. Triage new issues with the template; label `bug`, `enhancement`, or `rfc`; close duplicates with the reason.
 6. Update roadmap blockers and evidence links on the open milestone issues; confirm the latest `main` CI run is green including `verify-evidence`.
-7. If a roadmap checkpoint date has passed (week 3: 2026-10-23, week 8: 2026-11-27), record its state in [external checkpoints](external-checkpoints.md) and on #2/#3; silence is recorded as such, never inferred as consent.
+7. If a roadmap checkpoint date has passed (week 3: 2026-10-23, week 8: 2026-11-27), record its state in [external checkpoints](external-checkpoints.md) and on #2/#3; silence is recorded as such, never inferred as consent. Week 8 was recorded early and amended on 2026-11-02 (outreach approved, for the maintainer to post); until 2026-11-27, link any post or reply as a dated amendment.
+8. Add a dated entry to the [maintenance log](maintenance-log.md): the commit, each step's result, and any decision.
 
 ## Monthly pin review
 
@@ -47,7 +48,7 @@ For each of Bun, OffCKB, CKB, `@ckb-ccc/core`, and `ckb-debugger`:
 
 ## Maintenance run and patch-release rehearsal
 
-`scripts/release-rehearsal.sh` performs one complete maintenance cycle without publishing anything: frozen-tree check, dependency gate, regression, documentation validation, packing with checksums, and (with `--consumer`) the installed-consumer acceptance matrix. It writes `rehearsal-<date>.md` with the commands, versions, checksums, and results. Keep that record with the candidate's evidence bundles. Run it once before closing #21 and again before every release.
+`scripts/release-rehearsal.sh` performs one complete maintenance cycle without publishing anything: frozen-tree check, dependency gate, regression, documentation validation, packing with checksums, and (with `--consumer`) the installed-consumer acceptance matrix. It writes `rehearsal-<date>.md` with the commands, versions, checksums, and results. Keep that record with the candidate's evidence bundles. Run it once before closing #21 and again before every release. It has run on `main` `b44a68c` and `ed41b28` (#34, #37) and on the v0.1.0 candidate `e311ad3` ([record](acceptance/2026-11-02-candidate-e311ad3-release-rehearsal.md)).
 
 ## Automation
 
