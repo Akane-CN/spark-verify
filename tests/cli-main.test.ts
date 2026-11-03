@@ -141,3 +141,45 @@ describe("CLI run command", () => {
     expect(disposed).toBe(true);
   });
 });
+
+describe("CLI run --report and --json", () => {
+  test("--json prints one machine-readable object and keeps the exit code", async () => {
+    for (const verdict of ["PASS", "FAIL"] as const) {
+      const state = dependencies(result(verdict));
+      expect(await main(["run", "verify.toml", "--json"], state.deps)).toBe(verdict === "PASS" ? 0 : 1);
+      const parsed = JSON.parse(state.stdout.join(""));
+      expect(parsed).toMatchObject({ verdict, report: "/tmp/evidence/report.json", digests: { outcome: `sha256:${"1".repeat(64)}` } });
+      expect(Array.isArray(parsed.failures)).toBe(true);
+    }
+  });
+
+  test("--json reports a no-verdict error as a JSON object with exit 2", async () => {
+    const state = dependencies(result("PASS"));
+    state.deps.runManifest = async () => { throw new Error("devnet unavailable"); };
+    expect(await main(["run", "--json"], state.deps)).toBe(2);
+    expect(JSON.parse(state.stdout.join(""))).toEqual({ verdict: null, error: "devnet unavailable" });
+  });
+
+  test("--report copies the published bytes, not a re-serialization", async () => {
+    const { mkdtemp, readFile, writeFile, rm } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const dir = await mkdtemp(join(tmpdir(), "cli-report-"));
+    try {
+      const published = join(dir, "report.json");
+      await writeFile(published, '{"exact": "bytes"}\n');
+      const run = result("PASS");
+      const state = dependencies({ ...run, reportPath: published });
+      const copy = join(dir, "copy.json");
+      expect(await main(["run", "--report", copy], state.deps)).toBe(0);
+      expect(await readFile(copy, "utf8")).toBe('{"exact": "bytes"}\n');
+      expect(state.stdout.join("")).toContain(`copy: ${copy}`);
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+
+  test("--report needs a value", async () => {
+    const state = dependencies(result("PASS"));
+    expect(await main(["run", "--report"], state.deps)).toBe(2);
+    expect(state.stderr.join("")).toContain("--report requires a value");
+  });
+});

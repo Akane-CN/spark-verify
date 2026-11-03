@@ -232,6 +232,6 @@ describe("draft.5 tool-version drift", () => {
     const manifestPath = join(project, "verify.toml");
     await writeFile(manifestPath, manifest5().replace("draft.5", "draft.4").replace(/expect\.cycles.*\n/, "").replace(/\[\[step\.assert\.cell\]\][\s\S]*$/, '[[step.assert.cell]]\nout_point = { step = "mint", index = 0 }\ncount = 1\n'));
     await expect(runManifest({ manifestPath, projectRoot: project, outputDir: join(project, "evidence"), devnet: devnet(project), runStep: runStep(mintTransaction()), rpc: rpc(mintTransaction()), allowVersionDrift: true }))
-      .rejects.toThrow("requires a 0.1.0 or 0.1.0-draft.5 manifest");
+      .rejects.toThrow("requires a 0.2.0, 0.1.0, or 0.1.0-draft.5 manifest");
   });
 });

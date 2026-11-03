@@ -1,0 +1,1079 @@
+{
+  "schema": "ckb-verify-report/4",
+  "verdict": "PASS",
+  "createdAt": "2026-11-03T18:28:30.191Z",
+  "evidence": {
+    "name": "repository-script-node-rejected",
+    "spec": "0.2.0",
+    "manifestText": "[meta]\nname = \"repository-script-node-rejected\"\nspec = \"0.2.0\"\ndescription = \"Re-spending a consumed Cell is a terminal node rejection, which satisfies only a bare rejected expectation.\"\n\n[toolchain]\nckb = \"0.209.0\"\noffckb = \"0.4.13\"\nckb-debugger = \"1.1.1\"\n\n[replay]\ndependencies = []\n\n[setup]\naccounts = 2\n\n[setup.scripts.witness_lock]\nbinary = \"showcases/repository-script/build/witness_lock\"\nhash_type = \"type\"\n\n[setup.scripts.witness_lock_v1]\nbinary = \"showcases/repository-script/build/witness_lock\"\nhash_type = \"data1\"\n\n[[step]]\nname = \"create protected cells\"\nrun = \"bun run showcases/repository-script/produce.ts create\"\nexpect.tx = \"committed\"\n\n[[step.assert.cell]]\nout_point = { step = \"create protected cells\", index = 0 }\nlock = { script = \"witness_lock\", args = \"0x01\" }\ncount = 1\ncapacity.eq = \"300 CKB\"\n\n[[step.assert.cell]]\nout_point = { step = \"create protected cells\", index = 1 }\nlock = { script = \"witness_lock_v1\", args = \"0x02\" }\ncount = 1\n\n[[step]]\nname = \"spend with matching witness\"\nrun = \"bun run showcases/repository-script/produce.ts spend-matching\"\nexpect.tx = \"committed\"\n\n[[step]]\nname = \"spend the spent cell again\"\nrun = \"bun run showcases/repository-script/produce.ts spend-again\"\nexpect.tx = \"rejected\"\n\n[[assert.cell]]\nout_point = { step = \"spend with matching witness\", index = 0 }\nlock = { account = 1 }\ncount = 1\n\n[[assert.cell]]\nout_point = { step = \"spend the spent cell again\", index = 0 }\ncount = 0\n",
+    "steps": [
+      {
+        "name": "create protected cells",
+        "kind": "transaction",
+        "expectedStatus": "committed",
+        "observedStatus": "committed",
+        "cycles": 1652453,
+        "transactionHash": "0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e",
+        "transaction": {
+          "version": "0x0",
+          "cell_deps": [
+            {
+              "out_point": {
+                "index": "0x0",
+                "tx_hash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293"
+              },
+              "dep_type": "dep_group"
+            }
+          ],
+          "header_deps": [],
+          "inputs": [
+            {
+              "previous_output": {
+                "index": "0x16",
+                "tx_hash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7"
+              },
+              "since": "0x0"
+            }
+          ],
+          "outputs": [
+            {
+              "capacity": "0x6fc23ac00",
+              "lock": {
+                "code_hash": "0x76ee7120f748eaa005f9efb4b8196e0c5b795c9bc64a05d081b6c3ba5b4090b1",
+                "hash_type": "type",
+                "args": "0x01"
+              }
+            },
+            {
+              "capacity": "0x6fc23ac00",
+              "lock": {
+                "code_hash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273",
+                "hash_type": "data1",
+                "args": "0x02"
+              }
+            },
+            {
+              "capacity": "0xeebd2bbc725e9",
+              "lock": {
+                "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+                "hash_type": "type",
+                "args": "0x8e42b1999f265a0078503c4acec4d5e134534297"
+              }
+            }
+          ],
+          "outputs_data": [
+            "0x",
+            "0x",
+            "0x"
+          ],
+          "witnesses": [
+            "0x550000001000000055000000550000004100000069f31e2bc47086d65aa3c2e9b3e550d1ac46c8bc9c9e2de5c4baa5453b7bc9b140135e87deea044761ad3574657afe9d2c5d547e38ab8f69b93d4607c8204cc501"
+          ]
+        },
+        "durationMs": 470,
+        "claims": [
+          {
+            "kind": "cell",
+            "target": {
+              "outPoint": {
+                "step": "create protected cells",
+                "index": 0
+              },
+              "lock": {
+                "kind": "setup",
+                "name": "witness_lock",
+                "args": "0x01"
+              }
+            },
+            "expected": {
+              "count": {
+                "eq": 1
+              },
+              "capacity": {
+                "eq": "30000000000"
+              }
+            },
+            "observed": {
+              "state": "selected",
+              "count": 1,
+              "cells": [
+                {
+                  "outPoint": {
+                    "txHash": "0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e",
+                    "index": 0
+                  },
+                  "capacity": "30000000000",
+                  "dataBytes": 0,
+                  "dataHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              ]
+            },
+            "observationValid": true,
+            "ok": true,
+            "input": {
+              "kind": "query",
+              "outPoint": {
+                "tx_hash": "0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e",
+                "index": "0x0"
+              },
+              "response": {
+                "status": "live",
+                "cell": {
+                  "output": {
+                    "capacity": "0x6fc23ac00",
+                    "lock": {
+                      "code_hash": "0x76ee7120f748eaa005f9efb4b8196e0c5b795c9bc64a05d081b6c3ba5b4090b1",
+                      "hash_type": "type",
+                      "args": "0x01"
+                    },
+                    "type": null
+                  },
+                  "data": {
+                    "content": "0x",
+                    "hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                  }
+                },
+                "block_hash": "0x7ab63064cb53780ecfa6ca8c2404029fdacb001c6ec46f40d4d437b34cfa3149"
+              }
+            }
+          },
+          {
+            "kind": "cell",
+            "target": {
+              "outPoint": {
+                "step": "create protected cells",
+                "index": 1
+              },
+              "lock": {
+                "kind": "setup",
+                "name": "witness_lock_v1",
+                "args": "0x02"
+              }
+            },
+            "expected": {
+              "count": {
+                "eq": 1
+              }
+            },
+            "observed": {
+              "state": "selected",
+              "count": 1,
+              "cells": [
+                {
+                  "outPoint": {
+                    "txHash": "0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e",
+                    "index": 1
+                  },
+                  "capacity": "30000000000",
+                  "dataBytes": 0,
+                  "dataHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              ]
+            },
+            "observationValid": true,
+            "ok": true,
+            "input": {
+              "kind": "query",
+              "outPoint": {
+                "tx_hash": "0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e",
+                "index": "0x1"
+              },
+              "response": {
+                "status": "live",
+                "cell": {
+                  "output": {
+                    "capacity": "0x6fc23ac00",
+                    "lock": {
+                      "code_hash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273",
+                      "hash_type": "data1",
+                      "args": "0x02"
+                    },
+                    "type": null
+                  },
+                  "data": {
+                    "content": "0x",
+                    "hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                  }
+                },
+                "block_hash": "0x7ab63064cb53780ecfa6ca8c2404029fdacb001c6ec46f40d4d437b34cfa3149"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "spend with matching witness",
+        "kind": "transaction",
+        "expectedStatus": "committed",
+        "observedStatus": "committed",
+        "cycles": 1653,
+        "transactionHash": "0xe525b8e05d49d4306b21afe54aa726b274f796bec55312ec0b7c3bb2a0fd1ad2",
+        "transaction": {
+          "version": "0x0",
+          "cell_deps": [
+            {
+              "out_point": {
+                "index": "0x0",
+                "tx_hash": "0x7b4dfc4b48089e2895494c54fa8e08e468c69ee6363917e3e8e28637f9fb5a24"
+              },
+              "dep_type": "code"
+            }
+          ],
+          "header_deps": [],
+          "inputs": [
+            {
+              "previous_output": {
+                "index": "0x0",
+                "tx_hash": "0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e"
+              },
+              "since": "0x0"
+            }
+          ],
+          "outputs": [
+            {
+              "capacity": "0x6fc222560",
+              "lock": {
+                "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+                "hash_type": "type",
+                "args": "0x758d311c8483e0602dfad7b69d9053e3f917457d"
+              }
+            }
+          ],
+          "outputs_data": [
+            "0x"
+          ],
+          "witnesses": [
+            "0x01"
+          ]
+        },
+        "durationMs": 707,
+        "claims": []
+      },
+      {
+        "name": "spend the spent cell again",
+        "kind": "transaction",
+        "expectedStatus": "rejected",
+        "observedStatus": "rejected",
+        "rejection": {
+          "kind": "node",
+          "rpcCode": -301,
+          "reason": "send_transaction: JSON-RPC -301: TransactionFailedToResolve: Resolve failed Unknown(OutPoint(0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e00000000))"
+        },
+        "transactionHash": "0x2e9ecdfb8348d798f5a465c6ec1cd0af111195b4206c62411e413b25c01e9632",
+        "transaction": {
+          "version": "0x0",
+          "cell_deps": [
+            {
+              "out_point": {
+                "index": "0x0",
+                "tx_hash": "0x7b4dfc4b48089e2895494c54fa8e08e468c69ee6363917e3e8e28637f9fb5a24"
+              },
+              "dep_type": "code"
+            }
+          ],
+          "header_deps": [],
+          "inputs": [
+            {
+              "previous_output": {
+                "index": "0x0",
+                "tx_hash": "0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e"
+              },
+              "since": "0x0"
+            }
+          ],
+          "outputs": [
+            {
+              "capacity": "0x6fc222560",
+              "lock": {
+                "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+                "hash_type": "type",
+                "args": "0x8e42b1999f265a0078503c4acec4d5e134534297"
+              }
+            }
+          ],
+          "outputs_data": [
+            "0x"
+          ],
+          "witnesses": [
+            "0x01"
+          ]
+        },
+        "durationMs": 384,
+        "claims": []
+      }
+    ],
+    "assertions": [
+      {
+        "kind": "cell",
+        "target": {
+          "outPoint": {
+            "step": "spend with matching witness",
+            "index": 0
+          },
+          "lock": {
+            "kind": "account",
+            "index": 1
+          }
+        },
+        "expected": {
+          "count": {
+            "eq": 1
+          }
+        },
+        "observed": {
+          "state": "selected",
+          "count": 1,
+          "cells": [
+            {
+              "outPoint": {
+                "txHash": "0xe525b8e05d49d4306b21afe54aa726b274f796bec55312ec0b7c3bb2a0fd1ad2",
+                "index": 0
+              },
+              "capacity": "29999900000",
+              "dataBytes": 0,
+              "dataHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ]
+        },
+        "observationValid": true,
+        "ok": true,
+        "input": {
+          "kind": "query",
+          "outPoint": {
+            "tx_hash": "0xe525b8e05d49d4306b21afe54aa726b274f796bec55312ec0b7c3bb2a0fd1ad2",
+            "index": "0x0"
+          },
+          "response": {
+            "status": "live",
+            "cell": {
+              "output": {
+                "capacity": "0x6fc222560",
+                "lock": {
+                  "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+                  "hash_type": "type",
+                  "args": "0x758d311c8483e0602dfad7b69d9053e3f917457d"
+                },
+                "type": null
+              },
+              "data": {
+                "content": "0x",
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            },
+            "block_hash": "0x5acc45b5fc752c195d32f021ab58d3276677587885cbd1ccd7b43c02c38f3056"
+          }
+        }
+      },
+      {
+        "kind": "cell",
+        "target": {
+          "outPoint": {
+            "step": "spend the spent cell again",
+            "index": 0
+          }
+        },
+        "expected": {
+          "count": {
+            "eq": 0
+          }
+        },
+        "observed": {
+          "state": "non-live",
+          "status": "unknown",
+          "count": 0
+        },
+        "observationValid": true,
+        "ok": true,
+        "input": {
+          "kind": "query",
+          "outPoint": {
+            "tx_hash": "0x2e9ecdfb8348d798f5a465c6ec1cd0af111195b4206c62411e413b25c01e9632",
+            "index": "0x0"
+          },
+          "response": {
+            "status": "unknown",
+            "cell": null,
+            "block_hash": null
+          }
+        }
+      }
+    ]
+  },
+  "outcomeClaims": {
+    "schema": "ckb-verify-outcome/4",
+    "name": "repository-script-node-rejected",
+    "spec": "0.2.0",
+    "setup": {
+      "accounts": 2,
+      "scripts": [
+        {
+          "name": "witness_lock",
+          "kind": "binary",
+          "hashType": "type",
+          "codeHash": "0x76ee7120f748eaa005f9efb4b8196e0c5b795c9bc64a05d081b6c3ba5b4090b1",
+          "binarySha256": "sha256:4b84d34447f4ddc27a141e8c7a4c394be07eb599084b822103432e01db048787",
+          "dataHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273"
+        },
+        {
+          "name": "witness_lock_v1",
+          "kind": "binary",
+          "hashType": "data1",
+          "codeHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273",
+          "binarySha256": "sha256:4b84d34447f4ddc27a141e8c7a4c394be07eb599084b822103432e01db048787",
+          "dataHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273"
+        }
+      ]
+    },
+    "steps": [
+      {
+        "name": "create protected cells",
+        "kind": "transaction",
+        "expectedStatus": "committed",
+        "observedStatus": "committed",
+        "cycles": 1652453,
+        "claims": [
+          {
+            "kind": "cell",
+            "target": {
+              "outPoint": {
+                "step": "create protected cells",
+                "index": 0
+              },
+              "lock": {
+                "kind": "setup",
+                "name": "witness_lock",
+                "args": "0x01"
+              }
+            },
+            "expected": {
+              "count": {
+                "eq": 1
+              },
+              "capacity": {
+                "eq": "30000000000"
+              }
+            },
+            "observed": {
+              "state": "selected",
+              "count": 1,
+              "cells": [
+                {
+                  "outPoint": {
+                    "txHash": "0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e",
+                    "index": 0
+                  },
+                  "capacity": "30000000000",
+                  "dataBytes": 0,
+                  "dataHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              ]
+            },
+            "observationValid": true,
+            "ok": true
+          },
+          {
+            "kind": "cell",
+            "target": {
+              "outPoint": {
+                "step": "create protected cells",
+                "index": 1
+              },
+              "lock": {
+                "kind": "setup",
+                "name": "witness_lock_v1",
+                "args": "0x02"
+              }
+            },
+            "expected": {
+              "count": {
+                "eq": 1
+              }
+            },
+            "observed": {
+              "state": "selected",
+              "count": 1,
+              "cells": [
+                {
+                  "outPoint": {
+                    "txHash": "0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e",
+                    "index": 1
+                  },
+                  "capacity": "30000000000",
+                  "dataBytes": 0,
+                  "dataHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                }
+              ]
+            },
+            "observationValid": true,
+            "ok": true
+          }
+        ]
+      },
+      {
+        "name": "spend with matching witness",
+        "kind": "transaction",
+        "expectedStatus": "committed",
+        "observedStatus": "committed",
+        "cycles": 1653,
+        "claims": []
+      },
+      {
+        "name": "spend the spent cell again",
+        "kind": "transaction",
+        "expectedStatus": "rejected",
+        "observedStatus": "rejected",
+        "rejection": {
+          "kind": "node",
+          "rpcCode": -301,
+          "reason": "send_transaction: JSON-RPC -301: TransactionFailedToResolve: Resolve failed Unknown(OutPoint(0x65d78a224a2fb6a55ea1f5d49ffb62e8f615a9b94a4a379089b37495201d6f0e00000000))"
+        },
+        "claims": []
+      }
+    ],
+    "assertions": [
+      {
+        "kind": "cell",
+        "target": {
+          "outPoint": {
+            "step": "spend with matching witness",
+            "index": 0
+          },
+          "lock": {
+            "kind": "account",
+            "index": 1
+          }
+        },
+        "expected": {
+          "count": {
+            "eq": 1
+          }
+        },
+        "observed": {
+          "state": "selected",
+          "count": 1,
+          "cells": [
+            {
+              "outPoint": {
+                "txHash": "0xe525b8e05d49d4306b21afe54aa726b274f796bec55312ec0b7c3bb2a0fd1ad2",
+                "index": 0
+              },
+              "capacity": "29999900000",
+              "dataBytes": 0,
+              "dataHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ]
+        },
+        "observationValid": true,
+        "ok": true
+      },
+      {
+        "kind": "cell",
+        "target": {
+          "outPoint": {
+            "step": "spend the spent cell again",
+            "index": 0
+          }
+        },
+        "expected": {
+          "count": {
+            "eq": 0
+          }
+        },
+        "observed": {
+          "state": "non-live",
+          "status": "unknown",
+          "count": 0
+        },
+        "observationValid": true,
+        "ok": true
+      }
+    ]
+  },
+  "environment": {
+    "schema": "ckb-verify-environment/5",
+    "runner": {
+      "name": "ckb-verify",
+      "version": "0.1.0"
+    },
+    "toolchain": {
+      "requested": {
+        "ckb": "0.209.0",
+        "offckb": "0.4.13",
+        "ckbDebugger": "1.1.1"
+      },
+      "observed": {
+        "ckb": "0.209.0 (d166e28 2026-07-29)",
+        "offckb": "0.4.13",
+        "ckbDebugger": "ckb-debugger 1.1.1"
+      }
+    },
+    "provenance": {
+      "schema": "ckb-verify-provenance/4",
+      "replay": {
+        "declaredDependencies": [],
+        "status": "stable",
+        "reasons": []
+      },
+      "source": {
+        "gitCommit": "3c9ec611abfa0464987afea982e046ff14c72ced",
+        "dirty": false,
+        "dirtyDigest": null
+      },
+      "repository": {
+        "remote": "origin",
+        "url": "https://github.com/Akane-CN/spark-verify"
+      },
+      "manifest": {
+        "sha256": "sha256:e6bf125381b982932707241f60a58598ba3bfdb73a2eff21031ba46f4062f1e4"
+      },
+      "lockfiles": [
+        {
+          "path": "bun.lock",
+          "sha256": "sha256:38a5c80ceb71f35b9565f9a07d3ccb0d3d63359b2ec7668f24ecdd106bb9bc83"
+        }
+      ],
+      "runtime": {
+        "metadata": [
+          {
+            "path": "package.json",
+            "sha256": "sha256:bd53082e5701e982e8cbf5eed3bcfcfccacc8cdf4f2e6069258223c267c6934e"
+          }
+        ],
+        "pins": [
+          {
+            "tool": "bun",
+            "requested": "1.2.19",
+            "source": "package.json#packageManager"
+          }
+        ],
+        "observed": [
+          {
+            "tool": "bun",
+            "version": "1.2.19"
+          }
+        ]
+      },
+      "binaries": {
+        "ckb": {
+          "version": "0.209.0",
+          "platform": "linux",
+          "architecture": "x64",
+          "asset": "ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+          "sourceUrl": "https://github.com/nervosnetwork/ckb/releases/download/v0.209.0/ckb_v0.209.0_x86_64-unknown-linux-gnu-portable.tar.gz",
+          "expectedArchiveSha256": "sha256:11c29c752293dbad1504ead2ec14f85e9b732f09e51a87d318d9ccf46d3f5e34",
+          "archiveSha256": "sha256:11c29c752293dbad1504ead2ec14f85e9b732f09e51a87d318d9ccf46d3f5e34",
+          "binarySha256": "sha256:47bc7260302035135f49f000c6734c9e55830e1da750dde64ec81086db44b7e4"
+        },
+        "ckbDebugger": {
+          "requestedVersion": "1.1.1",
+          "version": "1.1.1",
+          "platform": "linux",
+          "architecture": "x64",
+          "assetName": "ckb-debugger_v1.1.1_x86_64-unknown-linux-gnu.tar.gz",
+          "sourceUrl": "https://github.com/nervosnetwork/ckb-standalone-debugger/releases/download/v1.1.1/ckb-debugger_v1.1.1_x86_64-unknown-linux-gnu.tar.gz",
+          "archive": {
+            "expected": {
+              "bytes": 2523369,
+              "sha256": "sha256:0dee02804af46386527c8bb94c2ee63592594ca1ec952ea42ffa9df07a9f005e"
+            },
+            "observed": {
+              "bytes": 2523369,
+              "sha256": "sha256:0dee02804af46386527c8bb94c2ee63592594ca1ec952ea42ffa9df07a9f005e"
+            }
+          },
+          "executable": {
+            "expected": {
+              "bytes": 7582264,
+              "sha256": "sha256:24641357274ca464ecd86fd63b715ad96b5490d27b5ca029df37511e435d96f0"
+            },
+            "observed": {
+              "bytes": 7582264,
+              "sha256": "sha256:24641357274ca464ecd86fd63b715ad96b5490d27b5ca029df37511e435d96f0"
+            }
+          }
+        }
+      },
+      "toolchain": {
+        "ckb": {
+          "requested": "0.209.0",
+          "observed": "0.209.0",
+          "driftAllowed": false
+        }
+      },
+      "devnet": {
+        "sealingFingerprint": "sha256:ef45c0329135f660c47a4a5bab92f8ea26c2ec2ba48b393f6223721381b17f3f",
+        "defaultSealingFingerprint": "sha256:ef45c0329135f660c47a4a5bab92f8ea26c2ec2ba48b393f6223721381b17f3f"
+      }
+    },
+    "platform": {
+      "os": "linux",
+      "arch": "x64"
+    },
+    "devnet": {
+      "network": "devnet",
+      "genesisHash": "0xb15fa8a50781f3a8bf84759682e2ce4027b7ae5361df45e8b68855ee413104be",
+      "systemScripts": {
+        "secp256k1_blake160_sighash_all": {
+          "codeHash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 0
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "dao": {
+          "codeHash": "0x82d76d1b75fe2fd9a27dfbaa65a039221a380d76c926f378d3f81cf3e7e13f2e",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 2
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "secp256k1_blake160_multisig_all": {
+          "codeHash": "0x5c5069eb0857efc65e1bca0c07df34c31663b3622fd3876c876320fc9634e2a8",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 1
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "sudt": {
+          "codeHash": "0x6283a479a3cf5d4276cd93594de9f1827ab9b55c7b05b3d28e4c2e0a696cfefd",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 5
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "xudt": {
+          "codeHash": "0x1a1e4fef34f5982906f745b048fe7b1089647e82346074e0f32c2ece26cf6b1e",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 6
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "omnilock": {
+          "codeHash": "0x9c6933d977360f115a3e9cd5a2e0e475853681b80d775d93ad0f8969da343e56",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 7
+              },
+              "depType": "code"
+            },
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 0
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "anyone_can_pay": {
+          "codeHash": "0xe09352af0066f3162287763ce4ddba9af6bfaeab198dc7ab37f8c71c9e68bb5b",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 8
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "always_success": {
+          "codeHash": "0xbb4469004225b39e983929db71fe2253cba1d49a76223e9e1d212cdca1f79f28",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 9
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "spore": {
+          "codeHash": "0x7e8bf78a62232caa2f5d47e691e8db1a90d05e93dc6828ad3cb935c01ec6d208",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 10
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "spore_cluster": {
+          "codeHash": "0x7366a61534fa7c7e6225ecc0d828ea3b5366adec2b58206f2ee84995fe030075",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 11
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "spore_cluster_agent": {
+          "codeHash": "0xc986099b41d79ca1b2a56ce5874bcda8175440a17298ea5e2bbc3897736b8c21",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 12
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "spore_cluster_proxy": {
+          "codeHash": "0xbe8b9ce3d05a32c4bb26fe71cd5fc1407ce91e3a8b9e8719be2ab072cef1454b",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 13
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "spore_extension_lua": {
+          "codeHash": "0x94a9b875911ace20f1f0d063a26495d14e4b04e32fd218261bb747f34e71ae47",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 14
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "ckb_js_vm": {
+          "codeHash": "0xac4db0d0c028ba0d73dec9ee5e6a3c0c98fcdfca895402a3285d680e964dcb46",
+          "hashType": "type",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 15
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "nostr_lock": {
+          "codeHash": "0x97bb42c154a4fda179e0cd891c94efd0ed5eb7fa5371135122ed58deb39d94b0",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x1bb87da347a776a927ab6593e1e10304ca195f8e24279f039008d5e3115b1bf7",
+                "index": 16
+              },
+              "depType": "code"
+            }
+          ]
+        },
+        "secp256k1_keccak256_sighash_all": {
+          "codeHash": "0xf3d9b5e8eff7bce00731be767a65f58cc5707c2b6ee8e732d56f383a47f77abd",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 3
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "secp256k1_keccak256_sighash_all_acpl": {
+          "codeHash": "0xf7c7fedcb0cbf549095f5b1ad6c267a141e96282b0f5308cad2d0af2901cfc48",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 4
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "secp256k1_blake160_multisig_all_v2": {
+          "codeHash": "0x36c971b8d41fbd94aabca77dc75e826729ac98447b46f91e00796155dddb0d29",
+          "hashType": "data2",
+          "cellDeps": [
+            {
+              "outPoint": {
+                "txHash": "0x4d804f1495612631da202fe9902fa9899118554b08138cfe5dfb50e1ede76293",
+                "index": 2
+              },
+              "depType": "depGroup"
+            }
+          ]
+        },
+        "type_id": {
+          "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+          "hashType": "type",
+          "cellDeps": []
+        }
+      },
+      "accounts": [
+        {
+          "index": 0,
+          "address": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvwg2cen8extgq8s5puft8vf40px3f599cytcyd8",
+          "lock": {
+            "codeHash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+            "hashType": "type",
+            "args": "0x8e42b1999f265a0078503c4acec4d5e134534297"
+          }
+        },
+        {
+          "index": 1,
+          "address": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqt435c3epyrupszm7khk6weq5lrlyt52lg48ucew",
+          "lock": {
+            "codeHash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+            "hashType": "type",
+            "args": "0x758d311c8483e0602dfad7b69d9053e3f917457d"
+          }
+        }
+      ],
+      "scripts": [
+        {
+          "name": "witness_lock",
+          "kind": "binary",
+          "path": "showcases/repository-script/build/witness_lock",
+          "size": 308,
+          "binarySha256": "sha256:4b84d34447f4ddc27a141e8c7a4c394be07eb599084b822103432e01db048787",
+          "dataHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273",
+          "hashType": "type",
+          "codeHash": "0x76ee7120f748eaa005f9efb4b8196e0c5b795c9bc64a05d081b6c3ba5b4090b1",
+          "cellDep": {
+            "outPoint": {
+              "txHash": "0x7b4dfc4b48089e2895494c54fa8e08e468c69ee6363917e3e8e28637f9fb5a24",
+              "index": 0
+            },
+            "depType": "code"
+          },
+          "typeId": {
+            "script": {
+              "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+              "hashType": "type",
+              "args": "0x4436e81f11ef600ccf4a871e34cdd21d83e6b86b58fa5d04dfb9180c6238dfca"
+            },
+            "scriptHash": "0x76ee7120f748eaa005f9efb4b8196e0c5b795c9bc64a05d081b6c3ba5b4090b1"
+          },
+          "deployment": {
+            "output": {
+              "capacity": "0xa1ad77200",
+              "lock": {
+                "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+                "hash_type": "type",
+                "args": "0x4118c8c16749bf126b22468d030bf9de7da3717b"
+              },
+              "type": {
+                "code_hash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+                "hash_type": "type",
+                "args": "0x4436e81f11ef600ccf4a871e34cdd21d83e6b86b58fa5d04dfb9180c6238dfca"
+              }
+            },
+            "dataHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273"
+          }
+        },
+        {
+          "name": "witness_lock_v1",
+          "kind": "binary",
+          "path": "showcases/repository-script/build/witness_lock",
+          "size": 308,
+          "binarySha256": "sha256:4b84d34447f4ddc27a141e8c7a4c394be07eb599084b822103432e01db048787",
+          "dataHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273",
+          "hashType": "data1",
+          "codeHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273",
+          "cellDep": {
+            "outPoint": {
+              "txHash": "0xb888f3cf810d689f82478ad1f466e7048c2a12a7675fe2b8b6c99cfccc7f9b4f",
+              "index": 0
+            },
+            "depType": "code"
+          },
+          "typeId": null,
+          "deployment": {
+            "output": {
+              "capacity": "0x897695100",
+              "lock": {
+                "code_hash": "0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8",
+                "hash_type": "type",
+                "args": "0x4118c8c16749bf126b22468d030bf9de7da3717b"
+              },
+              "type": null
+            },
+            "dataHash": "0xa8c6406f855b45e3cba6dd103ea2f217b67a5eea65791f9a93f6e4b26bd4a273"
+          }
+        }
+      ],
+      "sealing": {
+        "files": [
+          {
+            "path": "ckb.toml",
+            "sha256": "sha256:b4ded7e417fa04313dbb6508d135e419e75d446923d064d2e8c6ddab9af842ac"
+          },
+          {
+            "path": "ckb-miner.toml",
+            "sha256": "sha256:39533dbbc460b53fbe61c6567dd2362e053a70765a3a59e49053ab37e36d6f58"
+          },
+          {
+            "path": "specs/dev.toml",
+            "sha256": "sha256:755921e6dc2f6365fcf0c72e8c2ecd08bc48bd9f5793c02f40246091b4b2298a"
+          }
+        ],
+        "fingerprint": "sha256:ef45c0329135f660c47a4a5bab92f8ea26c2ec2ba48b393f6223721381b17f3f"
+      }
+    }
+  },
+  "digests": {
+    "outcome": "sha256:7ff6f11feffee34ca42108a143b47f71cb8c5287ca1aa740bab252bca2169296",
+    "environment": "sha256:017623412f2ab69e70c77a0c028f15f49a0b3a86cbbf4097b328930923ec2301"
+  }
+}

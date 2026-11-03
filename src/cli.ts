@@ -7,11 +7,13 @@ import {
 } from "./offline";
 import { verifyBundle, type BundleVerification } from "./evidence-bundle";
 import { VERSION } from "./version";
+import { readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, resolve as resolvePath } from "node:path";
 
 const HELP = `ckb-verify ${VERSION}
 
 Usage:
-  ckb-verify run [manifest] [--allow-version-drift]
+  ckb-verify run [manifest] [--allow-version-drift] [--report <file>] [--json]
   ckb-verify validate [manifest] [--json]
   ckb-verify digest <report.json> [--json] [--allow-legacy]
   ckb-verify check-digest <report.json> [--outcome sha256:...] [--environment sha256:...] [--json] [--allow-legacy]
@@ -23,6 +25,8 @@ Commands:
   run [manifest]         Execute declared CKB acceptance claims (default: verify.toml)
                          --allow-version-drift: 0.1.0/draft.5 only; run on the pinned CKB when another exact
                          version is requested, recorded in provenance/3 and tainting replay
+                         --report <file>: also write the published report to <file>
+                         --json: print the result as one JSON object instead of the summary
   validate [manifest]    Parse a manifest with the strict grammar; runs nothing (default: verify.toml)
   digest <report>        Re-derive a report's outcome and environment digests offline
   check-digest <report>  Verify a report offline and compare it with expected digests
@@ -260,7 +264,7 @@ export async function main(
     // A usage mistake is exit 2 (no verdict), never 1, which means a claim failed.
     let parsed: ReturnType<typeof parseArgs>;
     try {
-      parsed = parseArgs(args.slice(1), ["allow-version-drift"], []);
+      parsed = parseArgs(args.slice(1), ["allow-version-drift", "json"], ["report"]);
       if (parsed.positional.length > 1) throw new UsageError("run takes at most one manifest path");
     } catch (error) {
       if (!(error instanceof UsageError)) throw error;
@@ -282,6 +286,20 @@ export async function main(
         ...(parsed.flags.has("allow-version-drift") ? { allowVersionDrift: true } : {}),
       });
       if (receivedSignal !== undefined) return receivedSignal === "SIGINT" ? 130 : 143;
+      const copy = parsed.flags.get("report");
+      let copyPath: string | undefined;
+      if (typeof copy === "string") {
+        // Copy the published bytes, never a re-serialization; write atomically next to the target.
+        copyPath = resolvePath(process.cwd(), copy);
+        const pending = resolvePath(dirname(copyPath), `.${Date.now()}-${process.pid}.ckb-verify-report.pending`);
+        await writeFile(pending, await readFile(result.reportPath));
+        await rename(pending, copyPath);
+      }
+      if (parsed.flags.has("json")) {
+        dependencies.stdout(`${JSON.stringify({ verdict: result.verdict, report: result.reportPath, ...(copyPath === undefined ? {} : { copy: copyPath }),
+          digests: result.report.digests, failures: result.verdict === "PASS" ? [] : renderFailures(result.report).trimEnd().split("\n").filter((line) => line.startsWith("failed: ")).map((line) => line.slice(8)) })}\n`);
+        return result.verdict === "PASS" ? 0 : 1;
+      }
       dependencies.stdout(
         `${result.verdict}: ${
           result.verdict === "PASS"
@@ -291,12 +309,15 @@ export async function main(
           (result.verdict === "PASS" ? "" : renderFailures(result.report)) +
           `report: ${result.reportPath}\n` +
           `outcome: ${result.report.digests.outcome}\n` +
-          `environment: ${result.report.digests.environment}\n`,
+          `environment: ${result.report.digests.environment}\n` +
+          (copyPath === undefined ? "" : `copy: ${copyPath}\n`),
       );
       return result.verdict === "PASS" ? 0 : 1;
     } catch (error) {
       if (receivedSignal !== undefined) return receivedSignal === "SIGINT" ? 130 : 143;
-      dependencies.stderr(`ERROR: ${error instanceof Error ? error.message : String(error)}\n`);
+      const message = error instanceof Error ? error.message : String(error);
+      dependencies.stderr(`ERROR: ${message}\n`);
+      if (parsed.flags.has("json")) dependencies.stdout(`${JSON.stringify({ verdict: null, error: message })}\n`);
       return 2;
     } finally {
       unsubscribe?.();
@@ -308,7 +329,11 @@ export async function main(
 }
 
 interface ClaimLike { kind: string; target: unknown; expected: unknown; observed: unknown; ok: boolean }
-interface StepLike { name: string; expectedStatus?: string; observedStatus?: string; expectedErrorCode?: number; rejection?: { code?: number }; claims: ClaimLike[] }
+interface StepLike {
+  name: string; expectedStatus?: string; observedStatus?: string; expectedErrorCode?: number; claims: ClaimLike[];
+  rejection?: { kind?: string; code?: number; role?: string; script?: { codeHash: string; hashType: string; args: string } };
+  expectedErrorGroup?: { role: string; resolved: { codeHash: string; hashType: string; args: string | null } };
+}
 
 /** One `failed:` block per failed expectation or claim: the field, then the expected and observed values. */
 export function renderFailures(report: { outcomeClaims: unknown }): string {
@@ -325,6 +350,13 @@ export function renderFailures(report: { outcomeClaims: unknown }): string {
   for (const step of outcome.steps) {
     if (step.expectedStatus !== undefined && step.expectedStatus !== step.observedStatus) diff(`step "${step.name}" expect.tx`, step.expectedStatus, step.observedStatus);
     if (step.expectedErrorCode !== undefined && step.expectedErrorCode !== step.rejection?.code) diff(`step "${step.name}" expect.error.code`, step.expectedErrorCode, step.rejection?.code);
+    const group = step.expectedErrorGroup;
+    if (group !== undefined) {
+      const script = step.rejection?.kind === "script" ? step.rejection.script : undefined;
+      const ok = script !== undefined && step.rejection?.role === group.role && script.codeHash === group.resolved.codeHash &&
+        script.hashType === group.resolved.hashType && (group.resolved.args === null || script.args === group.resolved.args);
+      if (!ok) diff(`step "${step.name}" expect.error.group`, { role: group.role, ...group.resolved }, script === undefined ? step.rejection ?? null : { role: step.rejection?.role, ...script });
+    }
     claims(step.claims, `step "${step.name}" assert`);
   }
   claims(outcome.assertions, "assert");

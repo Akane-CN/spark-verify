@@ -1,5 +1,7 @@
 # Spark Program | Spark Verify / `ckb-verify` — Executable Acceptance Claims for CKB Projects
 
+> **Current implementation status (2026-11-03, added; the submitted proposal text below is unchanged).** The item-by-item record of what this proposal promised against what the repository contains is the [proposal coverage](proposal-coverage.md). The target v0.1 runner of §4–§5 is implemented: repository scripts in `[setup.scripts]`, pure steps, and "script group and error code for negative tests" ship as manifest spec `0.2.0` ([vocabulary](vocabulary-v0.2.md)), next to the frozen `0.1.0` contract. The release decisions that had deferred them were reopened on 2026-11-03 ([entry](release-decisions.md#2026-11-03-decisions-2-3-and-4-reopened-the-rest-of-the-proposals-target-v01-ships-as-spec-020)). The tagged release and the external pilot and upstream-fit track (deliverable 4) are still open.
+>
 > **Application status: [pending Spark Program review on Nervos Talk](https://talk.nervos.org/t/spark-program-spark-verify-reproducible-acceptance-checks-for-ckb-projects/10598).** This is proposal document revision **0.3** and accompanies the [`verify.toml` RFC draft 0.2](verify-toml-rfc-v0.2.md). The application was originally submitted before implementation. Since submission, the applicant independently completed and published a narrow feasibility implementation. That work is recorded as pre-funding evidence and is excluded from the remaining requested budget; it is not presented as a release, grant completion, or external adoption.
 
 ## 1. Project Overview

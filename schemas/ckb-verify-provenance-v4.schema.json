@@ -1,0 +1,560 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://github.com/Akane-CN/spark-verify/schemas/ckb-verify-provenance-v4.schema.json",
+ "title": "CKB Verify provenance/4 (spec 0.2.0)",
+ "$comment": "Shape only. ckb-verify re-derives replay reasons and status from the recorded inputs and checks ordering and uniqueness; see src/provenance-v4.ts.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema",
+  "replay",
+  "source",
+  "repository",
+  "manifest",
+  "lockfiles",
+  "runtime",
+  "binaries",
+  "toolchain",
+  "devnet"
+ ],
+ "properties": {
+  "schema": {
+   "const": "ckb-verify-provenance/4"
+  },
+  "replay": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "declaredDependencies",
+    "status",
+    "reasons"
+   ],
+   "properties": {
+    "declaredDependencies": {
+     "type": "array",
+     "uniqueItems": true,
+     "items": {
+      "enum": [
+       "external_time",
+       "randomness",
+       "fee_estimation",
+       "dynamic_since",
+       "external_network"
+      ]
+     }
+    },
+    "status": {
+     "enum": [
+      "stable",
+      "tainted"
+     ]
+    },
+    "reasons": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "scope",
+       "code",
+       "detail"
+      ],
+      "properties": {
+       "scope": {
+        "enum": [
+         "environment",
+         "outcome"
+        ]
+       },
+       "code": {
+        "enum": [
+         "external_time",
+         "randomness",
+         "fee_estimation",
+         "dynamic_since",
+         "external_network",
+         "dirty_source",
+         "source_revision_unavailable",
+         "source_state_unavailable",
+         "runtime_pin_missing",
+         "runtime_version_drift",
+         "tool_version_drift",
+         "lockfile_missing",
+         "nondefault_devnet"
+        ]
+       },
+       "detail": {
+        "type": "string",
+        "pattern": "\\S"
+       }
+      }
+     }
+    }
+   }
+  },
+  "source": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "gitCommit",
+    "dirty",
+    "dirtyDigest"
+   ],
+   "properties": {
+    "gitCommit": {
+     "oneOf": [
+      {
+       "type": "string",
+       "pattern": "^[0-9a-f]{40}$"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    },
+    "dirty": {
+     "type": [
+      "boolean",
+      "null"
+     ]
+    },
+    "dirtyDigest": {
+     "oneOf": [
+      {
+       "$ref": "#/$defs/sha256"
+      },
+      {
+       "type": "null"
+      }
+     ]
+    }
+   },
+   "allOf": [
+    {
+     "if": {
+      "properties": {
+       "dirty": {
+        "enum": [
+         false,
+         null
+        ]
+       }
+      },
+      "required": [
+       "dirty"
+      ]
+     },
+     "then": {
+      "properties": {
+       "dirtyDigest": {
+        "type": "null"
+       }
+      }
+     }
+    }
+   ]
+  },
+  "repository": {
+   "oneOf": [
+    {
+     "type": "null"
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "remote",
+      "url"
+     ],
+     "properties": {
+      "remote": {
+       "const": "origin"
+      },
+      "url": {
+       "type": "string",
+       "pattern": "^(?:https?|ssh|git)://[^/@\\s?#]+(?:/[^\\s?#]*)?$"
+      }
+     }
+    }
+   ]
+  },
+  "manifest": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "sha256"
+   ],
+   "properties": {
+    "sha256": {
+     "type": "string",
+     "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+   }
+  },
+  "lockfiles": {
+   "type": "array",
+   "maxItems": 7,
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "path",
+     "sha256"
+    ],
+    "properties": {
+     "path": {
+      "enum": [
+       "bun.lock",
+       "bun.lockb",
+       "package-lock.json",
+       "npm-shrinkwrap.json",
+       "pnpm-lock.yaml",
+       "yarn.lock",
+       "Cargo.lock"
+      ]
+     },
+     "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+     }
+    }
+   }
+  },
+  "runtime": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "metadata",
+    "pins",
+    "observed"
+   ],
+   "properties": {
+    "metadata": {
+     "type": "array",
+     "maxItems": 8,
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "path",
+       "sha256"
+      ],
+      "properties": {
+       "path": {
+        "enum": [
+         "package.json",
+         ".tool-versions",
+         "mise.toml",
+         ".mise.toml",
+         ".nvmrc",
+         ".node-version",
+         "rust-toolchain.toml",
+         "rust-toolchain"
+        ]
+       },
+       "sha256": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+       }
+      }
+     }
+    },
+    "pins": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "tool",
+       "requested",
+       "source"
+      ],
+      "properties": {
+       "tool": {
+        "enum": [
+         "bun",
+         "node",
+         "npm",
+         "pnpm",
+         "yarn"
+        ]
+       },
+       "requested": {
+        "type": "string",
+        "minLength": 1
+       },
+       "source": {
+        "enum": [
+         "package.json#packageManager",
+         ".tool-versions",
+         "mise.toml",
+         ".mise.toml",
+         ".nvmrc",
+         ".node-version"
+        ]
+       }
+      }
+     }
+    },
+    "observed": {
+     "type": "array",
+     "maxItems": 5,
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "tool",
+       "version"
+      ],
+      "properties": {
+       "tool": {
+        "enum": [
+         "bun",
+         "node",
+         "npm",
+         "pnpm",
+         "yarn"
+        ]
+       },
+       "version": {
+        "oneOf": [
+         {
+          "type": "null"
+         },
+         {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+         }
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "binaries": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "ckb",
+    "ckbDebugger"
+   ],
+   "properties": {
+    "ckb": {
+     "$ref": "#/$defs/ckbBinary"
+    },
+    "ckbDebugger": {
+     "oneOf": [
+      {
+       "type": "null"
+      },
+      {
+       "$ref": "#/$defs/ckbDebuggerBinary"
+      }
+     ]
+    }
+   }
+  },
+  "toolchain": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "ckb"
+   ],
+   "properties": {
+    "ckb": {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "requested",
+      "observed",
+      "driftAllowed"
+     ],
+     "properties": {
+      "requested": {
+       "$ref": "#/$defs/version"
+      },
+      "observed": {
+       "$ref": "#/$defs/version"
+      },
+      "driftAllowed": {
+       "type": "boolean"
+      }
+     }
+    }
+   }
+  },
+  "devnet": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "sealingFingerprint",
+    "defaultSealingFingerprint"
+   ],
+   "properties": {
+    "sealingFingerprint": {
+     "type": "string",
+     "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "defaultSealingFingerprint": {
+     "type": "string",
+     "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+   }
+  }
+ },
+ "$defs": {
+  "sha256": {
+   "type": "string",
+   "pattern": "^sha256:[0-9a-f]{64}$"
+  },
+  "version": {
+   "type": "string",
+   "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+  },
+  "replayDependency": {
+   "enum": [
+    "external_time",
+    "randomness",
+    "fee_estimation",
+    "dynamic_since",
+    "external_network"
+   ]
+  },
+  "reason": {
+   "oneOf": [
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "scope",
+      "code",
+      "detail"
+     ],
+     "properties": {
+      "scope": {
+       "const": "outcome"
+      },
+      "code": {
+       "$ref": "#/$defs/replayDependency"
+      },
+      "detail": {
+       "type": "string",
+       "minLength": 1
+      }
+     }
+    },
+    {
+     "type": "object",
+     "additionalProperties": false,
+     "required": [
+      "scope",
+      "code",
+      "detail"
+     ],
+     "properties": {
+      "scope": {
+       "const": "environment"
+      },
+      "code": {
+       "enum": [
+        "dirty_source",
+        "source_revision_unavailable",
+        "source_state_unavailable",
+        "runtime_pin_missing",
+        "runtime_version_drift",
+        "lockfile_missing",
+        "tool_version_drift"
+       ]
+      },
+      "detail": {
+       "type": "string",
+       "minLength": 1
+      }
+     }
+    }
+   ]
+  },
+  "ckbBinary": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "version",
+    "platform",
+    "architecture",
+    "asset",
+    "sourceUrl",
+    "expectedArchiveSha256",
+    "archiveSha256",
+    "binarySha256"
+   ],
+   "properties": {
+    "version": {
+     "$ref": "#/$defs/version"
+    },
+    "platform": {
+     "enum": [
+      "linux",
+      "darwin",
+      "win32"
+     ]
+    },
+    "architecture": {
+     "enum": [
+      "x64",
+      "arm64"
+     ]
+    },
+    "asset": {
+     "type": "string",
+     "minLength": 1
+    },
+    "sourceUrl": {
+     "type": "string",
+     "pattern": "^https://"
+    },
+    "expectedArchiveSha256": {
+     "$ref": "#/$defs/sha256"
+    },
+    "archiveSha256": {
+     "$ref": "#/$defs/sha256"
+    },
+    "binarySha256": {
+     "$ref": "#/$defs/sha256"
+    }
+   }
+  },
+  "ckbDebuggerBinary": {
+   "description": "The sole supported debugger artifact identity. Offline consistency is not execution authenticity.",
+   "type": "object",
+   "const": {
+    "requestedVersion": "1.1.1",
+    "version": "1.1.1",
+    "platform": "linux",
+    "architecture": "x64",
+    "assetName": "ckb-debugger_v1.1.1_x86_64-unknown-linux-gnu.tar.gz",
+    "sourceUrl": "https://github.com/nervosnetwork/ckb-standalone-debugger/releases/download/v1.1.1/ckb-debugger_v1.1.1_x86_64-unknown-linux-gnu.tar.gz",
+    "archive": {
+     "expected": {
+      "bytes": 2523369,
+      "sha256": "sha256:0dee02804af46386527c8bb94c2ee63592594ca1ec952ea42ffa9df07a9f005e"
+     },
+     "observed": {
+      "bytes": 2523369,
+      "sha256": "sha256:0dee02804af46386527c8bb94c2ee63592594ca1ec952ea42ffa9df07a9f005e"
+     }
+    },
+    "executable": {
+     "expected": {
+      "bytes": 7582264,
+      "sha256": "sha256:24641357274ca464ecd86fd63b715ad96b5490d27b5ca029df37511e435d96f0"
+     },
+     "observed": {
+      "bytes": 7582264,
+      "sha256": "sha256:24641357274ca464ecd86fd63b715ad96b5490d27b5ca029df37511e435d96f0"
+     }
+    }
+   }
+  }
+ }
+}

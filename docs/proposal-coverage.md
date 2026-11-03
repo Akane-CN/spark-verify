@@ -4,6 +4,38 @@ What the [Spark proposal revision 0.3](spark-proposal.md#8-deliverables--how-to-
 
 Status words: **done** (shipped on `main` with executable evidence), **partial** (shipped with a stated gap), **not done**, **external** (needs a third party), **gated** (needs the maintainer's publication authorization).
 
+## The target v0.1 runner (proposal §4–§5), item by item
+
+The deliverable headings below are not enough on their own: [§4](spark-proposal.md#4-solution) and [§5](spark-proposal.md#5-technical-approach) describe what the target v0.1 runner does, and each of those items must be covered too. Until 2026-11-03 three of them were deferred by release decisions 2–4. They now ship under spec `0.2.0` ([decision entry](release-decisions.md#2026-11-03-decisions-2-3-and-4-reopened-the-rest-of-the-proposals-target-v01-ships-as-spec-020)), next to the frozen `0.1.0`, which is unchanged.
+
+| §4/§5 item | Status | Evidence |
+| --- | --- | --- |
+| 1. Validate the manifest against the versioned schema | done | `validate`; `schemas/ckb-verify-manifest-v1.schema.json` (≤ 0.1.0) and `ckb-verify-manifest-v2.schema.json` (0.2.0) |
+| 2. Fresh OffCKB devnet with exact versions | done | every `run`; for 0.2.0 the genesis must equal the pinned default for the CKB release (`src/devnet-identity.ts`) |
+| 3. Deterministic accounts and **deployed**/built-in script metadata | done (0.2.0) | `[setup.scripts.<name>]` with `binary` + `hash_type` (`type`/`data`/`data1`/`data2`) or `builtin`. Binaries are deployed via `offckb deploy`, each code Cell is checked on chain against its bytes, and the result is exposed to commands as `CKB_VERIFY_SCRIPTS` and recorded in environment/5 |
+| 4. Each command a declared **pure step** or a transaction-producing step | done (0.2.0) | a step without `expect` is pure. It must not write `CKB_VERIFY_RESULT`, and its immediate claims run without a transaction. The `pure-writes-result` control gets no verdict |
+| 5. Runner-owned submission of the signed artifact; committed and rejected both retained | done | since draft.3; 0.2.0 also records terminal node rejections from `send_transaction` (`kind = "node"` with `rpcCode`) |
+| 6. Script group / error code and cycles recorded | done | rejection evidence carries role, source, script, and code; 0.2.0 retains the consumed input Cells of a script rejection |
+| 7. Final live Cells and balances | done | spec `0.1.0` onward |
+| 8. Evaluate the declared claims | done | spec `0.1.0` onward |
+| 9. JSON, summary, outcome digest, environment fingerprint | done | every report; 0.2.0 adds `run --json` and `run --report <file>` |
+| Vocabulary: "script group and error code for negative tests" | done (0.2.0) | `expect.error.group = { role, script \| builtin \| code_hash… \| account, args? }`; a different group with the same code fails (`verify.wrong-group.toml`); a node rejection cannot satisfy it |
+| §5 execution adapter: repository binary resolution | done (0.2.0) | named references `"name"` (wildcard args) and `{ script = "name", args }` in Cell, balance, dependency, and group claims |
+| §5 evidence: deployed binary hashes in provenance and the outcome | done (0.2.0) | `binarySha256` and `dataHash` per deployed script, in the outcome and in environment/5; a different binary changes the outcome digest (`verify.sh` variant case) |
+| The worked example: deploy a script, create a Cell, legal spend; illegal spend rejected with the original Cell still live | done (0.2.0) | [repository-script showcase](../showcases/repository-script/README.md) on fresh devnets, in CI with downloadable evidence |
+
+RFC items the proposal does not name, implemented on the maintainer's decision of 2026-11-03, all under 0.2.0:
+
+| RFC item | Status | Evidence |
+| --- | --- | --- |
+| `setup.accounts = 0`, zero steps | done | `verify.zero.toml`; at least one claim is still required |
+| Non-Bun lockfiles and runtime pins | done | provenance/4: `bun.lock(b)`, `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock`; pins from `packageManager`, `.tool-versions`, `mise.toml`, `.nvmrc`, `.node-version`, each observed with `<tool> --version` |
+| Sanitized repository identity | done | provenance/4 `repository`: the `origin` URL without userinfo, query, or fragment; local paths are not recorded |
+| Sealing-configuration fingerprint, `nondefault_devnet` | done | environment/5 `devnet.sealing` (node, miner, chain-spec files); a difference from the pinned default taints replay |
+| Genesis against an independent allowlist | done | runner refuses, verifier rejects, any genesis other than the pinned default for the executed CKB release |
+| `run --report <file>`, `run --json` | done | `src/cli.ts`, `tests/cli-main.test.ts` |
+| Non-script terminal node rejection on a real devnet | done | `verify.node-rejected.toml` (re-spending a consumed Cell, RPC -301) passes on bare `tx = "rejected"`; `verify.node-rejected-code.toml` fails |
+
 ## Deliverable 1: frozen `verify.toml` v0.1 contract
 
 | Promise | Status | Evidence |

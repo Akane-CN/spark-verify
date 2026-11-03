@@ -2,6 +2,9 @@ import { canonicalSha256 } from "./canonical";
 import { assertRejectionEvidence, errorCodeSatisfied } from "./rejection";
 import { bindManifestV2, deriveOutcomeV2, equalSemantic, verdictForOutcomeV2, verifyStoredClaimsV2 } from "./cell-claims";
 import { bindManifestV3, deriveOutcomeV3, verdictForOutcomeV3, verifyStoredClaimsV3, type PublicAccount } from "./claims-v3";
+import { bindManifestV4, deriveOutcomeV4, verdictForOutcomeV4, verifyStoredClaimsV4, type SetupScriptRecord } from "./claims-v4";
+import { assertProvenanceV4Consistency, type ProvenanceEvidenceV4 } from "./provenance-v4";
+import { defaultDevnet, SEALING_FILES, sealingFingerprint, type SealingConfiguration } from "./devnet-identity";
 import type { ResolvedSystemScripts } from "./offckb";
 import { assertProvenanceConsistency, type ProvenanceEvidence, type ProvenanceEvidenceV3, type LegacyProvenanceEvidence } from "./provenance";
 import type { ManifestToolchain, TransactionExpectation } from "./types";
@@ -101,6 +104,13 @@ export interface EnvironmentEvidenceV4 extends Omit<EnvironmentEvidence, "schema
   schema: "ckb-verify-environment/4";
   provenance: ProvenanceEvidenceV3;
   devnet: EnvironmentEvidence["devnet"] & { accounts: PublicAccount[] };
+}
+
+/** Spec 0.2.0 reports: deployments, the sealing configuration, and provenance/4 join the environment. */
+export interface EnvironmentEvidenceV5 extends Omit<EnvironmentEvidenceV4, "schema" | "devnet" | "provenance"> {
+  schema: "ckb-verify-environment/5";
+  provenance: ProvenanceEvidenceV4;
+  devnet: EnvironmentEvidenceV4["devnet"] & { scripts: SetupScriptRecord[]; sealing: SealingConfiguration };
 }
 
 export interface EvidenceDigests {
@@ -233,6 +243,56 @@ function verifyEnvironmentContract(value: unknown, evidence: { steps: Array<Pick
   }
 }
 
+/**
+ * environment/5: provenance/4 consistency, the CKB binary anchor and debugger identity (as for /3 and /4), the
+ * genesis hash against the pinned default devnet of the executed CKB release, and the sealing configuration
+ * against its recorded files and the pinned default fingerprint.
+ */
+function verifyEnvironmentV5(value: unknown, steps: ReadonlyArray<{ kind: string; rejection?: { kind?: string }; expectedStatus?: string }>): void {
+  const environment = record(value, "environment");
+  if (environment.schema !== "ckb-verify-environment/5") throw new Error("environment/5 required");
+  const keys = Object.keys(environment).sort().join(",");
+  if (keys !== "devnet,platform,provenance,runner,schema,toolchain") throw new Error("environment/5 must have exactly devnet, platform, provenance, runner, schema, toolchain");
+  const provenance = environment.provenance;
+  assertProvenanceV4Consistency(provenance);
+  const toolchain = record(environment.toolchain, "toolchain");
+  const requested = record(toolchain.requested, "requested toolchain"), observed = record(toolchain.observed, "observed toolchain");
+  const ckbBinary = provenance.binaries.ckb;
+  const platform = record(environment.platform, "recorded platform");
+  if (platform.os !== ckbBinary.platform || platform.arch !== ckbBinary.architecture) throw new Error("recorded platform contradicts the CKB binary identity");
+  if (typeof observed.ckb !== "string" || (observed.ckb !== ckbBinary.version && !observed.ckb.startsWith(`${ckbBinary.version} `))) {
+    throw new Error("observed CKB version contradicts the CKB binary identity");
+  }
+  if (provenance.toolchain.ckb.requested !== requested.ckb || provenance.toolchain.ckb.observed !== ckbBinary.version) {
+    throw new Error("tool-version record contradicts the requested toolchain or the CKB binary identity");
+  }
+  const debuggerBinary = provenance.binaries.ckbDebugger;
+  if (debuggerBinary === null) {
+    if ("ckbDebugger" in requested || "ckbDebugger" in observed ||
+        steps.some((step) => step.kind === "transaction" && (step.rejection?.kind === "script" || step.expectedStatus === "rejected"))) {
+      throw new Error("requested or used debugger requires binary identity");
+    }
+  } else if (requested.ckbDebugger !== debuggerBinary.version || observed.ckbDebugger !== `ckb-debugger ${debuggerBinary.version}` ||
+      platform.os !== debuggerBinary.platform || platform.arch !== debuggerBinary.architecture) {
+    throw new Error("debugger versions or recorded platform contradict binary identity");
+  }
+  const devnet = record(environment.devnet, "environment.devnet");
+  const pinned = defaultDevnet(ckbBinary.version);
+  if (devnet.genesisHash !== pinned.genesisHash) throw new Error(`genesis ${String(devnet.genesisHash)} is not the pinned default devnet genesis for CKB ${ckbBinary.version}`);
+  const sealing = record(devnet.sealing, "environment.devnet.sealing");
+  if (Object.keys(sealing).sort().join(",") !== "files,fingerprint" || !Array.isArray(sealing.files)) throw new Error("environment.devnet.sealing must have exactly files and fingerprint");
+  if (sealing.files.length !== SEALING_FILES.length) throw new Error("environment.devnet.sealing.files must list every sealing file");
+  sealing.files.forEach((file, i) => {
+    const f = record(file, `environment.devnet.sealing.files[${i}]`);
+    if (Object.keys(f).sort().join(",") !== "path,sha256" || f.path !== SEALING_FILES[i] || typeof f.sha256 !== "string" || !/^sha256:[0-9a-f]{64}$/.test(f.sha256)) {
+      throw new Error(`environment.devnet.sealing.files[${i}] must be ${SEALING_FILES[i]} with its sha256`);
+    }
+  });
+  if (sealing.fingerprint !== sealingFingerprint(sealing.files as SealingConfiguration["files"])) throw new Error("sealing fingerprint does not match the recorded files");
+  if (provenance.devnet.sealingFingerprint !== sealing.fingerprint) throw new Error("provenance sealing fingerprint contradicts the recorded sealing configuration");
+  if (provenance.devnet.defaultSealingFingerprint !== pinned.sealingFingerprint) throw new Error(`default sealing fingerprint is not the pinned default for CKB ${ckbBinary.version}`);
+}
+
 function rejectV1Markers(value: Record<string, unknown>, label: string, fields: readonly string[]): void {
   for (const field of fields) {
     if (Object.hasOwn(value, field)) {
@@ -264,6 +324,26 @@ export function verifyReport(report: unknown, options: { allowLegacy?: boolean }
   try {
     const artifact = record(report, "report");
     if (!Object.hasOwn(artifact, "schema")) throw new EvidenceIntegrityError("explicit report schema required");
+    if (artifact.schema === "ckb-verify-report/4") {
+      for (const key of ["schema", "evidence", "outcomeClaims", "environment", "verdict", "digests"]) {
+        const descriptor = Object.getOwnPropertyDescriptor(artifact, key);
+        if (descriptor === undefined || !descriptor.enumerable || !Object.hasOwn(descriptor, "value")) throw new EvidenceIntegrityError(`report.${key}: required own enumerable data member`);
+      }
+      const evidence = record(artifact.evidence, "evidence"), outcome = record(artifact.outcomeClaims, "outcomeClaims");
+      const environment = record(artifact.environment, "environment"), provenance = record(environment.provenance, "provenance");
+      if (outcome.schema !== "ckb-verify-outcome/4" || evidence.spec !== "0.2.0" || outcome.spec !== "0.2.0" ||
+          environment.schema !== "ckb-verify-environment/5" || provenance.schema !== "ckb-verify-provenance/4") {
+        throw new EvidenceIntegrityError("unsupported report/4 version tuple");
+      }
+      bindManifestV4(evidence, environment);
+      const derived = deriveOutcomeV4(evidence, environment);
+      verifyEnvironmentV5(environment, derived.steps);
+      verifyStoredClaimsV4(evidence, derived);
+      equalSemantic(outcome, derived, "outcomeClaims");
+      equalSemantic(artifact.verdict, verdictForOutcomeV4(derived), "verdict");
+      equalSemantic(artifact.digests, { outcome: canonicalSha256(derived), environment: canonicalSha256(environment) }, "digests");
+      return;
+    }
     if (artifact.schema === "ckb-verify-report/2" || artifact.schema === "ckb-verify-report/3") {
       const v3 = artifact.schema === "ckb-verify-report/3";
       // Check only fields consumed by this branch; this is not a full envelope schema.

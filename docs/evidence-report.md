@@ -31,6 +31,23 @@ Both entrypoints support exactly these v1 tuples:
 
 Only `verifyReport` additionally accepts report `/2` (outcome `ckb-verify-outcome/2`, **both** specs `0.1.0-draft.4`, environment `/3`, provenance `/2`) and report `/3` (outcome `/3`, specs both `0.1.0` or both `0.1.0-draft.5`, environment `/4`, provenance `/3`; see the [v0.1 vocabulary](vocabulary-v0.1.md)). Missing, unknown, and mixed versions/specs are rejected, even after a TypeScript cast or recomputation of stored hashes. Legacy opt-in never enables a historical environment for report `/2`.
 
+Spec `0.2.0` reports are `ckb-verify-report/4`: outcome `/4`, **both** specs `0.2.0`, environment `/5`, provenance `/4` ([vocabulary](vocabulary-v0.2.md)). For report/4, `verifyReport` checks the following before re-deriving the verdict and both digests:
+
+- it binds the retained manifest text to every duplicated declaration, including each step's `kind` and its declared error group;
+- it re-validates every deployment record in `environment.devnet.scripts`:
+  - a data hash type's code hash equals its data hash;
+  - a `type` deployment's code hash is its Type ID script hash, and that Type ID script is the code Cell's type;
+  - the recorded code Cell's data hash equals the binary's;
+  - a builtin alias equals its system script;
+- it re-derives every claim with the 0.1.0 rules, resolving named references against those records;
+- for a script rejection, it checks the retained input Cells against the transaction's inputs and the rejected input's script, and refuses an error-group reference that matches more than one group;
+- it accepts a node rejection's `rpcCode` only if it is a terminal code;
+- it requires the genesis to be the pinned default for the executed CKB release;
+- it re-computes the sealing fingerprint from its files and checks it against provenance/4 and the pinned default;
+- it re-derives provenance/4's replay reasons from its recorded inputs.
+
+Offline there are no binary bytes: a consistently rewritten binary hash produces a self-consistent report, but its outcome digest differs from the genuine one, so equal outcome digests still mean the same deployed binaries.
+
 `verifyEvidenceDigests(components, options)` remains a **v1-only component compatibility helper** with its existing verdict/evidence/outcome/environment/digest inputs. Only this helper permits omission of the top-level schema. If an own `schema` property is supplied, it must be exactly `ckb-verify-report/1`; a present `undefined`, `null`, or other value is not omission. The same nested version/spec guards and legacy opt-in apply to schema-less components. Do not use this omission allowance when reading a complete report.
 
 Before v1 normalization and verdict derivation, both entrypoints exclude these semantic markers in their specific slots:

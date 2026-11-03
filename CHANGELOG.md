@@ -3,9 +3,37 @@
 All notable changes to `ckb-verify` are recorded here. The project is unreleased: versions below are
 the private `version` field of `package.json`, not published packages. Dates are UTC.
 
-## 0.1.0 — 2026-11-02
+## 0.1.0 — 2026-11-03
 
 ### Added
+
+- Manifest spec `0.2.0`, which carries the parts of the proposal's target v0.1 that the frozen `0.1.0`
+  lacks ([vocabulary](docs/vocabulary-v0.2.md); [decision](docs/release-decisions.md)). It is written
+  as `ckb-verify-report/4` with `outcome/4`, `environment/5`, and `provenance/4`, and frozen by
+  `tests/frozen-contract-v0.2.test.ts`. The frozen `0.1.0` and its lock are unchanged.
+  - `[setup.scripts.<name>]` repository binaries. The runner deploys them with `offckb deploy`
+    (`type` via Type ID, or `data`, `data1`, `data2`) and checks each code Cell on chain against the
+    binary's bytes. Built-in aliases are also supported.
+  - Named references `"name"` and `{ script = "name", args }` in Cell, balance, dependency, and group
+    claims.
+  - Pure steps, zero steps, and zero accounts.
+  - `expect.error.group`. The verifier uses retained input Cells to refuse a reference that matches
+    more than one group.
+  - Terminal node rejections from `send_transaction`, recorded with their RPC code.
+  - provenance/4: every common lockfile, runtime pins with the versions the step environment
+    reports, the sanitized repository URL, and the devnet sealing fingerprint (`nondefault_devnet`).
+  - The genesis is checked against a pinned allowlist.
+  - New schemas: `ckb-verify-manifest-v2`, `ckb-verify-claims-v4`, `ckb-verify-provenance-v4`, and a
+    `report/4` branch.
+- `run --report <file>` and `run --json`, for every spec.
+- The repository-script showcase (`bun run showcase:repository-script`, CI job `repository-script`).
+  It uses a lock script assembled from this repository and runs on fresh devnets:
+  - deploy, a pure step, create, and a legal spend;
+  - a group-pinned illegal spend, and a wrong-group control;
+  - a node rejection, and a node rejection that cannot satisfy an error code;
+  - a pure step that writes a result, and a missing binary;
+  - zero accounts and zero steps;
+  - a repeat run, and a variant binary that changes the outcome digest.
 
 - Published whole-manifest and whole-report JSON Schemas (`schemas/ckb-verify-manifest-v1.schema.json`,
   `schemas/ckb-verify-report.schema.json`) run by the offline commands next to the strict parser and

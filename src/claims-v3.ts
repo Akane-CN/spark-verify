@@ -55,7 +55,7 @@ export interface CellDefinitionV3 {
   target: { outPoint?: { step: string; index: number }; lock?: ScriptRef; type?: ScriptRef };
   expected: { count: CountRange; data?: { eq?: string; len?: number; minBytes?: number }; capacity?: QuantityRange };
 }
-export interface CellDepsDefinitionV3 { kind: "cell_deps"; target: { step: string }; expected: { contains: { kind: "builtin"; name: string } } }
+export interface CellDepsDefinitionV3 { kind: "cell_deps"; target: { step: string }; expected: { contains: { kind: "builtin" | "setup"; name: string } } }
 export interface BalanceDefinitionV3 { kind: "balance"; target: BalanceTarget; expected: { udt?: { type: ScriptRef }; amount: QuantityRange } }
 export type ClaimDefinitionV3 = CellDefinitionV3 | CellDepsDefinitionV3 | BalanceDefinitionV3;
 export interface SelectedCell { outPoint: { txHash: string; index: number }; capacity: string; dataBytes: number | null; dataHash: string | null }
@@ -109,12 +109,19 @@ export function claimDefinitionV3(claim: ClaimV5): ClaimDefinitionV3 {
 export interface ResolutionContext {
   systemScript(name: string): ResolvedSystemScript;
   account(index: number): PublicAccount;
+  /** 0.2.0 only: a named `[setup.scripts]` entry, resolved from the recorded deployments and aliases. */
+  setupScript?(name: string): ResolvedSystemScript;
 }
 export interface ResolvedScript { code_hash: string; hash_type: HashType; args: string | null }
 
 export function resolveScriptRef(ref: ScriptRef, context: ResolutionContext): ResolvedScript {
   if (ref.kind === "explicit") return { code_hash: ref.codeHash, hash_type: ref.hashType, args: ref.args };
   if (ref.kind === "builtin") { const b = context.systemScript(ref.name); return { code_hash: b.codeHash, hash_type: b.hashType, args: ref.args }; }
+  if (ref.kind === "setup") {
+    if (context.setupScript === undefined) fail("script reference", "named setup scripts require a 0.2.0 report");
+    const s = context.setupScript(ref.name);
+    return { code_hash: s.codeHash, hash_type: s.hashType, args: ref.args };
+  }
   const lock = context.account(ref.index).lock;
   return { code_hash: lock.codeHash, hash_type: lock.hashType, args: lock.args };
 }
@@ -333,7 +340,35 @@ export function deriveOutcomeV3(evidence: unknown, environment: unknown): Outcom
     return tx;
   });
   const stepIndex = (name: string): number => m.steps.findIndex((s) => s.name === name);
+  const phaseContext: PhaseContext = {
+    context,
+    step(name) {
+      const index = stepIndex(name);
+      return { tx: transactions[index]!, transactionHash: rawSteps[index]!.transactionHash as string, observedStatus: rawSteps[index]!.observedStatus as "committed" | "rejected" };
+    },
+  };
+  const phase = (definitions: ClaimV5[], raw: unknown, path: string): ClaimOutcomeV3[] => derivePhaseV3(definitions, raw, path, phaseContext);
+  return { schema: OUTCOME_V3, name: m.meta.name, spec: m.meta.spec,
+    steps: rawSteps.map((s, i) => ({ name: m.steps[i]!.name,
+      ...(m.steps[i]!.expect === undefined ? {} : { expectedStatus: m.steps[i]!.expect!.tx }),
+      ...(m.steps[i]!.expect?.error?.code === undefined ? {} : { expectedErrorCode: m.steps[i]!.expect!.error!.code! }),
+      ...(m.steps[i]!.expect?.cycles === undefined ? {} : { expectedCycles: m.steps[i]!.expect!.cycles! }),
+      observedStatus: s.observedStatus as "committed" | "rejected",
+      ...(s.cycles === undefined ? {} : { cycles: s.cycles as number }),
+      ...(s.rejection === undefined ? {} : { rejection: s.rejection as RejectionEvidence }),
+      claims: phase(m.steps[i]!.assertions, s.claims, `evidence.steps[${i}].claims`) })),
+    assertions: phase(m.assertions, e.assertions, "evidence.assertions") };
+}
 
+/** What claim derivation needs from a run: reference resolution and the transaction steps by name. */
+export interface PhaseContext {
+  context: ResolutionContext;
+  step(name: string): { tx: ReturnType<typeof validateTransaction>; transactionHash: string; observedStatus: "committed" | "rejected" };
+}
+
+/** Re-derives one phase's claims (a step's immediate claims, or the final assertions) from their retained raw inputs. */
+export function derivePhaseV3(definitions: ClaimV5[], raw: unknown, path: string, ctx: PhaseContext): ClaimOutcomeV3[] {
+  const { context } = ctx;
   function selectedFromIndexer(input: IndexerInput, definition: CellDefinitionV3): SelectedCell[] {
     const { lock, type } = definition.target;
     const lockScript = lock === undefined ? undefined : resolveScriptRef(lock, context);
@@ -359,15 +394,17 @@ export function deriveOutcomeV3(evidence: unknown, environment: unknown): Outcom
     });
   }
 
-  function phase(definitions: ClaimV5[], raw: unknown, path: string): ClaimOutcomeV3[] {
+  {
     const snapshots = new Map<string, unknown>();
     return definitions.map((claim, i) => {
       const p = `${path}[${i}]`, c = object(list(raw, path)[i], p);
       const definition = claimDefinitionV3(claim);
       if (definition.kind === "cell_deps") {
         if (Object.hasOwn(c, "input")) fail(`${p}.input`, "not supported for dependency claims");
-        const tx = transactions[stepIndex(definition.target.step)]!;
-        const binding = context.systemScript(definition.expected.contains.name);
+        const tx = ctx.step(definition.target.step).tx;
+        const binding = definition.expected.contains.kind === "setup"
+          ? (context.setupScript ?? (() => fail(`${p}.expected.contains`, "named setup scripts require a 0.2.0 report")))(definition.expected.contains.name)
+          : context.systemScript(definition.expected.contains.name);
         const members = new Set(tx.cell_deps.map((d) => canonicalize(d)));
         const present = bindingDeps(binding).map((d) => members.has(canonicalize(d)));
         return { ...definition, observed: { present }, observationValid: true, ok: present.every(Boolean) };
@@ -397,7 +434,7 @@ export function deriveOutcomeV3(evidence: unknown, environment: unknown): Outcom
       }
       // cell
       if (definition.target.outPoint !== undefined) {
-        const index = stepIndex(definition.target.outPoint.step), tx = transactions[index]!;
+        const target = ctx.step(definition.target.outPoint.step), tx = target.tx;
         if (definition.target.outPoint.index >= tx.outputs.length) {
           exact(inputRecord, ["kind"], [], `${p}.input`);
           if (inputRecord.kind !== "missing-output") fail(`${p}.input.kind`, "must be missing-output");
@@ -407,20 +444,20 @@ export function deriveOutcomeV3(evidence: unknown, environment: unknown): Outcom
         if (inputRecord.kind !== "query") fail(`${p}.input.kind`, "must be query");
         const out = object(inputRecord.outPoint, `${p}.input.outPoint`); exact(out, ["tx_hash", "index"], [], `${p}.input.outPoint`);
         equalSemantic({ tx_hash: hash32(out.tx_hash, `${p}.input.outPoint.tx_hash`), index: quantity(out.index, 8, `${p}.input.outPoint.index`) },
-          { tx_hash: rawSteps[index]!.transactionHash, index: `0x${definition.target.outPoint.index.toString(16)}` }, `${p}.input.outPoint`);
+          { tx_hash: target.transactionHash, index: `0x${definition.target.outPoint.index.toString(16)}` }, `${p}.input.outPoint`);
         const response = validateLiveCellResponse(inputRecord.response, `${p}.input.response`);
         const key = JSON.stringify(definition.target.outPoint);
         if (snapshots.has(key)) equalSemantic(inputRecord.response, snapshots.get(key), `${p}.input phase snapshot`); else snapshots.set(key, inputRecord.response);
         if (response.status !== "live") {
           return { ...definition, observed: { state: "non-live", status: response.status, count: 0 }, observationValid: true, ok: inRange(0n, definition.expected.count) && definition.expected.data === undefined && definition.expected.capacity === undefined };
         }
-        if (rawSteps[index]!.observedStatus !== "committed") fail(p, "live Cell requires committed target step");
+        if (target.observedStatus !== "committed") fail(p, "live Cell requires committed target step");
         const selected = tx.outputs[definition.target.outPoint.index]!;
         equalSemantic({ ...response.cell.output, type: response.cell.output.type ?? null }, { ...selected, type: selected.type ?? null }, `${p}.input.response.cell.output`);
         equalSemantic(response.cell.data.content, tx.outputs_data[definition.target.outPoint.index], `${p}.input.response.cell.data.content`);
         const lockOk = definition.target.lock === undefined || matches(response.cell.output.lock, resolveScriptRef(definition.target.lock, context));
         const typeOk = definition.target.type === undefined || matches(response.cell.output.type, resolveScriptRef(definition.target.type, context));
-        const cells: SelectedCell[] = lockOk && typeOk ? [{ outPoint: { txHash: rawSteps[index]!.transactionHash as string, index: definition.target.outPoint.index },
+        const cells: SelectedCell[] = lockOk && typeOk ? [{ outPoint: { txHash: target.transactionHash, index: definition.target.outPoint.index },
           capacity: BigInt(response.cell.output.capacity).toString(), dataBytes: byteLength(response.cell.data.content), dataHash: response.cell.data.hash }] : [];
         const rawData = new Map(cells.map((cell) => [canonicalize(cell.outPoint), response.cell.data.content]));
         return { ...definition, observed: { state: "selected", count: cells.length, cells }, observationValid: true, ok: cellOk(definition, cells, rawData) };
@@ -434,16 +471,6 @@ export function deriveOutcomeV3(evidence: unknown, environment: unknown): Outcom
       return { ...definition, observed: { state: "selected", count: cells.length, cells }, observationValid: true, ok: cellOk(definition, cells, rawData) };
     });
   }
-  return { schema: OUTCOME_V3, name: m.meta.name, spec: m.meta.spec,
-    steps: rawSteps.map((s, i) => ({ name: m.steps[i]!.name,
-      ...(m.steps[i]!.expect === undefined ? {} : { expectedStatus: m.steps[i]!.expect!.tx }),
-      ...(m.steps[i]!.expect?.error?.code === undefined ? {} : { expectedErrorCode: m.steps[i]!.expect!.error!.code! }),
-      ...(m.steps[i]!.expect?.cycles === undefined ? {} : { expectedCycles: m.steps[i]!.expect!.cycles! }),
-      observedStatus: s.observedStatus as "committed" | "rejected",
-      ...(s.cycles === undefined ? {} : { cycles: s.cycles as number }),
-      ...(s.rejection === undefined ? {} : { rejection: s.rejection as RejectionEvidence }),
-      claims: phase(m.steps[i]!.assertions, s.claims, `evidence.steps[${i}].claims`) })),
-    assertions: phase(m.assertions, e.assertions, "evidence.assertions") };
 }
 
 export function verdictForOutcomeV3(outcome: OutcomeV3): "PASS" | "FAIL" {

@@ -1,0 +1,58 @@
+[meta]
+name = "repository-script-node-rejected"
+spec = "0.2.0"
+description = "Re-spending a consumed Cell is a terminal node rejection, which satisfies only a bare rejected expectation."
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.13"
+ckb-debugger = "1.1.1"
+
+[replay]
+dependencies = []
+
+[setup]
+accounts = 2
+
+[setup.scripts.witness_lock]
+binary = "showcases/repository-script/build/witness_lock"
+hash_type = "type"
+
+[setup.scripts.witness_lock_v1]
+binary = "showcases/repository-script/build/witness_lock"
+hash_type = "data1"
+
+[[step]]
+name = "create protected cells"
+run = "bun run showcases/repository-script/produce.ts create"
+expect.tx = "committed"
+
+[[step.assert.cell]]
+out_point = { step = "create protected cells", index = 0 }
+lock = { script = "witness_lock", args = "0x01" }
+count = 1
+capacity.eq = "300 CKB"
+
+[[step.assert.cell]]
+out_point = { step = "create protected cells", index = 1 }
+lock = { script = "witness_lock_v1", args = "0x02" }
+count = 1
+
+[[step]]
+name = "spend with matching witness"
+run = "bun run showcases/repository-script/produce.ts spend-matching"
+expect.tx = "committed"
+
+[[step]]
+name = "spend the spent cell again"
+run = "bun run showcases/repository-script/produce.ts spend-again"
+expect.tx = "rejected"
+
+[[assert.cell]]
+out_point = { step = "spend with matching witness", index = 0 }
+lock = { account = 1 }
+count = 1
+
+[[assert.cell]]
+out_point = { step = "spend the spent cell again", index = 0 }
+count = 0

@@ -46,6 +46,15 @@ port_listening() { bun -e 'import { createConnection } from "node:net"; const s 
   s.setTimeout(300, () => { s.destroy(); process.exit(1); }); s.once("connect", () => { s.destroy(); process.exit(0); }); s.once("error", () => process.exit(1));' "$1" "${2:-127.0.0.1}"; }
 wait_for_port() { local i; for i in $(seq 1 240); do port_listening "$1" && return 0; sleep 0.5; done; return 1; }
 
+# Spec 0.2.0 repository-script manifests, from the showcase, with the binary and producer paths of this layout.
+write_v02_manifests() { # dir binary-path producer-command
+  local dir=$1 binary=$2 producer=$3 name
+  for name in committed rejected wrong-group; do
+    sed -e "s#showcases/repository-script/build/witness_lock#$binary#" -e "s#bun run showcases/repository-script/produce.ts#$producer#" \
+      "$ROOT/showcases/repository-script/verify.$name.toml" > "$dir/v02-$name.toml"
+  done
+}
+
 write_manifests() { # dir producer-prefix
   local dir=$1 prefix=$2
   local head='[meta]
@@ -119,6 +128,10 @@ JSON
   if (cd "$NOPATCH" && bun install >"$WORK/nopatch.log" 2>&1); then record install-without-patch-file "bun install refuses (missing patch file)" "install succeeded" FAIL
   else record install-without-patch-file "bun install refuses (missing patch file)" "exit 1: $(grep -m1 -o 'could not find patch file[^ ]*' "$WORK/nopatch.log")" PASS; fi
   write_manifests "$PROJECT" "bun run produce.ts"
+  # Spec 0.2.0: the consumer deploys its own copy of the showcase lock script with the installed runner.
+  mkdir -p "$PROJECT/build"; cp "$ROOT/showcases/repository-script/build/witness_lock" "$PROJECT/build/witness_lock"
+  cp "$ROOT/showcases/repository-script/produce.ts" "$PROJECT/repository-script.ts"
+  write_v02_manifests "$PROJECT" build/witness_lock "bun run repository-script.ts"
   (cd "$PROJECT" && git add -A && git commit -qm "consumer acceptance fixture")
   # Runtime gate: a package manager that ignores patchedDependencies leaves the bundled archive code
   # active. Simulate that bundle and prove the runner refuses before any devnet mutation.
@@ -133,6 +146,7 @@ JSON
 else
   PROJECT=$ROOT; CLI=(bun run "$ROOT/src/cli.ts")
   write_manifests "$WORK" "bun run showcases/secp-transfer/produce.ts"
+  write_v02_manifests "$WORK" showcases/repository-script/build/witness_lock "bun run showcases/repository-script/produce.ts"
   PACKED_VERSION=$(cd "$ROOT" && bun run src/cli.ts --version)
 fi
 MANIFESTS=$([[ $MODE == consumer ]] && echo "$PROJECT" || echo "$WORK")
@@ -260,6 +274,22 @@ if (( STATUS == 2 )) && [[ $(report_count) == 0 ]] && closeout_ok >/dev/null; th
 else record download-failure-cold "exit 2 without verdict" "exit $STATUS: $(tail -1 <<<"$OUT" | cut -c1-90)" FAIL; fi
 run_manifest "$MANIFESTS/committed.toml"
 if (( STATUS == 0 )) && closeout_ok >/dev/null; then record recovery-after-download-failure "PASS exit 0" "exit 0" PASS; else record recovery-after-download-failure "PASS exit 0" "exit $STATUS" FAIL; fi
+
+# ---------------------------------------------------------------- spec 0.2.0: deploy a repository script, pin an error group
+run_manifest "$MANIFESTS/v02-committed.toml"
+if (( STATUS == 0 )) && [[ $OUT == PASS:* ]] && [[ $(field "$REPORT" schema) == ckb-verify-report/4 ]] &&
+   [[ $(field "$REPORT" outcomeClaims.setup.scripts.0.kind) == binary ]] && [[ $(field "$REPORT" outcomeClaims.steps.0.kind) == pure ]] && closeout_ok >/dev/null &&
+   (cd "$PROJECT" && runner digest "$REPORT" >/dev/null 2>&1); then
+  record v02-repository-script "PASS exit 0: deploy, pure step, create, legal spend (report/4, offline VALID)" "exit 0, witness_lock $(field "$REPORT" outcomeClaims.setup.scripts.0.hashType) $(field "$REPORT" outcomeClaims.setup.scripts.0.codeHash | cut -c1-18)…" PASS
+else record v02-repository-script "PASS exit 0 with report/4" "exit $STATUS: $(tail -1 <<<"$OUT" | cut -c1-120)" FAIL; fi
+run_manifest "$MANIFESTS/v02-rejected.toml"
+if (( STATUS == 0 )) && [[ $(field "$REPORT" evidence.steps.1.rejection.code) == 42 ]] && [[ $(field "$REPORT" evidence.steps.1.expectedErrorGroup.role) == lock ]] && closeout_ok >/dev/null; then
+  record v02-error-group "PASS exit 0: code 42 from the witness_lock group" "exit 0, code 42, group lock" PASS
+else record v02-error-group "PASS exit 0 with code 42 and group" "exit $STATUS: $(tail -1 <<<"$OUT" | cut -c1-120)" FAIL; fi
+run_manifest "$MANIFESTS/v02-wrong-group.toml"
+if (( STATUS == 1 )) && grep -q 'expect.error.group' <<<"$OUT" && closeout_ok >/dev/null; then
+  record v02-wrong-group "FAIL exit 1: same code, different group" "exit 1, group mismatch" PASS
+else record v02-wrong-group "FAIL exit 1 on the group" "exit $STATUS: $(tail -1 <<<"$OUT" | cut -c1-120)" FAIL; fi
 
 # ---------------------------------------------------------------- final closeout
 if MSG=$(closeout_ok 2>&1); then record final-closeout "no accounts/pending, ports free" "clean" PASS; else record final-closeout "clean" "$MSG" FAIL; fi

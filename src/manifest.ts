@@ -20,6 +20,7 @@ const SPEC_VERSION = "0.1.0-draft.3" as const;
 export { MAX_BYTES } from "./limits";
 import { MAX_BYTES } from "./limits";
 import { parseAssertionsV5, parseExpectationV5 } from "./manifest-v5";
+import { parseManifestV6 } from "./manifest-v6";
 const OFFCKB_VERSION = "0.4.13" as const;
 const EXACT_VERSION = /^\d+\.\d+\.\d+$/;
 const REPLAY_DEPENDENCIES = new Set<ReplayDependency>([
@@ -72,8 +73,8 @@ function parseMeta(value: unknown, source: string): ManifestMeta {
   exactKeys(table, ["name", "spec", "description"], "meta", source);
   const name = requiredString(table.name, "meta.name", source);
   if (name.length > 100) fail(source, "meta.name must not exceed 100 characters");
-  if (table.spec !== SPEC_VERSION && table.spec !== "0.1.0-draft.4" && table.spec !== "0.1.0-draft.5" && table.spec !== "0.1.0") {
-    fail(source, 'meta.spec must equal "0.1.0", "0.1.0-draft.5", "0.1.0-draft.4", or "0.1.0-draft.3"');
+  if (table.spec !== SPEC_VERSION && table.spec !== "0.1.0-draft.4" && table.spec !== "0.1.0-draft.5" && table.spec !== "0.1.0" && table.spec !== "0.2.0") {
+    fail(source, 'meta.spec must equal "0.2.0", "0.1.0", "0.1.0-draft.5", "0.1.0-draft.4", or "0.1.0-draft.3"');
   }
 
   let description: string | undefined;
@@ -324,6 +325,9 @@ export function parseManifestText(text: string, source = "verify.toml"): Manifes
   const root = asObject(parsed, "manifest", source);
   exactKeys(root, ["meta", "toolchain", "replay", "setup", "step", "assert"], "", source);
   const meta = parseMeta(root.meta, source);
+  if (meta.spec === "0.2.0") {
+    return parseManifestV6(root, { ...meta, spec: "0.2.0" }, parseToolchain(root.toolchain, source), parseReplay(root.replay, source), source);
+  }
   const common = { toolchain: parseToolchain(root.toolchain, source),
     replay: parseReplay(root.replay, source), setup: parseSetup(root.setup, source) };
   const parseBody = <A>(parser: (value: unknown, path: string, names: ReadonlySet<string>, source: string) => A[],

@@ -23,6 +23,7 @@
     "docs/annotated-manifest.md",
     "docs/cell-claims-draft.4.md",
     "docs/vocabulary-v0.1.md",
+    "docs/vocabulary-v0.2.md",
     "docs/version-policy.md",
     "SECURITY.md"
   ],
@@ -34,6 +35,7 @@
     "showcase:cell-properties": "bash showcases/cell-properties/verify.sh",
     "showcase:ckb-ugmp": "bash showcases/ckb-ugmp/verify.sh",
     "showcase:vocabulary": "bash showcases/vocabulary/verify.sh",
+    "showcase:repository-script": "bash showcases/repository-script/verify.sh",
     "test:devnet": "bun run showcase:secp-transfer",
     "check:supply-chain": "bun run scripts/check-supply-chain.ts",
     "typecheck": "tsc --noEmit",
