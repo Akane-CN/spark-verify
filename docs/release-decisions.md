@@ -89,6 +89,12 @@ Reopening a decision is a dated entry here, not an edit of the original text abo
 
 **Consequences.** The review's verifier fixes ship in `0.1.0`. `tests/frozen-contract.test.ts` and `lock.json` are unchanged and still pass. The candidate is re-frozen and re-gated with the fixes.
 
+### 2026-11-02: package identity and publication path
+
+**Decision (maintainer, on #20).** `v0.1.0` is published as a GitHub release with the tarball, `SHA256SUMS`, and the evidence archive as assets. It is not published to the npm registry. The package name stays `ckb-verify`, and `private: true` stays. The maintainer creates the tag and release (step 8 is approved) by following the [v0.1.0 release runbook](release-runbook-v0.1.0.md), after the independent review of the candidate is recorded.
+
+**Why.** The exercised installation path is the tarball, so no new candidate is needed. Registry publication would add an account, two-factor authentication, and a credential surface the repository has no use for yet.
+
 ## What this record does not do
 
 It does not freeze the RFC (only the v0.1 contract above), publish anything, or close #20's remaining gates (package identity, candidate freeze, independent review, publication approval). Reopening any decision is a new entry here with a date and a reason, not an edit of the old one.

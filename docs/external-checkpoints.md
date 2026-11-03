@@ -15,6 +15,7 @@ Internal showcases, merged feasibility probes, and committee review of the grant
 | --- | --- | --- | --- | --- |
 | Week 3 | 2026-10-23 | 2026-10-30 (late) | no outreach sent; no response | no outreach sent; no consent |
 | Week 8 | 2026-11-27 | 2026-11-02 (early, at the maintainer's request) | no outreach sent; no response | no outreach sent; no consent |
+| Week 8 amendment | 2026-11-27 | 2026-11-02 | outreach approved, not yet posted | outreach approved, not yet posted |
 
 ### Week 3 (recorded 2026-10-30)
 
@@ -36,9 +37,15 @@ The maintainer asked on 2026-11-02 for this checkpoint to be recorded, 25 days b
 
 **What would change these states.** Only maintainer decisions can: approving the draft question for publication (#2), approving a consent request to a named project maintainer (#3), or deciding to stop asking, which would record a no-go. A consented pilot counts only if it is reproducible from a clean checkout, has a maintainer-visible result, and records vocabulary and setup friction.
 
-## Draft upstream question (not published)
+### Week 8 amendment (2026-11-02): outreach approved
 
-Prepared for #2. Posting it to an OffCKB repository or forum requires the maintainer's explicit publication approval; this file is the draft, not the post.
+Later on 2026-11-02 the maintainer approved both outreach texts below for publication and chose to post them personally; nothing has been posted from this repository or by an agent. Approval alone changes neither state's evidence: until a post exists, both tracks still read **no outreach sent**, and the record moves to **no response** or **consented participation** only with a link to the post and, for the latter, to an attributable reply.
+
+When a text is posted, the next amendment records its link and date here and on the issue (#2 or #3). At the week-8 due date, 2026-11-27, each posted text without a reply is recorded as **no response**; a reply is quoted by link, not paraphrased into a claim. Neither track blocks the `0.1.0` release: the [release notes draft](release-notes-draft.md) already states that no upstream feedback or external pilot exists, and a reply that arrives after publication goes into the next release's notes.
+
+## Upstream question (approved 2026-11-02, for the maintainer to post)
+
+Prepared for #2 and approved for publication on 2026-11-02. Post it as a new discussion or issue in [`ckb-devrel/offckb`](https://github.com/ckb-devrel/offckb), whichever that repository accepts for design questions, then link the post on #2. The text describes release candidate `e311ad3`, which is what `0.1.0` will ship.
 
 > **Subject:** feedback request: an external acceptance-check runner on top of the OffCKB CLI
 >
@@ -52,3 +59,20 @@ Prepared for #2. Posting it to an OffCKB repository or forum requires the mainta
 > 4. **Rejected transactions.** The runner replays rejected scripts with a pinned `ckb-debugger 1.1.1` and records the error code and group. Are there proxy or debug artifacts OffCKB intends tools to rely on for this, rather than re-running the debugger?
 >
 > A "keep it external" answer is as useful as any other; we will record whichever decision you give in the RFC.
+
+## Pilot consent request (approved 2026-11-02, for the maintainer to post)
+
+Prepared for #3 and approved for publication on 2026-11-02. Post it as an issue in [`HNO3Miracle/CKB-UGMP`](https://github.com/HNO3Miracle/CKB-UGMP), then link the post on #3. It asks for consent first and promises nothing in the project's name; until the project's maintainer replies, the showcase keeps its feasibility label.
+
+> **Subject:** permission request: a reproducible acceptance check for the Spore mint path
+>
+> Hi! I maintain [`ckb-verify`](https://github.com/Akane-CN/spark-verify), a small tool that runs a repository's `verify.toml` on a fresh local OffCKB devnet and writes a report that anyone can re-check offline.
+>
+> To test it on real code, I adapted your Spore mint path (`lib/sporeMint.ts` and `lib/dobMetadata.ts` at `543def6e`) into a headless showcase: <https://github.com/Akane-CN/spark-verify/tree/main/showcases/ckb-ugmp>. It mints a Spore on a fresh devnet, checks that the output Cell is live, and checks that a copy with a tampered signature is rejected. The README labels it as independent feasibility work that you have not endorsed.
+>
+> Would you be willing to try it as a pilot? Concretely:
+>
+> 1. run `bun install --frozen-lockfile && bun run showcase:ckb-ugmp` from a clean checkout of `ckb-verify` (it takes several minutes, and the first run downloads CKB `0.209.0` and `ckb-debugger` `1.1.1`);
+> 2. tell me, here, whether it passed and anything that was confusing in the manifest vocabulary or setup.
+>
+> If you would rather I describe the showcase differently, or remove it, say so and I will. A "no thanks" is a perfectly good answer, and I will record it as such. Nothing will be described as a CKB-UGMP pilot or endorsement unless you agree to it here.

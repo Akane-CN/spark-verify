@@ -12,10 +12,12 @@ while (( $# > 0 )); do
     --consumer) MODE=consumer ;;
     --results) RESULTS=$2; shift ;;
     --keep) KEEP=1 ;;
-    *) printf 'usage: %s [--consumer] [--results <file>] [--keep]\n' "$0" >&2; exit 2 ;;
+    --tarball) TARBALL=$(realpath -- "$2"); shift ;;
+    *) printf 'usage: %s [--consumer [--tarball <ckb-verify-x.y.z.tgz>]] [--results <file>] [--keep]\n' "$0" >&2; exit 2 ;;
   esac
   shift
 done
+if [[ -n ${TARBALL:-} && $MODE != consumer ]]; then echo "--tarball requires --consumer" >&2; exit 2; fi
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/ckb-verify-acceptance-XXXXXX")
 cleanup_work() { (( KEEP )) || rm -rf "$WORK"; }
 trap cleanup_work EXIT
@@ -72,7 +74,13 @@ accounts = 2
 if [[ $MODE == consumer ]]; then
   echo "== packing and installing into a clean consumer project"
   DIST=$WORK/dist; mkdir -p "$DIST"
-  (cd "$ROOT" && bun pm pack --destination "$DIST" >"$WORK/pack.log" 2>&1) || { cat "$WORK/pack.log"; echo "pack failed"; exit 1; }
+  if [[ -n ${TARBALL:-} ]]; then
+    # Install-back of a published release (release checklist step 8): test the downloaded tarball itself.
+    [[ -f $TARBALL && $(basename "$TARBALL") == ckb-verify-*.tgz ]] || { echo "--tarball must name an existing ckb-verify-<version>.tgz"; exit 2; }
+    cp "$TARBALL" "$DIST/"
+  else
+    (cd "$ROOT" && bun pm pack --destination "$DIST" >"$WORK/pack.log" 2>&1) || { cat "$WORK/pack.log"; echo "pack failed"; exit 1; }
+  fi
   TGZ=$(ls "$DIST"/ckb-verify-*.tgz | head -1); PACKED_VERSION=$(basename "$TGZ" .tgz | sed 's/^ckb-verify-//')
   TGZ_SHA=$(sha256sum "$TGZ" | cut -d' ' -f1)
   PROJECT=$WORK/consumer; mkdir -p "$PROJECT/patches"
