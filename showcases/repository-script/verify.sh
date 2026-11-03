@@ -134,10 +134,13 @@ run_case() {
   LAST_REPORT=$report
 }
 
-# A case that must end without a verdict: exit 2, an ERROR line, and no report written anywhere.
+# A case that must end without a verdict: exit 2, an ERROR line, and no report written anywhere. Its partial
+# run directory (step logs only) is then removed, so the evidence packager sees only complete reports.
 run_no_verdict() {
-  local name=$1 manifest=$2 pattern=$3 output status before after
+  local name=$1 manifest=$2 pattern=$3 output status before after dir
   before=$(find .ckb-verify/runs -name report.json 2>/dev/null | wc -l)
+  local -a dirs_before=()
+  [[ -d .ckb-verify/runs ]] && mapfile -t dirs_before < <(ls .ckb-verify/runs)
   output=$(run_fixture "$manifest" 2>&1); status=$?
   printf '%s\n' "$output"
   after=$(find .ckb-verify/runs -name report.json 2>/dev/null | wc -l)
@@ -145,7 +148,15 @@ run_no_verdict() {
     printf 'case %s failed: exit=%s reports %s->%s\n' "$name" "$status" "$before" "$after" >&2
     return 1
   fi
-  verify_files && verify_ports
+  verify_files && verify_ports || return 1
+  if [[ -d .ckb-verify/runs ]]; then
+    for dir in $(ls .ckb-verify/runs); do
+      if ! printf '%s\n' "${dirs_before[@]}" | grep -qxF "$dir"; then
+        [[ -e .ckb-verify/runs/$dir/report.json ]] && { printf 'case %s left a report in %s\n' "$name" "$dir" >&2; return 1; }
+        rm -rf -- ".ckb-verify/runs/$dir"
+      fi
+    done
+  fi
 }
 
 compare_reports() {
