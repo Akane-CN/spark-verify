@@ -243,7 +243,7 @@ jobs:
             count=$((count + 1))
             bun run src/cli.ts check-bundle "$bundle" --source-sha "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY"
           done
-          test "$count" -eq 4
+          test "$count" -eq 5
       - name: Assemble the release-evidence archive from the verified bundles
         run: >
           bun run scripts/release-evidence.ts assemble
@@ -267,7 +267,7 @@ jobs:
             count=$((count + 1))
             bun run src/cli.ts check-bundle "$bundle" --source-sha "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY"
           done
-          test "$count" -eq 4
+          test "$count" -eq 5
       - name: Upload the release-evidence archive
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
