@@ -113,6 +113,8 @@ export interface RunManifestOptions {
   signal?: AbortSignal;
   /** 0.1.0 and draft.5 only: run on the pinned CKB when the manifest requests another exact version; recorded and tainting. */
   allowVersionDrift?: boolean;
+  /** Called as the run enters each stage; the stage of a failure is also on the thrown error (`runFailureStage`). */
+  onStage?: (stage: string) => void;
   /** How long indexer-backed claims wait for the node indexer to reach the chain tip (defaults: 30 s, polled every 200 ms). */
   indexerSync?: Partial<IndexerSyncPolicy>;
 }
@@ -693,12 +695,38 @@ function v6TransactionStep(manifest: ManifestV6, index: number, observed: Omit<E
   };
 }
 
+/**
+ * Where a run stopped, for the error a no-verdict run throws: "manifest", "preflight", "devnet", "setup",
+ * `step "<name>": command|result|submission|claims`, "final claims", "source guard", "report", or "cleanup".
+ * It separates a project or manifest problem from a toolchain one, which a bare message often does not.
+ */
+export function runFailureStage(error: unknown): string | undefined {
+  if (error === null || typeof error !== "object") return undefined;
+  const stage = (error as { ckbVerifyStage?: unknown }).ckbVerifyStage;
+  return typeof stage === "string" ? stage : undefined;
+}
+
 export async function runManifest(options: RunManifestOptions): Promise<RunManifestResult> {
+  const progress = { stage: "manifest" };
+  const enter = (stage: string) => { progress.stage = stage; options.onStage?.(stage); };
+  try {
+    return await runManifestStages(options, enter);
+  } catch (error) {
+    // The thrown error is kept as is (tests and callers inspect it); the stage rides along, not enumerable.
+    if (error !== null && typeof error === "object" && runFailureStage(error) === undefined) {
+      try { Object.defineProperty(error, "ckbVerifyStage", { value: progress.stage, enumerable: false, configurable: true }); } catch { /* frozen error objects keep no stage */ }
+    }
+    throw error;
+  }
+}
+
+async function runManifestStages(options: RunManifestOptions, enter: (stage: string) => void): Promise<RunManifestResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const manifestPath = resolve(projectRoot, options.manifestPath);
   const { manifest, bytes: manifestBytes } = await loadManifest(manifestPath);
   // Refuse unsupported platforms before the run directory, manifest copy, or any cache is written.
   // An injected devnet (tests) owns no runtime, so the gate applies to the real OffCKB path only.
+  enter("preflight");
   if (options.devnet === undefined) assertSupportedRuntimePlatform();
   if (manifest.toolchain.ckbDebugger !== undefined) {
     resolvePinnedDebuggerAsset(manifest.toolchain.ckbDebugger, process.platform, process.arch);
@@ -748,6 +776,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   let reportToPublish: RunManifestResult | undefined;
   try {
     throwIfAborted(options.signal);
+    enter("devnet");
     context = await devnet.start(options.signal);
     secrets = [...new Set([...await readSecrets(context.accountsPath), ...(devnet.redactionSecrets?.() ?? [])])];
     throwIfAborted(options.signal);
@@ -763,6 +792,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     let v6Sealing: SealingConfiguration | undefined;
     let scriptsPath: string | undefined;
     if (v6Manifest !== undefined) {
+      enter("setup");
       const pinned = defaultDevnet(context.ckbBinary.version);
       if (context.genesisHash !== pinned.genesisHash) {
         throw new Error(`devnet genesis ${context.genesisHash} is not the pinned default OffCKB devnet genesis ${pinned.genesisHash} for CKB ${context.ckbBinary.version}`);
@@ -796,6 +826,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       const stepDirectory = join(outputDir, "steps", `${String(index + 1).padStart(2, "0")}-${slug(step.name)}`);
       await mkdir(stepDirectory, { recursive: true });
       const resultPath = join(stepDirectory, "result.json");
+      enter(`step "${step.name}": command`);
       const commandResult = await runStep(step.run, {
         cwd: projectRoot,
         timeoutMs: step.timeoutMs,
@@ -820,15 +851,18 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
 
       if (v6Manifest !== undefined && v6Environment !== undefined && v6Manifest.steps[index]!.kind === "pure") {
         // A pure step submits nothing; writing a result is a contract violation, not something to ignore.
+        enter(`step "${step.name}": result`);
         let wrote = true;
         try { await lstat(resultPath); } catch (error) {
           if (error !== null && typeof error === "object" && "code" in error && error.code === "ENOENT") wrote = false; else throw error;
         }
         if (wrote) throw new Error(`pure step "${step.name}" wrote CKB_VERIFY_RESULT; declare expect.tx to make it a transaction step`);
+        enter(`step "${step.name}": claims`);
         v6Steps.push({ name: step.name, kind: "pure", durationMs: commandResult.durationMs,
           claims: await collectClaimsV3(v6Manifest.steps[index]!.assertions, transactions, transactionHashes, v6Environment, context.rpcUrl, rpc, indexerSync, options.signal, v6Resolution) });
         continue;
       }
+      enter(`step "${step.name}": result`);
       const envelope = await loadResultEnvelope(resultPath);
       const tx = envelope.transaction as CkbJsonRpcTransaction;
       if (modernManifest !== undefined) validateTransaction(tx);
@@ -842,6 +876,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       let observedStatus: "committed" | "rejected";
       let rejection: RejectionEvidence | undefined;
       let inputCells: InputCellRecord[] | undefined;
+      enter(`step "${step.name}": submission`);
       try {
         const dryRun = parseRpcCycles(await rpc(context.rpcUrl, "test_tx_pool_accept", [tx], options.signal));
         cycles = dryRun.cycles;
@@ -883,6 +918,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
           rejection = { kind: "node", rpcCode: error.code, reason: error.message };
           await writeJson(join(stepDirectory, "rpc-error.json"), { code: error.code, message: error.message, data: error.data });
           transactionHashes.set(step.name, txHash);
+          enter(`step "${step.name}": claims`);
           v6Steps.push(v6TransactionStep(v6Manifest, index, { observedStatus, rejection, transactionHash: txHash, transaction: tx, durationMs: commandResult.durationMs,
             claims: await collectClaimsV3(v6Manifest.steps[index]!.assertions, transactions, transactionHashes, v6Environment!, context.rpcUrl, rpc, indexerSync, options.signal, v6Resolution) }));
           continue;
@@ -941,6 +977,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
         transactionHash: txHash,
         durationMs: commandResult.durationMs,
       };
+      enter(`step "${step.name}": claims`);
       if (v6Manifest !== undefined && v6Environment !== undefined) {
         v6Steps.push(v6TransactionStep(v6Manifest, index, { observedStatus, ...(cycles === undefined ? {} : { cycles }), ...(rejection === undefined ? {} : { rejection }),
           ...(inputCells === undefined ? {} : { inputCells }), transactionHash: txHash, transaction: tx, durationMs: commandResult.durationMs,
@@ -960,6 +997,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       }
     }
 
+    enter("final claims");
     const assertions: ClaimEvidence[] = [];
     for (const assertion of legacyManifest?.assertions ?? []) {
       assertions.push(await evaluateCell(assertion, transactionHashes, transactionOutputCounts, context.rpcUrl, rpc, options.signal));
@@ -974,6 +1012,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     const v5Assertions = v5Manifest === undefined || v5Environment === undefined ? [] : await collectClaimsV3(v5Manifest.assertions, transactions, transactionHashes, v5Environment, context.rpcUrl, rpc, indexerSync, options.signal);
     const v6Assertions = v6Manifest === undefined || v6Environment === undefined ? [] : await collectClaimsV3(v6Manifest.assertions, transactions, transactionHashes, v6Environment, context.rpcUrl, rpc, indexerSync, options.signal, v6Resolution);
     throwIfAborted(options.signal);
+    enter("source guard");
     const finalSourceRevision = await collectSourceRevision(projectRoot);
     if (!sameSourceRevision(sourceRevision, finalSourceRevision)) {
       throw new Error("source revision changed during verification");
@@ -981,6 +1020,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     const environment = v6Manifest !== undefined
       ? await environmentEvidenceV5(projectRoot, v6Manifest, manifestBytes, context, finalSourceRevision, preparedDebugger, driftAllowed, v6Scripts, v6Sealing!)
       : await environmentEvidence(projectRoot, manifest, manifestBytes, context, finalSourceRevision, preparedDebugger, driftAllowed);
+    enter("report");
     let report: CkbVerifyReport;
     if (v6Manifest !== undefined) {
       const input: RunInputV4 = { name: v6Manifest.meta.name, spec: "0.2.0",
@@ -1047,6 +1087,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       }
     }
     if (cleanupErrors.length > 0) {
+      if (primaryError === undefined) enter("cleanup");
       const errors = primaryError === undefined ? cleanupErrors : [primaryError, ...cleanupErrors];
       const message = errors.map((error) => (error instanceof Error ? error.message : String(error))).join("; ");
       throw new AggregateError(errors, message);

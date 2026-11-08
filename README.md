@@ -79,11 +79,24 @@ The repository root carries its own [`verify.toml`](verify.toml): the secp256k1 
 
 The one exercised installation path (Linux x64, Bun 1.2.19, Node 20+) is documented step by step in [docs/install.md](docs/install.md): pack the tarball, declare the shipped OffCKB security patch **before** the first `bun install`, install into a clean project, run, and verify offline. The runner refuses to start a devnet next to an unpatched OffCKB bundle. `scripts/acceptance-matrix.sh --consumer` reproduces that path end to end; `scripts/acceptance-matrix.sh` runs the same scenario matrix against this checkout. The package is unreleased and private; see the [release checklist](docs/release-checklist.md), [maintenance loop](docs/maintenance.md), and [changelog](CHANGELOG.md).
 
+## Local console
+
+`ckb-verify ui` opens an interactive console on `http://127.0.0.1:4173/`. From it you can:
+
+- validate and run manifests, and watch each run's stages live;
+- see the stage a failed run stopped in;
+- read reports with every transaction drawn as input and output Cells and every claim as expected vs observed;
+- compare two runs;
+- verify a pasted report offline.
+
+See [docs/console.md](docs/console.md).
+
 ## CLI
 
 ```text
 ckb-verify run [manifest] [--allow-version-drift] [--report <file>] [--json]
 ckb-verify validate [manifest] [--json]
+ckb-verify ui [--port <n>] [--allow-host <host>]
 ckb-verify digest <report.json> [--json] [--allow-legacy]
 ckb-verify check-digest <report.json> [--outcome sha256:...] [--environment sha256:...] [--json] [--allow-legacy]
 ckb-verify check-bundle <bundle-dir> [--source-sha <commit>] [--repository owner/repo] [--allow-dirty] [--json]

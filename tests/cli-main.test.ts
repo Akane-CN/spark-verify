@@ -183,3 +183,17 @@ describe("CLI run --report and --json", () => {
     expect(state.stderr.join("")).toContain("--report requires a value");
   });
 });
+
+describe("CLI run failure stage", () => {
+  test("text and --json output name the stage of a no-verdict run", async () => {
+    const staged = () => { const error = new Error("producer exited 1"); Object.defineProperty(error, "ckbVerifyStage", { value: 'step "mint": command' }); return error; };
+    const text = dependencies(result("PASS"));
+    text.deps.runManifest = async () => { throw staged(); };
+    expect(await main(["run"], text.deps)).toBe(2);
+    expect(text.stderr.join("")).toContain('ERROR [step "mint": command]: producer exited 1');
+    const json = dependencies(result("PASS"));
+    json.deps.runManifest = async () => { throw staged(); };
+    expect(await main(["run", "--json"], json.deps)).toBe(2);
+    expect(JSON.parse(json.stdout.join(""))).toEqual({ verdict: null, error: "producer exited 1", stage: 'step "mint": command' });
+  });
+});

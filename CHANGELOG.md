@@ -26,6 +26,14 @@ the private `version` field of `package.json`, not published packages. Dates are
   - New schemas: `ckb-verify-manifest-v2`, `ckb-verify-claims-v4`, `ckb-verify-provenance-v4`, and a
     `report/4` branch.
 - `run --report <file>` and `run --json`, for every spec.
+- `ckb-verify ui`, a local interactive console bound to 127.0.0.1 ([docs/console.md](docs/console.md)). It
+  validates and runs manifests with live stages, draws reports (transactions as input and output Cells with
+  named scripts, claims as expected vs observed, logs), compares runs, and verifies pasted reports offline.
+  Every API call needs a per-server token, and the Host header is checked against DNS rebinding.
+- Failure stages. A run that ends without a verdict names where it stopped: `manifest`, `preflight`,
+  `devnet`, `setup`, a step's `command`, `result`, `submission`, or `claims`, then `final claims`,
+  `source guard`, `report`, or `cleanup`. It appears as `ERROR [stage]: …` in text output and as `stage` in
+  `run --json`. `RunManifestOptions.onStage` reports progress.
 - The repository-script showcase (`bun run showcase:repository-script`, CI job `repository-script`).
   It uses a lock script assembled from this repository and runs on fresh devnets:
   - deploy, a pure step, create, and a legal spend;
