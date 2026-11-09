@@ -14,7 +14,14 @@
 
 ## What this release is
 
-`ckb-verify` runs a repository's `verify.toml` on a fresh local OffCKB devnet, submits the one signed transaction each step produces, checks the declared expectations and assertions, and writes a `report.json` whose claims, verdict, and environment can be re-verified offline by anyone holding the file (`validate`, `digest`, `check-digest`, `check-bundle`). **PASS means every declared claim passed in the recorded environment.** It is not a security audit, a sandbox, a proof of determinism, or proof that a manifest is complete.
+`ckb-verify` runs a repository's `verify.toml` on a fresh local OffCKB devnet, submits the one signed transaction each step produces, checks the declared expectations and assertions, and writes a `report.json` whose claims, verdict, and environment can be re-verified offline by anyone holding the file (`validate`, `digest`, `check-digest`, `check-bundle`). Its main use is a developer's own acceptance and regression checks, run locally and in CI; maintainers and reviewers read, compare, and re-verify the reports. **PASS means every declared claim passed in the recorded environment.** It is not a security audit, a sandbox, a proof of determinism, or proof that a manifest is complete.
+
+Since the previous candidate (`e311ad3`), this candidate adds:
+
+- **Spec `0.2.0`** ([vocabulary](vocabulary-v0.2.md)): repository script binaries deployed by the runner (`[setup.scripts]`), named script references, pure steps, zero steps and zero accounts, `expect.error.group`, terminal node rejections with their RPC code, lockfile and runtime pins, a sanitized repository identity, the devnet sealing fingerprint, and a pinned genesis allowlist. `run --report <file>` and `run --json`.
+- **Failure stages:** a run that ends without a verdict names the stage it stopped in (`ERROR [stage]: …`, and `stage` in `--json`).
+- **The local console** `ckb-verify ui` ([guide](console.md)): validate a manifest, start a run and watch its stages, read a report with each transaction drawn as input and output Cells, compare two runs, and re-verify any report offline.
+- CI restores the verified CKB and debugger installs from a cache.
 
 ## Supported
 
@@ -24,22 +31,23 @@ Not supported: devnet execution (`run`) anywhere but Linux x64, other architectu
 
 ## Formats
 
-- Manifest specs `0.1.0` (the frozen v0.1 contract), `0.1.0-draft.5` (the same grammar), `0.1.0-draft.4`, and `0.1.0-draft.3` (`schemas/ckb-verify-manifest-v1.schema.json`); `0.1.0` carries the [assertion vocabulary](vocabulary-v0.1.md).
-- Reports `ckb-verify-report/1` and `/2` with `environment/3` + `provenance/2`, and `/3` with `environment/4` + `provenance/3`, written; `/1` with `environment/2` + `provenance/1` read with `--allow-legacy` (`schemas/ckb-verify-report.schema.json`).
+- Manifest specs `0.2.0` (frozen; `schemas/ckb-verify-manifest-v2.schema.json`), `0.1.0` (the frozen v0.1 contract), `0.1.0-draft.5` (the same grammar), `0.1.0-draft.4`, and `0.1.0-draft.3` (`schemas/ckb-verify-manifest-v1.schema.json`).
+- Reports written: `ckb-verify-report/4` with `outcome/4`, `environment/5`, and `provenance/4` for `0.2.0`; `/3` with `environment/4` + `provenance/3` for `0.1.0` and draft.5; `/1` and `/2` with `environment/3` + `provenance/2` for draft.3 and draft.4. Read only with `--allow-legacy`: `/1` with `environment/2` + `provenance/1` (`schemas/ckb-verify-report.schema.json`).
 - Evidence bundles `ckb-verify-evidence-bundle/1`, release evidence `ckb-verify-release-evidence/1`.
 
-The rules are in [version policy](version-policy.md); unsupported tuples are rejected explicitly, never migrated silently. The v0.1 contract is frozen as spec `0.1.0` with report `/3`, outcome `/3`, environment `/4`, and provenance `/3`; what frozen means and how a lock test checks it is in the [version policy](version-policy.md#the-frozen-v01-contract) ([release decision 6, reopened](release-decisions.md#2026-11-02-decision-6-reopened-the-v01-contract-is-frozen-as-spec-010)). The draft identifiers stay accepted.
+The rules are in [version policy](version-policy.md); unsupported tuples are rejected explicitly, never migrated silently. Two contracts are frozen, each by a lock test: spec `0.1.0` with report `/3` ([version policy](version-policy.md#the-frozen-v01-contract)) and spec `0.2.0` with report `/4` ([version policy](version-policy.md#the-frozen-020-contract)). The draft identifiers stay accepted.
 
 ## Known limitations
 
-- The RFC v0.2 vocabulary is only partly implemented; the [implementation matrix](rfc-implementation-matrix.md) marks every item supported, partial, or deferred; the six release decisions are recorded in [release decisions](release-decisions.md): decision 1 was reopened on 2026-11-02 and the promised vocabulary (`expect.cycles`, script-filtered Cells with `count`/`data`/`capacity`, CKB and UDT `balance`, script references) ships as the frozen spec `0.1.0` (first published as `0.1.0-draft.5`); `[setup.scripts]` deployment, named setup-script references, pure steps, `accounts = 0`, and `expect.error.group` remain v0.3 proposals.
-- Trusted repositories only: `verify.toml` is executable code and there is no sandbox ([`SECURITY.md`](../SECURITY.md)). A step that detaches a background process (redirected output, or `setsid`) is not tracked after the step returns or is killed; that process keeps running.
-- The source guard needs a git repository with at least one commit. Outside one there is nothing to compare, and reports are marked `tainted` (`source_revision_unavailable`). Inside one, any snapshot failure, such as an untracked nested repository, refuses the run.
-- Offline verification checks the recorded CKB binary against its own archive checksum, not against the runner's pin table. It checks a script rejection's group against the transaction for outputs; for an input it checks only the bounds, because the consumed Cell is not retained.
-- Listener scope is loopback for RPC `8114` and proxy `28114`; the peer-to-peer port follows OffCKB's configuration. Network isolation beyond that is the host's job.
-- The source guard compares Git-visible snapshots before and after a run; it does not monitor execution continuously.
+- The RFC is not implemented in full: the [implementation matrix](rfc-implementation-matrix.md) marks every item supported, partial, or deferred, and the [release decisions](release-decisions.md) record why. Out of scope: declarative transaction construction, seeded genesis Cells, testnet or mainnet execution, HTML reports.
+- One transaction per step. Exactly one CKB release (`0.209.0`) has pinned assets.
+- Repository binaries (`0.2.0`) must be 1–512000 bytes and contain a byte above `0x7f`, because OffCKB `0.4.13` refuses or skips anything else. When binaries are deployed, the deployer is OffCKB account 19, so a manifest may declare at most 19 accounts.
+- Trusted repositories only: `verify.toml` is executable code and there is no sandbox ([`SECURITY.md`](../SECURITY.md)). This applies equally to runs started from the console. A step that detaches a background process (redirected output, or `setsid`) is not tracked after the step returns or is killed; that process keeps running.
+- The source guard needs a git repository with at least one commit. Outside one there is nothing to compare, and reports are marked `tainted` (`source_revision_unavailable`). Inside one, any snapshot failure, such as an untracked nested repository, refuses the run. It compares Git-visible snapshots before and after a run; it does not monitor execution continuously.
+- Offline verification checks the recorded CKB binary against its own archive checksum, not against the runner's pin table. For report `/3` a script rejection's group is checked against the transaction for outputs, and only by bounds for inputs; report `/4` retains the consumed input Cells and checks both.
+- Listener scope is loopback for RPC `8114` and proxy `28114`, and the console binds `127.0.0.1` with a per-start token; the peer-to-peer port follows OffCKB's configuration. Network isolation beyond that is the host's job.
 - Offline validity is internal consistency, not authenticity: there is no signature.
-- One transaction per step; no repository script deployment (`[setup.scripts]`), named setup-script references, pure steps, or `expect.error.group` (deferred per the matrix). Balance claims aggregate every live Cell under a lock, so their outcome digests repeat across fresh devnets only when the genesis Cells repeat.
+- Balance claims aggregate every live Cell under a lock, so their outcome digests repeat across fresh devnets only when the genesis Cells repeat.
 - A low-severity `elliptic` advisory is waived until 2026-11-25 for disposable devnet keys only ([`SECURITY.md`](../SECURITY.md)); the waiver must be unexpired on the release date.
 
 ## What was not run
