@@ -1,10 +1,47 @@
 # Spark Verify / `ckb-verify`
 
-**Executable acceptance claims for CKB projects.**
+**Executable acceptance and regression checks for CKB transaction flows.**
 
-> **Status: unreleased feasibility implementation.** This repository now contains a working vertical slice, not only an RFC. The implemented manifest vocabulary is intentionally smaller than the draft RFC. Manifest spec `0.1.0` is the frozen v0.1 contract ([version policy](docs/version-policy.md#the-frozen-v01-contract)); the package itself is not published yet.
+> **Status: unreleased, independently maintained.**
+>
+> - Manifest specs `0.1.0` and `0.2.0` are frozen ([version policy](docs/version-policy.md)).
+> - The package is not published yet.
+> - The Spark grant proposal was rejected on 2026-11-05. The project continues without funding, and its focus moved from third-party review to developers' own regression testing. The [review of that decision](docs/reports/2026-11-08-spark-rejection-review.md) (Chinese) explains why.
 
-Start with the [line-by-line annotated manifest](docs/annotated-manifest.md), then inspect the [evidence report anatomy and checked fresh-devnet example](docs/evidence-report.md). The [Spark Program application](docs/spark-proposal.md) records the exact pre-funding implementation and remaining requested scope.
+## Who it is for
+
+**Mainly, developers of CKB scripts and DApps.**
+
+1. Write down the transaction flows your project must support, once, in `verify.toml`. Your own code builds and signs each transaction. A flow can declare:
+   - whether its transaction must be committed;
+   - or that it must be rejected, with the error code and the exact script group responsible;
+   - its cycle bounds;
+   - the Cells and balances it must leave behind.
+2. Re-run the same checks on a fresh local devnet on every change, locally or in CI.
+3. Read the result:
+   - **A regression** is a `FAIL`, with expected and observed values for each claim.
+   - **A broken environment** is a "no verdict" that names the stage where the run stopped, so a failure in your own command is never confused with a toolchain problem.
+
+**Secondarily, maintainers and reviewers.** They can:
+
+- open a run in the local console, with each transaction drawn as input and output Cells and each claim shown as expected versus observed;
+- re-verify a report offline;
+- compare two runs.
+
+Reviewers still decide whether the declared checks are sufficient. The tool makes the checks re-runnable and inspectable; it does not make that judgment.
+
+## The loop
+
+```bash
+ckb-verify validate verify.toml   # strict grammar and schema; runs nothing
+ckb-verify run verify.toml        # fresh OffCKB devnet: deploy, run each step, check every claim
+ckb-verify ui                     # local console: run, read reports, compare runs, verify offline
+```
+
+- **Your own scripts:** spec `0.2.0` deploys your repository's script binaries in `[setup.scripts]` and refers to them by name in every claim ([0.2.0 vocabulary](docs/vocabulary-v0.2.md)).
+- **CI:** the reusable GitHub workflow runs the same manifest and keeps the reports as evidence.
+
+Start with the [repository-script showcase](showcases/repository-script/README.md), a worked example on a fresh devnet. It deploys a lock script built from this repository, creates Cells under it, spends one legally, and gets an illegal spend rejected by exactly that lock group. Then read the [console guide](docs/console.md) and the [annotated manifest](docs/annotated-manifest.md). The [Spark application](docs/spark-proposal.md) is kept as a historical record.
 
 `ckb-verify` starts a fresh pinned [OffCKB](https://github.com/ckb-devrel/offckb) devnet, lets trusted project code construct and sign one transaction per step, submits that transaction itself, evaluates declared CKB outcomes, and writes a structured evidence report.
 
@@ -273,7 +310,7 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 - [`docs/evidence-report.md`](docs/evidence-report.md) — current report contract, digest boundaries, and checked real output
 - [`schemas/ckb-verify-provenance-v2.schema.json`](schemas/ckb-verify-provenance-v2.schema.json) and [`-v3`](schemas/ckb-verify-provenance-v3.schema.json) — current provenance schemas (draft.3/draft.4 and `0.1.0`/draft.5); cross-field replay, drift, and debugger consistency are enforced by the runtime verifier
 - [`schemas/ckb-verify-provenance-v1.schema.json`](schemas/ckb-verify-provenance-v1.schema.json) — unchanged historical provenance schema
-- [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material
+- [`docs/spark-proposal.md`](docs/spark-proposal.md) — Spark Program application material (rejected on 2026-11-05; kept as a record)
 - [`docs/design-review.md`](docs/design-review.md) — prior design review and gates
 
 ## External-project status
