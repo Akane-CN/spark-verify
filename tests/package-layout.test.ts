@@ -50,7 +50,8 @@ describe("package layout", () => {
     expect((entries.get("src/cli.ts")! & 0o111) !== 0).toBe(true);
     expect((await readFile(join(root, "src/cli.ts"), "utf8")).startsWith("#!/usr/bin/env bun\n")).toBe(true);
 
-    const sources = (await readdir(join(root, "src"))).filter((name) => name.endsWith(".ts")).sort();
+    // Recursive: src/ui/ ships too, and its imports must resolve from the package like every other source.
+    const sources = (await readdir(join(root, "src"), { recursive: true })).map((name) => name.split("\\").join("/")).filter((name) => name.endsWith(".ts")).sort();
     expect(paths.filter((path) => path.startsWith("src/")).sort()).toEqual(sources.map((name) => `src/${name}`));
     const bare = new Set<string>();
     for (const name of sources) {
@@ -59,7 +60,7 @@ describe("package layout", () => {
         const specifier = match[1]!;
         if (specifier.startsWith("node:")) continue;
         if (specifier.startsWith(".")) {
-          const resolved = posix.normalize(posix.join("src", specifier)) + ".ts";
+          const resolved = posix.normalize(posix.join("src", posix.dirname(name), specifier)) + ".ts";
           expect(entries.has(resolved)).toBe(true);
         } else {
           bare.add(packageName(specifier));

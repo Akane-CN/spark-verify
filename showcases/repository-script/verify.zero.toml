@@ -1,0 +1,22 @@
+[meta]
+name = "repository-script-zero"
+spec = "0.2.0"
+description = "Zero accounts and zero steps: only the deployment and final assertions."
+
+[toolchain]
+ckb = "0.209.0"
+offckb = "0.4.13"
+
+[replay]
+dependencies = []
+
+[setup]
+accounts = 0
+
+[setup.scripts.witness_lock]
+binary = "showcases/repository-script/build/witness_lock"
+hash_type = "data2"
+
+[[assert.cell]]
+lock = "witness_lock"
+count = 0

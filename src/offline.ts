@@ -8,11 +8,14 @@ import { deriveOutcomeV3 } from "./claims-v3";
 import { ManifestError } from "./errors";
 import { loadManifest } from "./manifest";
 import { buildOutcomeClaims, verifyReport, type RunEvidence } from "./report";
-import { MANIFEST_SCHEMA_ID, REPORT_SCHEMA_ID, schemaProblems } from "./schemas";
+import { deriveOutcomeV4 } from "./claims-v4";
+import { MANIFEST_SCHEMA_ID, MANIFEST_V2_SCHEMA_ID, REPORT_SCHEMA_ID, schemaProblems } from "./schemas";
 import type { Manifest } from "./types";
 
 export interface ManifestStepSummary {
   name: string;
+  /** Every step before 0.2.0 produces a transaction; a 0.2.0 step without expect is pure. */
+  kind: "transaction" | "pure";
   timeoutMs: number;
   expect: { tx: "committed" | "rejected"; errorCode?: number } | null;
   claims: number;
@@ -27,6 +30,8 @@ export interface ManifestSummary {
   toolchain: { ckb: string; offckb: string; ckbDebugger: string | null };
   replayDependencies: string[];
   accounts: number;
+  /** 0.2.0 `[setup.scripts]`; empty for earlier specs. */
+  setupScripts: Array<{ name: string; kind: "binary"; path: string; hashType: string } | { name: string; kind: "builtin"; builtin: string }>;
   steps: ManifestStepSummary[];
   finalClaims: number;
   claimCount: number;
@@ -46,8 +51,11 @@ function manifestSchemaCheck(bytes: Uint8Array): SchemaCheck | null {
   } catch {
     return null; // not TOML at all: the parser's own diagnostic is the useful one
   }
-  const problems = schemaProblems(MANIFEST_SCHEMA_ID, parsed);
-  return { id: MANIFEST_SCHEMA_ID, ok: problems.length === 0, problems };
+  // Spec 0.2.0 has its own schema file, so the frozen 0.1.0 parts of manifest-v1 never change.
+  const meta = parsed !== null && typeof parsed === "object" ? (parsed as Record<string, unknown>).meta : undefined;
+  const id = meta !== null && typeof meta === "object" && (meta as Record<string, unknown>).spec === "0.2.0" ? MANIFEST_V2_SCHEMA_ID : MANIFEST_SCHEMA_ID;
+  const problems = schemaProblems(id, parsed);
+  return { id, ok: problems.length === 0, problems };
 }
 
 /**
@@ -64,8 +72,9 @@ export async function validateManifestFile(path: string): Promise<ManifestValida
       schema = null; // unreadable: loadManifest reports it
     }
     const { manifest, bytes } = await loadManifest(absolute);
-    const steps = manifest.steps.map((step) => ({
+    const steps = manifest.steps.map((step): ManifestStepSummary => ({
       name: step.name,
+      kind: "kind" in step && step.kind === "pure" ? "pure" : "transaction",
       timeoutMs: step.timeoutMs,
       expect: step.expect === undefined ? null : {
         tx: step.expect.tx,
@@ -83,6 +92,7 @@ export async function validateManifestFile(path: string): Promise<ManifestValida
         toolchain: { ckb: manifest.toolchain.ckb, offckb: manifest.toolchain.offckb, ckbDebugger: manifest.toolchain.ckbDebugger ?? null },
         replayDependencies: [...manifest.replay.dependencies],
         accounts: manifest.setup.accounts,
+        setupScripts: "scripts" in manifest.setup ? manifest.setup.scripts.map((script) => ({ ...script })) : [],
         steps,
         finalClaims: manifest.assertions.length,
         claimCount,
@@ -148,6 +158,9 @@ export const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 function recomputeDigests(report: Record<string, unknown>): DigestPair | null {
   try {
     const environment = canonicalSha256(report.environment);
+    if (report.schema === "ckb-verify-report/4") {
+      return { outcome: canonicalSha256(deriveOutcomeV4(report.evidence, report.environment)), environment };
+    }
     if (report.schema === "ckb-verify-report/3") {
       return { outcome: canonicalSha256(deriveOutcomeV3(report.evidence, report.environment)), environment };
     }

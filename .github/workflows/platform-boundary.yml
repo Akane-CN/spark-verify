@@ -29,7 +29,8 @@ jobs:
       matrix:
         include:
           - label: macOS
-            os: macos-14
+            # macos-14 hosted runners were refused as unsupported on 2026-11-08.
+            os: macos-15
           - label: Windows
             os: windows-2022
     runs-on: ${{ matrix.os }}

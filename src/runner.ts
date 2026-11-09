@@ -1,5 +1,11 @@
-import { access, copyFile, lstat, mkdir, readFile, readdir, readlink, rename, rm, writeFile } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { access, copyFile, lstat, mkdir, readFile, readdir, readlink, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { join, relative, resolve, sep } from "node:path";
+import { hashCkb } from "@ckb-ccc/core";
+import { deriveOutcomeV4, populateEvidenceV4, verdictForOutcomeV4, resolutionContextV4, validateSetupScripts, TERMINAL_NODE_REJECTION_CODES, TYPE_ID_CODE_HASH,
+  type InputCellRecord, type OutcomeV4, type RunEvidenceV4, type RunInputV4, type SetupScriptRecord, type StepInputV4 } from "./claims-v4";
+import { defaultDevnet, type SealingConfiguration } from "./devnet-identity";
+import { MAX_DEPLOY_BYTES } from "./manifest-v6";
+import { collectProvenanceV4, parseToolVersion, sanitizeRepositoryUrl, type RuntimeTool } from "./provenance-v4";
 import { canonicalSha256, sha256Bytes } from "./canonical";
 import { loadManifest } from "./manifest";
 import { resolvePinnedDebuggerAsset } from "./debugger-binary";
@@ -13,7 +19,7 @@ import {
   buildOutcomeClaims,
   verdictForOutcomeClaims,
   verifyReport,
-  type EnvironmentEvidence, type EnvironmentEvidenceV4,
+  type EnvironmentEvidence, type EnvironmentEvidenceV4, type EnvironmentEvidenceV5,
   type RunEvidence,
   type ClaimEvidence,
   type RejectionEvidence,
@@ -33,9 +39,9 @@ import {
   scriptHash,
   transactionHash,
 } from "./transaction";
-import { isManifestV4, isManifestV5, type CellAssertion, type ClaimV4, type ClaimV5, type Manifest, type ManifestV3 } from "./types";
+import { isManifestV4, isManifestV5, isManifestV6, type CellAssertion, type ClaimV4, type ClaimV5, type Manifest, type ManifestV3, type ManifestV6 } from "./types";
 import {
-  claimDefinitionV3, deriveOutcomeV3, expectedSearchKey, populateEvidenceV3, resolutionContextFromEnvironment, validateIndexerInput, verdictForOutcomeV3,
+  claimDefinitionV3, deriveOutcomeV3, expectedSearchKey, populateEvidenceV3, resolutionContextFromEnvironment, validateIndexerInput, verdictForOutcomeV3, type ResolutionContext,
   type CellInputV3, type ClaimInputV3, type IndexerInput, type IndexerPage, type IndexerSearchKey, type OutcomeV3, type RunEvidenceV3, type RunInputV3,
 } from "./claims-v3";
 import { INDEXER_PAGE_LIMIT, MAX_SELECTED_CELLS } from "./limits";
@@ -62,6 +68,10 @@ export interface DevnetAdapter {
   stop(): Promise<void>;
   /** Development keys to redact beyond the exported accounts (every key the devnet reported). */
   redactionSecrets?(): readonly string[];
+  /** 0.2.0: deploys a repository binary and returns its code Cell; the runner verifies it on chain. */
+  deployBinary?(name: string, bytes: Uint8Array, typeId: boolean): Promise<{ txHash: string; index: number }>;
+  /** 0.2.0: the running devnet's sealing configuration. */
+  sealing?(): Promise<SealingConfiguration>;
 }
 
 export interface CkbVerifyReportV1 {
@@ -85,7 +95,13 @@ export interface CkbVerifyReportV3 extends Omit<CkbVerifyReportV1, "schema" | "e
   outcomeClaims: OutcomeV3;
   environment: EnvironmentEvidenceV4;
 }
-export type CkbVerifyReport = CkbVerifyReportV1 | CkbVerifyReportV2 | CkbVerifyReportV3;
+export interface CkbVerifyReportV4 extends Omit<CkbVerifyReportV1, "schema" | "evidence" | "outcomeClaims" | "environment"> {
+  schema: "ckb-verify-report/4";
+  evidence: RunEvidenceV4;
+  outcomeClaims: OutcomeV4;
+  environment: EnvironmentEvidenceV5;
+}
+export type CkbVerifyReport = CkbVerifyReportV1 | CkbVerifyReportV2 | CkbVerifyReportV3 | CkbVerifyReportV4;
 
 export interface RunManifestOptions {
   manifestPath: string;
@@ -97,6 +113,8 @@ export interface RunManifestOptions {
   signal?: AbortSignal;
   /** 0.1.0 and draft.5 only: run on the pinned CKB when the manifest requests another exact version; recorded and tainting. */
   allowVersionDrift?: boolean;
+  /** Called as the run enters each stage; the stage of a failure is also on the thrown error (`runFailureStage`). */
+  onStage?: (stage: string) => void;
   /** How long indexer-backed claims wait for the node indexer to reach the chain tip (defaults: 30 s, polled every 200 ms). */
   indexerSync?: Partial<IndexerSyncPolicy>;
 }
@@ -281,6 +299,137 @@ async function environmentEvidence(
   return { schema: "ckb-verify-environment/3", ...base, provenance };
 }
 
+// ---- spec 0.2.0 setup ----
+
+/** A repository binary read and hashed before any runtime mutation: the RFC requires hashing before deployment. */
+interface RepositoryBinary { name: string; path: string; hashType: "type" | "data" | "data1" | "data2"; bytes: Uint8Array }
+
+/** Reads every `[setup.scripts]` binary, refusing anything OffCKB would not deploy faithfully. */
+export async function readRepositoryBinaries(projectRoot: string, manifest: ManifestV6): Promise<RepositoryBinary[]> {
+  const root = await realpath(projectRoot);
+  const binaries: RepositoryBinary[] = [];
+  for (const script of manifest.setup.scripts) {
+    if (script.kind !== "binary") continue;
+    const label = `setup.scripts.${script.name}.binary (${script.path})`;
+    let resolved: string;
+    try { resolved = await realpath(resolve(projectRoot, script.path)); } catch (error) {
+      throw new Error(`${label} does not exist: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (resolved !== root && !resolved.startsWith(`${root}${sep}`)) throw new Error(`${label} resolves outside the repository`);
+    const info = await lstat(resolved);
+    if (!info.isFile()) throw new Error(`${label} is not a regular file`);
+    if (info.size === 0 || info.size > MAX_DEPLOY_BYTES) throw new Error(`${label} is ${info.size} bytes; OffCKB 0.4.13 deploys 1..${MAX_DEPLOY_BYTES} bytes`);
+    const bytes = new Uint8Array(await readFile(resolved));
+    // OffCKB 0.4.13 refuses files without a byte above 0x7f as "not a binary"; say so before starting a devnet.
+    if (!bytes.some((byte) => byte > 0x7f)) throw new Error(`${label} has no byte above 0x7f, which OffCKB 0.4.13 refuses to deploy as a binary`);
+    binaries.push({ name: script.name, path: script.path, hashType: script.hashType, bytes });
+  }
+  return binaries;
+}
+
+function requireRecordValue(value: unknown, path: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`${path} must be an object`);
+  return value as Record<string, unknown>;
+}
+
+/** Deploys the binaries in declaration order and verifies each code Cell on chain against its bytes. */
+async function deploySetupScripts(
+  manifest: ManifestV6, binaries: readonly RepositoryBinary[], devnet: DevnetAdapter, context: OffckbRunContext, rpc: RunnerRpcCaller, signal?: AbortSignal,
+): Promise<SetupScriptRecord[]> {
+  const records: SetupScriptRecord[] = [];
+  for (const script of manifest.setup.scripts) {
+    throwIfAborted(signal);
+    if (script.kind === "builtin") {
+      const binding = context.systemScripts[script.builtin];
+      if (binding === undefined) throw new Error(`setup.scripts.${script.name}: OffCKB exports no system script ${script.builtin}`);
+      records.push({ name: script.name, kind: "builtin", builtin: script.builtin, codeHash: binding.codeHash, hashType: binding.hashType, cellDeps: binding.cellDeps.map((d) => ({ ...d, outPoint: { ...d.outPoint } })) });
+      continue;
+    }
+    const binary = binaries.find((candidate) => candidate.name === script.name);
+    if (binary === undefined) throw new Error(`setup.scripts.${script.name}: binary was not read`);
+    if (devnet.deployBinary === undefined) throw new Error("this devnet adapter cannot deploy repository binaries");
+    const outPoint = await devnet.deployBinary(script.name, binary.bytes, script.hashType === "type");
+    const live = validateLiveCellResponse(await rpc(context.rpcUrl, "get_live_cell", [{ tx_hash: outPoint.txHash, index: `0x${outPoint.index.toString(16)}` }, true], signal));
+    if (live.status !== "live") throw new Error(`setup.scripts.${script.name}: deployed code Cell is not live`);
+    const dataHash = hashCkb(binary.bytes);
+    if (live.cell.data.hash !== dataHash) throw new Error(`setup.scripts.${script.name}: deployed Cell data does not match the repository binary`);
+    let typeId: Extract<SetupScriptRecord, { kind: "binary" }>["typeId"] = null;
+    let codeHash: string = dataHash;
+    if (script.hashType === "type") {
+      const type = live.cell.output.type;
+      if (type == null || type.code_hash !== TYPE_ID_CODE_HASH || type.hash_type !== "type") throw new Error(`setup.scripts.${script.name}: deployed Cell has no Type ID`);
+      const typeScript = { codeHash: TYPE_ID_CODE_HASH, hashType: "type" as const, args: type.args };
+      codeHash = scriptHash(typeScript);
+      typeId = { script: typeScript, scriptHash: codeHash };
+    }
+    records.push({
+      name: script.name, kind: "binary", path: binary.path, size: binary.bytes.length, binarySha256: sha256Bytes(binary.bytes), dataHash,
+      hashType: script.hashType, codeHash, cellDep: { outPoint: { txHash: outPoint.txHash, index: outPoint.index }, depType: "code" }, typeId,
+      deployment: { output: { capacity: live.cell.output.capacity, lock: { ...live.cell.output.lock }, type: live.cell.output.type == null ? null : { ...live.cell.output.type } }, dataHash: live.cell.data.hash },
+    });
+  }
+  return records;
+}
+
+async function originRemote(projectRoot: string): Promise<string | null> {
+  try {
+    const result = await runProcess(["git", "remote", "get-url", "origin"], { cwd: projectRoot, timeoutMs: 10_000 });
+    if (result.timedOut || result.exitCode !== 0) return null;
+    return sanitizeRepositoryUrl(result.stdout);
+  } catch { return null; }
+}
+
+/** `<tool> --version` in the environment step commands inherit; null when the tool is absent or fails. */
+async function observeTool(tool: RuntimeTool, projectRoot: string): Promise<string | null> {
+  try {
+    const result = await runProcess([tool, "--version"], { cwd: projectRoot, timeoutMs: 20_000 });
+    if (result.timedOut || result.exitCode !== 0) return null;
+    return parseToolVersion(result.stdout);
+  } catch { return null; }
+}
+
+async function environmentEvidenceV5(
+  projectRoot: string, manifest: ManifestV6, manifestBytes: Uint8Array, context: OffckbRunContext, sourceRevision: SourceRevision,
+  preparedDebugger: PreparedDebugger | undefined, driftAllowed: boolean, scripts: SetupScriptRecord[], sealing: SealingConfiguration,
+): Promise<EnvironmentEvidenceV5> {
+  const pinned = defaultDevnet(context.ckbBinary.version);
+  const provenance = await collectProvenanceV4({
+    projectRoot, manifestBytes, replayDependencies: manifest.replay.dependencies, sourceRevision,
+    repositoryUrl: await originRemote(projectRoot), ckbBinary: context.ckbBinary, ckbDebuggerBinary: preparedDebugger?.binary ?? null,
+    toolchain: { ckb: { requested: manifest.toolchain.ckb, observed: context.ckbBinary.version, driftAllowed } },
+    sealingFingerprint: sealing.fingerprint, defaultSealingFingerprint: pinned.sealingFingerprint,
+    observeTool: (tool) => observeTool(tool, projectRoot),
+  });
+  return {
+    schema: "ckb-verify-environment/5",
+    runner: { name: "ckb-verify", version: VERSION },
+    toolchain: {
+      requested: manifest.toolchain,
+      observed: { ckb: context.ckbVersion, offckb: context.offckbVersion, ...(preparedDebugger === undefined ? {} : { ckbDebugger: preparedDebugger.version }) },
+    },
+    provenance,
+    platform: { os: process.platform, arch: process.arch },
+    devnet: {
+      network: context.network, genesisHash: context.genesisHash, systemScripts: context.systemScripts,
+      accounts: context.accounts.slice(0, manifest.setup.accounts).map((a) => ({ index: a.index, address: a.address, lock: { ...a.lock } })),
+      scripts, sealing,
+    },
+  };
+}
+
+/** For a script rejection: every consumed Cell, so the group check and the input's script verify offline. */
+async function retainInputCells(tx: CkbJsonRpcTransaction, rpcUrl: string, rpc: RunnerRpcCaller, signal?: AbortSignal): Promise<InputCellRecord[]> {
+  const cells: InputCellRecord[] = [];
+  for (const [i, raw] of tx.inputs.entries()) {
+    const previous = requireRecordValue(requireRecordValue(raw, `transaction.inputs[${i}]`).previous_output, `transaction.inputs[${i}].previous_output`);
+    const outPoint = { tx_hash: String(previous.tx_hash), index: String(previous.index) };
+    const response = validateLiveCellResponse(await rpc(rpcUrl, "get_live_cell", [outPoint, true], signal));
+    if (response.status !== "live") throw new Error(`input ${i} of the script-rejected transaction is not live`);
+    cells.push({ outPoint, response });
+  }
+  return cells;
+}
+
 function blockNumber(value: unknown, path: string): bigint {
   if (typeof value !== "string" || !/^0x(?:0|[1-9a-f][0-9a-f]*)$/.test(value)) throw new Error(`${path} must be a canonical hex block number`);
   return BigInt(value);
@@ -327,9 +476,10 @@ async function queryIndexer(searchKey: IndexerSearchKey, rpcUrl: string, rpc: Ru
 
 async function collectClaimsV3(
   claims: ClaimV5[], transactions: ReadonlyMap<string, CkbJsonRpcTransaction>, hashes: ReadonlyMap<string, string>,
-  environment: EnvironmentEvidenceV4, rpcUrl: string, rpc: RunnerRpcCaller, sync: IndexerSyncPolicy, signal?: AbortSignal,
+  environment: EnvironmentEvidenceV4 | EnvironmentEvidenceV5, rpcUrl: string, rpc: RunnerRpcCaller, sync: IndexerSyncPolicy, signal?: AbortSignal,
+  resolution?: ResolutionContext,
 ): Promise<ClaimInputV3[]> {
-  const context = resolutionContextFromEnvironment(environment);
+  const context = resolution ?? resolutionContextFromEnvironment(environment);
   let synced = false;
   const snapshots = new Map<string, CellInputV3 | IndexerInput>();
   const collected: ClaimInputV3[] = [];
@@ -531,24 +681,67 @@ async function scanEvidenceForSecrets(root: string, secrets: readonly string[]):
   }
 }
 
+/** The recorded form of a 0.2.0 transaction step: its declared expectations, then what was observed. */
+function v6TransactionStep(manifest: ManifestV6, index: number, observed: Omit<Extract<StepInputV4, { kind: "transaction" }>,
+  "name" | "kind" | "expectedStatus" | "expectedErrorCode" | "expectedErrorGroup" | "expectedCycles">): StepInputV4 {
+  const step = manifest.steps[index]!;
+  if (step.kind !== "transaction") throw new Error(`step ${step.name} is not a transaction step`);
+  return {
+    name: step.name, kind: "transaction", expectedStatus: step.expect.tx,
+    ...(step.expect.error?.code === undefined ? {} : { expectedErrorCode: step.expect.error.code }),
+    ...(step.expect.error?.group === undefined ? {} : { expectedErrorGroup: step.expect.error.group }),
+    ...(step.expect.cycles === undefined ? {} : { expectedCycles: step.expect.cycles }),
+    ...observed,
+  };
+}
+
+/**
+ * Where a run stopped, for the error a no-verdict run throws: "manifest", "preflight", "devnet", "setup",
+ * `step "<name>": command|result|submission|claims`, "final claims", "source guard", "report", or "cleanup".
+ * It separates a project or manifest problem from a toolchain one, which a bare message often does not.
+ */
+export function runFailureStage(error: unknown): string | undefined {
+  if (error === null || typeof error !== "object") return undefined;
+  const stage = (error as { ckbVerifyStage?: unknown }).ckbVerifyStage;
+  return typeof stage === "string" ? stage : undefined;
+}
+
 export async function runManifest(options: RunManifestOptions): Promise<RunManifestResult> {
+  const progress = { stage: "manifest" };
+  const enter = (stage: string) => { progress.stage = stage; options.onStage?.(stage); };
+  try {
+    return await runManifestStages(options, enter);
+  } catch (error) {
+    // The thrown error is kept as is (tests and callers inspect it); the stage rides along, not enumerable.
+    if (error !== null && typeof error === "object" && runFailureStage(error) === undefined) {
+      try { Object.defineProperty(error, "ckbVerifyStage", { value: progress.stage, enumerable: false, configurable: true }); } catch { /* frozen error objects keep no stage */ }
+    }
+    throw error;
+  }
+}
+
+async function runManifestStages(options: RunManifestOptions, enter: (stage: string) => void): Promise<RunManifestResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd());
   const manifestPath = resolve(projectRoot, options.manifestPath);
   const { manifest, bytes: manifestBytes } = await loadManifest(manifestPath);
   // Refuse unsupported platforms before the run directory, manifest copy, or any cache is written.
   // An injected devnet (tests) owns no runtime, so the gate applies to the real OffCKB path only.
+  enter("preflight");
   if (options.devnet === undefined) assertSupportedRuntimePlatform();
   if (manifest.toolchain.ckbDebugger !== undefined) {
     resolvePinnedDebuggerAsset(manifest.toolchain.ckbDebugger, process.platform, process.arch);
   }
   const sourceRevision = await collectSourceRevision(projectRoot);
+  const v6Manifest = isManifestV6(manifest) ? manifest : undefined;
+  // 0.2.0: read and hash every repository binary before any runtime mutation.
+  const binaries = v6Manifest === undefined ? [] : await readRepositoryBinaries(projectRoot, v6Manifest);
   // Tool-version drift: only draft.5-grammar manifests (0.1.0, 0.1.0-draft.5) may run on the pinned CKB when
   // they request another exact version, and only when explicitly allowed; the drift is recorded in
   // provenance/3 and taints replay.
   let ckbVersion = manifest.toolchain.ckb;
   let driftAllowed = false;
   if (options.allowVersionDrift === true) {
-    if (!isManifestV5(manifest)) throw new Error("--allow-version-drift requires a 0.1.0 or 0.1.0-draft.5 manifest");
+    if (!isManifestV5(manifest) && !isManifestV6(manifest)) throw new Error("--allow-version-drift requires a 0.2.0, 0.1.0, or 0.1.0-draft.5 manifest");
     driftAllowed = true;
     try { resolvePinnedCkbAsset(ckbVersion, process.platform, process.arch); }
     catch { ckbVersion = PINNED_CKB_VERSION; }
@@ -583,6 +776,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
   let reportToPublish: RunManifestResult | undefined;
   try {
     throwIfAborted(options.signal);
+    enter("devnet");
     context = await devnet.start(options.signal);
     secrets = [...new Set([...await readSecrets(context.accountsPath), ...(devnet.redactionSecrets?.() ?? [])])];
     throwIfAborted(options.signal);
@@ -591,6 +785,30 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
         preparedDebugger = await devnet.prepareDebugger(manifest.toolchain.ckbDebugger);
       } catch (error) { throw redactPreparationError(error, secrets); }
     }
+    // 0.2.0 setup: the genesis must be the pinned default devnet's; then deploy and record the scripts.
+    let v6Environment: EnvironmentEvidenceV5 | undefined;
+    let v6Resolution: ResolutionContext | undefined;
+    let v6Scripts: SetupScriptRecord[] = [];
+    let v6Sealing: SealingConfiguration | undefined;
+    let scriptsPath: string | undefined;
+    if (v6Manifest !== undefined) {
+      enter("setup");
+      const pinned = defaultDevnet(context.ckbBinary.version);
+      if (context.genesisHash !== pinned.genesisHash) {
+        throw new Error(`devnet genesis ${context.genesisHash} is not the pinned default OffCKB devnet genesis ${pinned.genesisHash} for CKB ${context.ckbBinary.version}`);
+      }
+      if (devnet.sealing === undefined) throw new Error("this devnet adapter cannot report its sealing configuration");
+      v6Sealing = await devnet.sealing();
+      try { v6Scripts = await deploySetupScripts(v6Manifest, binaries, devnet, context, rpc, options.signal); }
+      catch (error) { throw redactPreparationError(error, secrets); }
+      scriptsPath = join(outputDir, "setup-scripts.json");
+      await writeJson(scriptsPath, { scripts: Object.fromEntries(v6Scripts.map((script) => [script.name, script.kind === "builtin"
+        ? { kind: "builtin", builtin: script.builtin, codeHash: script.codeHash, hashType: script.hashType, cellDeps: script.cellDeps }
+        : { kind: "binary", codeHash: script.codeHash, hashType: script.hashType, cellDeps: [script.cellDep], binarySha256: script.binarySha256, dataHash: script.dataHash }])) });
+      v6Environment = await environmentEvidenceV5(projectRoot, v6Manifest, manifestBytes, context, sourceRevision, preparedDebugger, driftAllowed, v6Scripts, v6Sealing);
+      v6Resolution = resolutionContextV4(v6Environment, validateSetupScripts(v6Environment, v6Manifest));
+    }
+    const v6Steps: StepInputV4[] = [];
     const transactionHashes = new Map<string, string>();
     const transactionOutputCounts = new Map<string, number>();
     const steps: RunEvidence["steps"] = [];
@@ -608,6 +826,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       const stepDirectory = join(outputDir, "steps", `${String(index + 1).padStart(2, "0")}-${slug(step.name)}`);
       await mkdir(stepDirectory, { recursive: true });
       const resultPath = join(stepDirectory, "result.json");
+      enter(`step "${step.name}": command`);
       const commandResult = await runStep(step.run, {
         cwd: projectRoot,
         timeoutMs: step.timeoutMs,
@@ -617,6 +836,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
           CKB_VERIFY_ACCOUNTS: context.accountsPath,
           CKB_VERIFY_SYSTEM_SCRIPTS: context.systemScriptsPath,
           CKB_VERIFY_CONTEXT: context.contextPath,
+          ...(scriptsPath === undefined ? {} : { CKB_VERIFY_SCRIPTS: scriptsPath }),
         },
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       });
@@ -629,6 +849,20 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
         );
       }
 
+      if (v6Manifest !== undefined && v6Environment !== undefined && v6Manifest.steps[index]!.kind === "pure") {
+        // A pure step submits nothing; writing a result is a contract violation, not something to ignore.
+        enter(`step "${step.name}": result`);
+        let wrote = true;
+        try { await lstat(resultPath); } catch (error) {
+          if (error !== null && typeof error === "object" && "code" in error && error.code === "ENOENT") wrote = false; else throw error;
+        }
+        if (wrote) throw new Error(`pure step "${step.name}" wrote CKB_VERIFY_RESULT; declare expect.tx to make it a transaction step`);
+        enter(`step "${step.name}": claims`);
+        v6Steps.push({ name: step.name, kind: "pure", durationMs: commandResult.durationMs,
+          claims: await collectClaimsV3(v6Manifest.steps[index]!.assertions, transactions, transactionHashes, v6Environment, context.rpcUrl, rpc, indexerSync, options.signal, v6Resolution) });
+        continue;
+      }
+      enter(`step "${step.name}": result`);
       const envelope = await loadResultEnvelope(resultPath);
       const tx = envelope.transaction as CkbJsonRpcTransaction;
       if (modernManifest !== undefined) validateTransaction(tx);
@@ -641,6 +875,8 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       let cycles: number | undefined;
       let observedStatus: "committed" | "rejected";
       let rejection: RejectionEvidence | undefined;
+      let inputCells: InputCellRecord[] | undefined;
+      enter(`step "${step.name}": submission`);
       try {
         const dryRun = parseRpcCycles(await rpc(context.rpcUrl, "test_tx_pool_accept", [tx], options.signal));
         cycles = dryRun.cycles;
@@ -676,6 +912,17 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       } catch (error) {
         if (!(error instanceof RpcError) || error.method !== "send_transaction") throw error;
         const parsedRejection = parseRejection(error);
+        if (v6Manifest !== undefined && parsedRejection.kind === "node" && TERMINAL_NODE_REJECTION_CODES.includes(error.code)) {
+          // 0.2.0: the node refused the transaction itself (dead input, failed verification, fee, …).
+          observedStatus = "rejected";
+          rejection = { kind: "node", rpcCode: error.code, reason: error.message };
+          await writeJson(join(stepDirectory, "rpc-error.json"), { code: error.code, message: error.message, data: error.data });
+          transactionHashes.set(step.name, txHash);
+          enter(`step "${step.name}": claims`);
+          v6Steps.push(v6TransactionStep(v6Manifest, index, { observedStatus, rejection, transactionHash: txHash, transaction: tx, durationMs: commandResult.durationMs,
+            claims: await collectClaimsV3(v6Manifest.steps[index]!.assertions, transactions, transactionHashes, v6Environment!, context.rpcUrl, rpc, indexerSync, options.signal, v6Resolution) }));
+          continue;
+        }
         if (
           parsedRejection.kind !== "script" ||
           parsedRejection.code === undefined ||
@@ -698,6 +945,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
         });
         const resolvedScript = await resolveRejectedScript(rejection, tx, context.rpcUrl, rpc, options.signal);
         rejection = resolvedScript.rejection;
+        if (v6Manifest !== undefined) inputCells = await retainInputCells(tx, context.rpcUrl, rpc, options.signal);
         await writeJson(join(stepDirectory, "script-group.json"), resolvedScript.evidence);
 
         const debug = await devnet.debugScript(txHash, { ...debugSource, role: debugRole });
@@ -729,7 +977,12 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
         transactionHash: txHash,
         durationMs: commandResult.durationMs,
       };
-      if (v5Manifest !== undefined && v5Environment !== undefined) {
+      enter(`step "${step.name}": claims`);
+      if (v6Manifest !== undefined && v6Environment !== undefined) {
+        v6Steps.push(v6TransactionStep(v6Manifest, index, { observedStatus, ...(cycles === undefined ? {} : { cycles }), ...(rejection === undefined ? {} : { rejection }),
+          ...(inputCells === undefined ? {} : { inputCells }), transactionHash: txHash, transaction: tx, durationMs: commandResult.durationMs,
+          claims: await collectClaimsV3(v6Manifest.steps[index]!.assertions, transactions, transactionHashes, v6Environment, context.rpcUrl, rpc, indexerSync, options.signal, v6Resolution) }));
+      } else if (v5Manifest !== undefined && v5Environment !== undefined) {
         v5Steps.push({ ...stepEvidence, transaction: tx,
           claims: await collectClaimsV3(v5Manifest.steps[index]!.assertions, transactions, transactionHashes, v5Environment, context.rpcUrl, rpc, indexerSync, options.signal) });
       } else if (modernManifest !== undefined) {
@@ -744,6 +997,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       }
     }
 
+    enter("final claims");
     const assertions: ClaimEvidence[] = [];
     for (const assertion of legacyManifest?.assertions ?? []) {
       assertions.push(await evaluateCell(assertion, transactionHashes, transactionOutputCounts, context.rpcUrl, rpc, options.signal));
@@ -756,22 +1010,26 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
     };
     const modernAssertions = modernManifest === undefined ? [] : await collectClaimsV2(modernManifest.assertions, transactions, transactionHashes, context.rpcUrl, rpc, options.signal);
     const v5Assertions = v5Manifest === undefined || v5Environment === undefined ? [] : await collectClaimsV3(v5Manifest.assertions, transactions, transactionHashes, v5Environment, context.rpcUrl, rpc, indexerSync, options.signal);
+    const v6Assertions = v6Manifest === undefined || v6Environment === undefined ? [] : await collectClaimsV3(v6Manifest.assertions, transactions, transactionHashes, v6Environment, context.rpcUrl, rpc, indexerSync, options.signal, v6Resolution);
     throwIfAborted(options.signal);
+    enter("source guard");
     const finalSourceRevision = await collectSourceRevision(projectRoot);
     if (!sameSourceRevision(sourceRevision, finalSourceRevision)) {
       throw new Error("source revision changed during verification");
     }
-    const environment = await environmentEvidence(
-      projectRoot,
-      manifest,
-      manifestBytes,
-      context,
-      finalSourceRevision,
-      preparedDebugger,
-      driftAllowed,
-    );
+    const environment = v6Manifest !== undefined
+      ? await environmentEvidenceV5(projectRoot, v6Manifest, manifestBytes, context, finalSourceRevision, preparedDebugger, driftAllowed, v6Scripts, v6Sealing!)
+      : await environmentEvidence(projectRoot, manifest, manifestBytes, context, finalSourceRevision, preparedDebugger, driftAllowed);
+    enter("report");
     let report: CkbVerifyReport;
-    if (v5Manifest !== undefined) {
+    if (v6Manifest !== undefined) {
+      const input: RunInputV4 = { name: v6Manifest.meta.name, spec: "0.2.0",
+        manifestText: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(manifestBytes), steps: v6Steps, assertions: v6Assertions };
+      const outcomeClaims = deriveOutcomeV4(input, environment);
+      report = { schema: "ckb-verify-report/4", verdict: verdictForOutcomeV4(outcomeClaims), createdAt: new Date().toISOString(),
+        evidence: populateEvidenceV4(input, outcomeClaims), outcomeClaims, environment: environment as EnvironmentEvidenceV5,
+        digests: { outcome: canonicalSha256(outcomeClaims), environment: canonicalSha256(environment) } };
+    } else if (v5Manifest !== undefined) {
       const input: RunInputV3 = { name: v5Manifest.meta.name, spec: v5Manifest.meta.spec,
         manifestText: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(manifestBytes), steps: v5Steps, assertions: v5Assertions };
       const outcomeClaims = deriveOutcomeV3(input, environment);
@@ -829,6 +1087,7 @@ export async function runManifest(options: RunManifestOptions): Promise<RunManif
       }
     }
     if (cleanupErrors.length > 0) {
+      if (primaryError === undefined) enter("cleanup");
       const errors = primaryError === undefined ? cleanupErrors : [primaryError, ...cleanupErrors];
       const message = errors.map((error) => (error instanceof Error ? error.message : String(error))).join("; ");
       throw new AggregateError(errors, message);

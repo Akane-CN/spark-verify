@@ -79,11 +79,24 @@ The repository root carries its own [`verify.toml`](verify.toml): the secp256k1 
 
 The one exercised installation path (Linux x64, Bun 1.2.19, Node 20+) is documented step by step in [docs/install.md](docs/install.md): pack the tarball, declare the shipped OffCKB security patch **before** the first `bun install`, install into a clean project, run, and verify offline. The runner refuses to start a devnet next to an unpatched OffCKB bundle. `scripts/acceptance-matrix.sh --consumer` reproduces that path end to end; `scripts/acceptance-matrix.sh` runs the same scenario matrix against this checkout. The package is unreleased and private; see the [release checklist](docs/release-checklist.md), [maintenance loop](docs/maintenance.md), and [changelog](CHANGELOG.md).
 
+## Local console
+
+`ckb-verify ui` opens an interactive console on `http://127.0.0.1:4173/`. From it you can:
+
+- validate and run manifests, and watch each run's stages live;
+- see the stage a failed run stopped in;
+- read reports with every transaction drawn as input and output Cells and every claim as expected vs observed;
+- compare two runs;
+- verify a pasted report offline.
+
+See [docs/console.md](docs/console.md).
+
 ## CLI
 
 ```text
-ckb-verify run [manifest] [--allow-version-drift]
+ckb-verify run [manifest] [--allow-version-drift] [--report <file>] [--json]
 ckb-verify validate [manifest] [--json]
+ckb-verify ui [--port <n>] [--allow-host <host>]
 ckb-verify digest <report.json> [--json] [--allow-legacy]
 ckb-verify check-digest <report.json> [--outcome sha256:...] [--environment sha256:...] [--json] [--allow-legacy]
 ckb-verify check-bundle <bundle-dir> [--source-sha <commit>] [--repository owner/repo] [--allow-dirty] [--json]
@@ -158,15 +171,16 @@ The feasibility implementation supports only:
 - exact CKB and OffCKB versions accepted by the current adapter;
 - ckb-debugger `1.1.1` when requested, mandatory for every declared rejected transaction (Linux/x64 only);
 - a required replay dependency list containing zero or more unique RFC dependency codes;
-- `1..20` OffCKB development accounts;
+- `1..20` OffCKB development accounts (`0..20` under `0.2.0`);
 - one signed transaction envelope per step;
 - `expect.tx = "committed"` or `"rejected"`;
 - optional `expect.error.code` for a rejected script;
 - exact live-Cell count assertions targeting `{ step, index }`;
 - draft.4 only: count 0/1, type builtin `dao`/`spore` plus `args_bytes`, data `min_bytes`, and separate `cell_deps.contains` **table** membership. Properties require count 1. See [bounds and semantics](docs/cell-claims-draft.4.md).
 - `0.1.0` and draft.5 only: `expect.cycles` comparators; Cell selection by `out_point`, `lock`, and `type` script filters (explicit, any OffCKB built-in with optional wildcard args, or an exported account) with `count` comparators, `data.eq`/`len`/`min_bytes`, and `capacity` comparators; `balance` claims by account, full-format address, or lock, with or without a 16-byte little-endian UDT; and `run --allow-version-drift`. See the [v0.1 vocabulary](docs/vocabulary-v0.1.md) and the [vocabulary fixture](showcases/vocabulary/README.md).
+- `0.2.0` only: `[setup.scripts]` repository binaries the runner deploys (`type`, `data`, `data1`, `data2`) or built-in aliases, named references `"name"` and `{ script = "name", args }`, pure steps (no `expect`), zero steps and zero accounts, `expect.error.group`, and terminal node rejections recorded with their RPC code. Provenance adds every common lockfile, runtime pins with observed versions, the sanitized repository URL, and the devnet sealing fingerprint; the genesis must be the pinned default. See the [0.2.0 vocabulary](docs/vocabulary-v0.2.md) and the [repository-script showcase](showcases/repository-script/README.md).
 
-Unknown keys fail closed. A non-empty replay dependency list is accepted but makes the report explicitly `tainted`; it never silently claims stable replay. Script deployment declarations, named setup-script references, pure steps, `expect.error.group`, and multi-transaction steps remain RFC targets and are not silently accepted; balance/UDT assertions, script filters, and cycle comparators are implemented under spec `0.1.0`.
+Unknown keys fail closed. A non-empty replay dependency list is accepted but makes the report explicitly `tainted`; it never silently claims stable replay. Script deployment, named setup-script references, pure steps, and `expect.error.group` are implemented under spec `0.2.0` only and refused by `0.1.0`; multi-transaction steps remain an RFC open question.
 
 See [`docs/verify-toml-rfc-v0.2.md`](docs/verify-toml-rfc-v0.2.md) for the broader design. Its unimplemented sections are proposals, not current CLI behavior.
 
@@ -178,7 +192,8 @@ For each step the runner executes the trusted repository command with:
 - `CKB_VERIFY_RPC_URL`: loopback OffCKB node RPC for chain queries;
 - `CKB_VERIFY_ACCOUNTS`: mode-`0600` JSON file containing selected OffCKB development accounts;
 - `CKB_VERIFY_SYSTEM_SCRIPTS`: OffCKB system-script export;
-- `CKB_VERIFY_CONTEXT`: normalized devnet context.
+- `CKB_VERIFY_CONTEXT`: normalized devnet context;
+- `CKB_VERIFY_SCRIPTS` (`0.2.0`): the deployed and aliased `[setup.scripts]` with code hash, hash type, and cell deps.
 
 The producer writes exactly one object to `CKB_VERIFY_RESULT`:
 

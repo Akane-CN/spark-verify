@@ -20,7 +20,7 @@
 
 Exactly one combination was exercised end to end and is claimed: **Linux x64, Bun 1.2.19, Node.js 22** (OffCKB declares Node 20 or newer; 20 was not exercised), installed from the packed tarball into a separate project per [`docs/install.md`](install.md). Toolchain pins: OffCKB `0.4.13` with the shipped patch, CKB `0.209.0`, `ckb-debugger 1.1.1`, `@ckb-ccc/core 1.14.0`. See [supported combinations](maintenance.md#supported-combinations).
 
-Not supported: devnet execution (`run`) anywhere but Linux x64, other architectures, Node-only execution, other Bun versions, testnet or mainnet execution. On macOS 14 and Windows Server 2022 the offline commands (`validate`, `digest`, `check-digest`, `check-bundle`) are verified by the platform boundary workflow, and `run` is refused before it writes anything.
+Not supported: devnet execution (`run`) anywhere but Linux x64, other architectures, Node-only execution, other Bun versions, testnet or mainnet execution. On macOS 15 and Windows Server 2022 the offline commands (`validate`, `digest`, `check-digest`, `check-bundle`) are verified by the platform boundary workflow, and `run` is refused before it writes anything.
 
 ## Formats
 
@@ -44,7 +44,7 @@ The rules are in [version policy](version-policy.md); unsupported tuples are rej
 
 ## What was not run
 
-- No devnet execution on any platform other than Linux x64 / Bun 1.2.19. macOS 14 and Windows Server 2022 ran the install, the platform-independent tests, and the offline commands only ([platform boundary record](acceptance/2026-11-02-platform-boundary.md)).
+- No devnet execution on any platform other than Linux x64 / Bun 1.2.19. macOS 15 and Windows Server 2022 ran the install, the platform-independent tests, and the offline commands only ([platform boundary record](acceptance/2026-11-02-platform-boundary.md)).
 - No external pilot: no project maintainer was asked for or gave consent, and no OffCKB maintainer feedback exists ([external checkpoints](external-checkpoints.md)). The CKB-UGMP showcase is a feasibility adaptation, not adoption.
 - No install from the npm registry (`TBD`: repeat the consumer matrix against the published package if registry publication is chosen).
 

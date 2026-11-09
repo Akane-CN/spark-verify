@@ -1,5 +1,7 @@
 # Completion and budget report (draft)
 
+> **Not applicable since 2026-11-05.** The Spark proposal was rejected ([decision](https://talk.nervos.org/t/spark-program-spark-verify-reproducible-acceptance-checks-for-ckb-projects/10598/20), [review](reports/2026-11-08-spark-rejection-review.md)), so no Spark completion or budget report will be filed. This draft is kept as a record of the state on 2026-11-02.
+>
 > **Draft, prepared 2026-11-02 on the v0.1.0 candidate `e311ad3`.** The first candidate `d99117b` passed every gate and was then superseded by the fixes from its [pre-release review](acceptance/2026-11-02-candidate-review.md); `e311ad3` passed the same gates ([record](acceptance/2026-11-02-candidate-e311ad3.md)). The [Spark proposal revision 0.3](spark-proposal.md#12-application-status-and-remaining-gates) asks for a completion report and a budget report with the tagged release. This draft states what exists now; it is finalized when the release is published (release checklist step 8, approval on #20). Fields marked **maintainer** are facts only the maintainer holds and are not inferred here. Nothing in this draft is a billing claim.
 
 ## Completion report

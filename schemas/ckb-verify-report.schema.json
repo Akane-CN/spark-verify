@@ -20,7 +20,8 @@
    "enum": [
     "ckb-verify-report/1",
     "ckb-verify-report/2",
-    "ckb-verify-report/3"
+    "ckb-verify-report/3",
+    "ckb-verify-report/4"
    ]
   },
   "verdict": {
@@ -1811,6 +1812,23 @@
     }
    },
    "type": "object"
+  },
+  {
+   "type": "object",
+   "properties": {
+    "schema": {
+     "const": "ckb-verify-report/4"
+    },
+    "evidence": {
+     "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v4.schema.json#/$defs/evidenceV4"
+    },
+    "outcomeClaims": {
+     "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v4.schema.json#/$defs/outcomeV4"
+    },
+    "environment": {
+     "$ref": "https://spark-verify.invalid/schemas/ckb-verify-claims-v4.schema.json#/$defs/environmentV5"
+    }
+   }
   }
  ],
  "$defs": {
