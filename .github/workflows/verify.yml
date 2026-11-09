@@ -52,6 +52,17 @@ jobs:
           bun-version: 1.2.19
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Restore the verified CKB and debugger installs
+        # Avoids GitHub release downloads, which have failed with HTTP 504. Not a trust root: the
+        # runner re-checks a cached CKB archive and binary against the pins in src/ckb-binary.ts
+        # (and downloads again on any mismatch) and the debugger cache against src/debugger-binary.ts
+        # (refusing on any mismatch). Saved only after a successful job.
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            .ckb-verify/offckb/data/offckb-nodejs/bins/0.209.0
+            .ckb-verify/offckb/cache/verified-debugger/1.1.1-linux-x64
+          key: ckb-verify-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src/ckb-binary.ts', 'src/debugger-binary.ts') }}
       - name: Run fresh-devnet showcase
         run: bun run showcase:secp-transfer
       - name: Package sanitized evidence
@@ -85,6 +96,17 @@ jobs:
         run: node --version
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Restore the verified CKB and debugger installs
+        # Avoids GitHub release downloads, which have failed with HTTP 504. Not a trust root: the
+        # runner re-checks a cached CKB archive and binary against the pins in src/ckb-binary.ts
+        # (and downloads again on any mismatch) and the debugger cache against src/debugger-binary.ts
+        # (refusing on any mismatch). Saved only after a successful job.
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            .ckb-verify/offckb/data/offckb-nodejs/bins/0.209.0
+            .ckb-verify/offckb/cache/verified-debugger/1.1.1-linux-x64
+          key: ckb-verify-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src/ckb-binary.ts', 'src/debugger-binary.ts') }}
       - name: Run fresh-devnet Cell-property matrix
         run: bun run showcase:cell-properties
       - name: Package sanitized evidence
@@ -114,6 +136,17 @@ jobs:
           bun-version: 1.2.19
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Restore the verified CKB and debugger installs
+        # Avoids GitHub release downloads, which have failed with HTTP 504. Not a trust root: the
+        # runner re-checks a cached CKB archive and binary against the pins in src/ckb-binary.ts
+        # (and downloads again on any mismatch) and the debugger cache against src/debugger-binary.ts
+        # (refusing on any mismatch). Saved only after a successful job.
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            .ckb-verify/offckb/data/offckb-nodejs/bins/0.209.0
+            .ckb-verify/offckb/cache/verified-debugger/1.1.1-linux-x64
+          key: ckb-verify-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src/ckb-binary.ts', 'src/debugger-binary.ts') }}
       - name: Run fresh-devnet CKB-UGMP showcase
         run: bun run showcase:ckb-ugmp
       - name: Package sanitized evidence
@@ -145,6 +178,17 @@ jobs:
           bun-version: 1.2.19
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Restore the verified CKB and debugger installs
+        # Avoids GitHub release downloads, which have failed with HTTP 504. Not a trust root: the
+        # runner re-checks a cached CKB archive and binary against the pins in src/ckb-binary.ts
+        # (and downloads again on any mismatch) and the debugger cache against src/debugger-binary.ts
+        # (refusing on any mismatch). Saved only after a successful job.
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            .ckb-verify/offckb/data/offckb-nodejs/bins/0.209.0
+            .ckb-verify/offckb/cache/verified-debugger/1.1.1-linux-x64
+          key: ckb-verify-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src/ckb-binary.ts', 'src/debugger-binary.ts') }}
       - name: Run fresh-devnet vocabulary showcase
         run: bun run showcase:vocabulary
       - name: Package sanitized evidence
@@ -176,6 +220,17 @@ jobs:
           bun-version: 1.2.19
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Restore the verified CKB and debugger installs
+        # Avoids GitHub release downloads, which have failed with HTTP 504. Not a trust root: the
+        # runner re-checks a cached CKB archive and binary against the pins in src/ckb-binary.ts
+        # (and downloads again on any mismatch) and the debugger cache against src/debugger-binary.ts
+        # (refusing on any mismatch). Saved only after a successful job.
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            .ckb-verify/offckb/data/offckb-nodejs/bins/0.209.0
+            .ckb-verify/offckb/cache/verified-debugger/1.1.1-linux-x64
+          key: ckb-verify-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src/ckb-binary.ts', 'src/debugger-binary.ts') }}
       - name: Run fresh-devnet repository-script showcase
         run: bun run showcase:repository-script
       - name: Package sanitized evidence

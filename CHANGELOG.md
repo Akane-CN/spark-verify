@@ -134,6 +134,10 @@ the private `version` field of `package.json`, not published packages. Dates are
   verified project's `node_modules/.bin`.
 - The cell-properties showcase wrapper tolerates hosts where IPv6 cannot bind, matching the runner's
   port preflight.
+- The five showcase jobs in `verify.yml` restore the verified CKB `0.209.0` and `ckb-debugger 1.1.1`
+  installs with `actions/cache`, keyed on the pin sources, so a GitHub release download outage
+  (HTTP 504 on 2026-11-09) no longer turns CI red. The cache is not trusted: the runner re-checks it
+  against the pins, downloads CKB again on a mismatch, and refuses a mismatched debugger cache.
 
 ### Fixed
 
