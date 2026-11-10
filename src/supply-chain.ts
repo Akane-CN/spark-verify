@@ -16,8 +16,8 @@ const ALLOWED_AUDIT_FINDINGS = new Map<string, {
       severity: "low",
       url: "https://github.com/advisories/GHSA-848j-6mx2-7j84",
       owner: "Akane-CN",
-      reviewedOn: "2026-10-26",
-      expiresAt: "2026-11-25T00:00:00Z",
+      reviewedOn: "2026-11-03",
+      expiresAt: "2026-12-25T00:00:00Z",
     },
   ],
 ]);
