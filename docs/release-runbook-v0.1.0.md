@@ -21,14 +21,14 @@ bun install --frozen-lockfile
 bun run check:supply-chain                       # must print: supply-chain gate passed
 bun pm pack --destination dist
 (cd dist && sha256sum ckb-verify-$V.tgz > SHA256SUMS && cat SHA256SUMS)
-grep -q '^61fca14b5b00762021b13bd67049aed01da41e9b45053cdb08a554e2ee8eda0b  ckb-verify-0.1.0.tgz$' dist/SHA256SUMS && echo "tarball matches the gated candidate"
+grep -q '^c3817135748229a4733b222de2b3d3e5f70efe957692153dd011fe5e48f47421  ckb-verify-0.1.0.tgz$' dist/SHA256SUMS && echo "tarball matches the gated candidate"
 ```
 
 The tarball is byte-reproducible. If the checksum differs, stop: something other than the candidate is being packed.
 
 ## 2. Assemble and verify the release evidence
 
-Use the durable CI archive, retained until 2027-01-31, plus the acceptance records committed on `main` after the candidate:
+Use the durable CI archive, retained until 2027-02-08, plus the acceptance records committed on `main` after the candidate:
 
 ```bash
 gh run download $RUN --repo $REPO -n release-evidence-$SHA -D ci
@@ -89,7 +89,7 @@ git checkout --detach origin/main && bun install --frozen-lockfile
 scripts/acceptance-matrix.sh --consumer --tarball back/ckb-verify-$V.tgz --results install-back.md
 ```
 
-This exact matrix was rehearsed on 2026-11-02 against a local repack of the candidate tarball (sha256 `61fca14b…`, identical to the gated one): 24 of 24 cases passed, so a failure here points at the published asset, not at the harness.
+The same matrix passed on 2026-11-10 against the candidate's own packed tarball (sha256 `c3817135…`): 29 of 29 cases ([rehearsal](acceptance/2026-11-10-candidate-9b39a98-release-rehearsal.md)), and a repack of the candidate tree gives identical bytes. A failure here therefore points at the published asset, not at the harness.
 
 Every row in `install-back.md` must read `PASS`. Post its contents, the archive checksum, and the release URL on #20; the record is filed from there.
 

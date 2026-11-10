@@ -124,6 +124,16 @@ Spec `0.1.0` and its tuple are frozen and unchanged; nothing above is added to t
 - **Showcase:** the [repository-script showcase](../showcases/repository-script/README.md) deploys a lock script assembled from this repository and runs the full flow on fresh devnets: create, legal spend, group-pinned illegal spend, node rejection, negative controls, repeat, and a variant binary.
 - **Release:** `e311ad3` is no longer the release candidate. A new candidate must be frozen and re-gated, and the independent review covers it.
 
+### 2026-11-10: candidate `9b39a98` frozen; close-out hardening; the `elliptic` waiver renewed once
+
+**Decision.** The v0.1.0 candidate is `main` at `9b39a98` (#49). Development ends there, and the project moves to maintenance ([close-out report](reports/2026-11-10-closeout.md), Chinese).
+
+- **What #49 added to the candidate frozen for spec `0.2.0`:** bounded retries of the two pinned release downloads, `src/setup-project.ts` (one-command installation of the packed tarball, also the way the consumer acceptance matrix now installs), the cache in the reusable workflow, and a quick start in the README.
+- **Waiver:** the `elliptic` waiver was renewed once, to 2026-12-25, with the patch prepared on 2026-11-03 ([record](waiver-renewal-fallback.md)). It was applied because the release had not been published and the gate would have failed from 2026-11-25. `git apply -R docs/fallback/elliptic-waiver-renewal.patch` reverses it.
+- **Gates:** release checklist steps 1–6 passed on `9b39a98` ([record](acceptance/2026-11-10-candidate-9b39a98.md)).
+
+**Still open.** The independent review, and step 8. The publication approval on #20 was given for `e311ad3`; the maintainer confirms it for `9b39a98` before publishing, by 2026-12-24.
+
 ## What this record does not do
 
 It does not freeze the RFC (only the v0.1 contract above), publish anything, or close #20's remaining gates (package identity, candidate freeze, independent review, publication approval). Reopening any decision is a new entry here with a date and a reason, not an edit of the old one.

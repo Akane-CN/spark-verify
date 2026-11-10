@@ -61,4 +61,4 @@ A release changes exactly: `version` in `package.json`, `VERSION` in `src/versio
 - [x] `curl` check above repeated on the day; result recorded on #20: not needed without a registry package; for the record, both names returned 404 on 2026-11-02;
 - [x] the six release-blocking decisions on #18 recorded in [release decisions](release-decisions.md);
 - [ ] independent review of the candidate SHA recorded on #20;
-- [x] the [release notes draft](release-notes-draft.md) completed with the candidate SHA, run id, artifact ids, and checksums (candidate `e311ad3`, [record](acceptance/2026-11-02-candidate-e311ad3.md)).
+- [x] the [release notes draft](release-notes-draft.md) completed with the candidate SHA, run id, artifact ids, and checksums (candidate `9b39a98`, [record](acceptance/2026-11-10-candidate-9b39a98.md); earlier candidate `e311ad3`, [record](acceptance/2026-11-02-candidate-e311ad3.md)).

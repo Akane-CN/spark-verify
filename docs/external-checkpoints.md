@@ -45,7 +45,7 @@ When a text is posted, the next amendment records its link and date here and on 
 
 ## Upstream question (approved 2026-11-02, for the maintainer to post)
 
-Prepared for #2 and approved for publication on 2026-11-02. Post it as a new discussion or issue in [`ckb-devrel/offckb`](https://github.com/ckb-devrel/offckb), whichever that repository accepts for design questions, then link the post on #2. The text describes release candidate `e311ad3`, which is what `0.1.0` will ship.
+Prepared for #2 and approved for publication on 2026-11-02. Post it as a new discussion or issue in [`ckb-devrel/offckb`](https://github.com/ckb-devrel/offckb), whichever that repository accepts for design questions, then link the post on #2. The text describes release candidate `e311ad3`. Since 2026-11-10 the candidate is `9b39a98` ([record](acceptance/2026-11-10-candidate-9b39a98.md)); the questions below still apply to it, but re-read the text against that candidate before posting.
 
 > **Subject:** feedback request: an external acceptance-check runner on top of the OffCKB CLI
 >
