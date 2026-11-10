@@ -80,7 +80,7 @@ RFC items the proposal does not name, implemented on the maintainer's decision o
 | --- | --- | --- |
 | v0.1 reference, security, migration, and integration documentation | done | `README.md`, `SECURITY.md`, `docs/install.md`, `docs/maintenance.md`, `docs/version-policy.md`, `docs/offline-verification.md` |
 | Short demo | done | workflow video shared on the Spark thread on 2026-10-15 |
-| Exact-revision release verification log | done for the candidate | [`2026-11-02-candidate-e311ad3.md`](acceptance/2026-11-02-candidate-e311ad3.md): release checklist steps 1–6 on the re-frozen `e311ad3`, every gate PASS, with the CI evidence downloaded and verified (the first candidate `d99117b` was superseded by the [review](acceptance/2026-11-02-candidate-review.md) fixes); step 8 adds the install-back of the published assets |
+| Exact-revision release verification log | done for the candidate | [`2026-11-10-candidate-9b39a98.md`](acceptance/2026-11-10-candidate-9b39a98.md): release checklist steps 1–6 on the candidate `9b39a98`, every gate PASS, with the CI evidence downloaded and verified (earlier candidates: `d99117b`, superseded by the [review](acceptance/2026-11-02-candidate-review.md) fixes, and [`e311ad3`](acceptance/2026-11-02-candidate-e311ad3.md), superseded by spec `0.2.0`); step 8 adds the install-back of the published assets |
 | Spark completion report and budget report | drafted; finalized at publication | [completion and budget report draft](completion-report.md) on the candidate `e311ad3`; the grant status, funds, and costs are the maintainer's to fill; finalized with the tagged release under #20 |
 
 ## Beyond the proposal

@@ -1,16 +1,16 @@
 # Release notes draft: `ckb-verify` v0.1.0 candidate
 
-> **Draft.** No tag, release, or package exists. The candidate fields below are filled from the re-frozen candidate, on which [release checklist](release-checklist.md) steps 1–6 passed; the document is published only under step 8 with explicit authorization on #20. The `elliptic` waiver expires 2026-11-25, so publication from this candidate must happen by 2026-11-24.
+> **Draft.** No tag, release, or package exists. The candidate fields below are filled from the frozen candidate, on which [release checklist](release-checklist.md) steps 1–6 passed; the document is published only under step 8, with the maintainer's approval on #20 confirmed for this candidate. The `elliptic` waiver expires 2026-12-25, so publication from this candidate must happen by 2026-12-24.
 
 ## Candidate
 
 | Field | Value |
 | --- | --- |
-| Candidate commit | `e311ad3db8cc58f751928f01c881646da45f5a72` (re-frozen 2026-11-02, #42; supersedes `d99117b` after the [pre-release review](acceptance/2026-11-02-candidate-review.md)) |
-| Hosted CI run | Verify run 41507235776, every job green including `verify-evidence`; Platform boundary run 41507336019 on the same commit |
-| Package tarball | `ckb-verify-0.1.0.tgz`, sha256 `61fca14b5b00762021b13bd67049aed01da41e9b45053cdb08a554e2ee8eda0b` (reproducible from the candidate tree) |
-| Release evidence | CI artifact 13172620526: `release-evidence-e311ad3db8cc58f751928f01c881646da45f5a72.tar.gz`, sha256 `a11307e0e3aed8675c66cf3f5847244f2532b5666ead7f865e9462d7fb8ab40f`; the archive attached at step 8 is re-assembled from it with the records below, and its checksum is recorded then |
-| Acceptance records | [`2026-11-02-candidate-e311ad3.md`](acceptance/2026-11-02-candidate-e311ad3.md) (steps 1–6), with the source matrix, the release rehearsal including the consumer matrix, and the release surface beside it |
+| Candidate commit | `9b39a9882b0b4250e713cce556eef0a7dc3809b8` (frozen 2026-11-10, #49; supersedes `e311ad3` and the same-day `1ae9231`) |
+| Hosted CI run | Verify run 42730133984, every job green including `verify-evidence`; Platform boundary run 42730191970 on the same commit |
+| Package tarball | `ckb-verify-0.1.0.tgz`, sha256 `c3817135748229a4733b222de2b3d3e5f70efe957692153dd011fe5e48f47421` (reproducible from the candidate tree) |
+| Release evidence | CI artifact 13724223446: `release-evidence-9b39a9882b0b4250e713cce556eef0a7dc3809b8.tar.gz`, sha256 `e8c9fb30f0fe9f169e0cec7c7daeef2a6d07773ccd97c44d787faff08d90b079`, five bundles and 29 reports; the archive attached at step 8 is re-assembled from it with the records below, and its checksum is recorded then |
+| Acceptance records | [`2026-11-10-candidate-9b39a98.md`](acceptance/2026-11-10-candidate-9b39a98.md) (steps 1–6), with the source matrix, the release rehearsal including the consumer matrix, and the release surface beside it |
 
 ## What this release is
 
