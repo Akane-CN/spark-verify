@@ -1,5 +1,7 @@
 # Elliptic waiver renewal fallback
 
+> **Applied on 2026-11-10.** The patch below was applied to `main` as part of the close-out hardening, because v0.1.0 had not been published and a new candidate was being frozen anyway. On that day `bun run check:supply-chain` still reported exactly the one `elliptic` finding, and the npm registry still listed `elliptic` `6.6.1` as the latest release. The waiver now expires on **2026-12-25**; the next reassessment is due before then. The text below is kept as written on 2026-11-03.
+
 Prepared on 2026-11-03 for [#20](https://github.com/Akane-CN/spark-verify/issues/20). Use it **only if v0.1.0 cannot be published from the frozen candidate `e311ad3` by 2026-11-24**. The usual reasons are an independent-review finding that needs a code change, or a missed date.
 
 On 2026-11-25T00:00Z the `elliptic` waiver in `src/supply-chain.ts` expires. From then on, `check:supply-chain` and `bun run check` fail on `e311ad3` and on every later commit, and [runbook](release-runbook-v0.1.0.md) step 1 cannot pass. `SECURITY.md` allows no automatic renewal: a renewal is the owner's reviewed decision, recorded in both the policy and the gate.

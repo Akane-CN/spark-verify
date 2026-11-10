@@ -92,12 +92,33 @@ if [[ $MODE == consumer ]]; then
   fi
   TGZ=$(ls "$DIST"/ckb-verify-*.tgz | head -1); PACKED_VERSION=$(basename "$TGZ" .tgz | sed 's/^ckb-verify-//')
   TGZ_SHA=$(sha256sum "$TGZ" | cut -d' ' -f1)
-  PROJECT=$WORK/consumer; mkdir -p "$PROJECT/patches"
+  PROJECT=$WORK/consumer; mkdir -p "$PROJECT"
   cp "$ROOT/showcases/secp-transfer/produce.ts" "$PROJECT/produce.ts"
-  # Bun refuses to install a package whose patchedDependencies file is absent from the installing
-  # project, so the shipped patch is extracted from the tarball and declared before the first install.
-  tar -xzf "$TGZ" -C "$PROJECT/patches" --strip-components=2 "package/patches/@offckb%2Fcli@0.4.13.patch"
+  # The project already has a package.json, as a real one would; setup-project must merge into it.
   cat > "$PROJECT/package.json" <<JSON
+{
+  "name": "ckb-verify-consumer-acceptance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@ckb-ccc/core": "1.14.0" }
+}
+JSON
+  # Install the way docs/install.md tells a user to: with the setup script taken straight out of the
+  # tarball. It vendors the tarball, extracts the shipped patch (Bun refuses the install without that
+  # file), declares the dependency, patch, overrides, and Bun pin, writes .gitignore, and installs.
+  if tar -xzf "$TGZ" -C "$WORK" package/src/setup-project.ts 2>/dev/null; then
+    (bun "$WORK/package/src/setup-project.ts" "$TGZ" "$PROJECT" >"$WORK/install.log" 2>&1) || { cat "$WORK/install.log"; echo "setup-project failed"; exit 1; }
+    SETUP_AGAIN=$(bun "$WORK/package/src/setup-project.ts" "$TGZ" "$PROJECT" --no-install 2>&1)
+    if grep -q "written:   nothing (already set up)" <<<"$SETUP_AGAIN" && [[ -f $PROJECT/vendor/$(basename "$TGZ") && -f "$PROJECT/patches/@offckb%2Fcli@0.4.13.patch" ]] \
+      && grep -qx 'node_modules/' "$PROJECT/.gitignore" && grep -qx '.ckb-verify/' "$PROJECT/.gitignore"; then
+      record setup-project "one command from the tarball alone prepares and installs; a second run changes nothing" "vendored tarball, patch, package.json, .gitignore written; rerun: nothing" PASS
+    else record setup-project "prepared project, idempotent rerun" "$(tail -3 <<<"$SETUP_AGAIN" | tr '\n' ' ' | cut -c1-140)" FAIL; fi
+  else
+    # A tarball published before setup-project existed: the manual steps of the old install guide.
+    mkdir -p "$PROJECT/patches"
+    tar -xzf "$TGZ" -C "$PROJECT/patches" --strip-components=2 "package/patches/@offckb%2Fcli@0.4.13.patch"
+    cat > "$PROJECT/package.json" <<JSON
 {
   "name": "ckb-verify-consumer-acceptance",
   "version": "0.0.0",
@@ -109,8 +130,11 @@ if [[ $MODE == consumer ]]; then
   "overrides": { "adm-zip": "0.6.1", "fast-uri": "3.1.9", "follow-redirects": "1.16.2", "tar": "7.5.22" }
 }
 JSON
-  (cd "$PROJECT" && git init -q && git config user.email acceptance@example.invalid && git config user.name acceptance && printf 'node_modules/\n.ckb-verify/\n' > .gitignore)
-  (cd "$PROJECT" && bun install >"$WORK/install.log" 2>&1) || { cat "$WORK/install.log"; echo "install failed"; exit 1; }
+    printf 'node_modules/\n.ckb-verify/\n' > "$PROJECT/.gitignore"
+    (cd "$PROJECT" && bun install >"$WORK/install.log" 2>&1) || { cat "$WORK/install.log"; echo "install failed"; exit 1; }
+    record setup-project "tarball ships setup-project" "tarball predates it; installed by the manual steps" NOTE
+  fi
+  (cd "$PROJECT" && git init -q && git config user.email acceptance@example.invalid && git config user.name acceptance)
   CLI=("$PROJECT/node_modules/.bin/ckb-verify")
   OBSERVED=$("${CLI[@]}" --version 2>&1)
   if [[ $OBSERVED == "$PACKED_VERSION" ]]; then record install "installed bin reports packed version $PACKED_VERSION" "$OBSERVED (tarball sha256 $TGZ_SHA)" PASS
@@ -127,6 +151,19 @@ JSON
   printf '{"name":"no-patch","private":true,"dependencies":{"ckb-verify":"file:%s"}}\n' "$TGZ" > "$NOPATCH/package.json"
   if (cd "$NOPATCH" && bun install >"$WORK/nopatch.log" 2>&1); then record install-without-patch-file "bun install refuses (missing patch file)" "install succeeded" FAIL
   else record install-without-patch-file "bun install refuses (missing patch file)" "exit 1: $(grep -m1 -o 'could not find patch file[^ ]*' "$WORK/nopatch.log")" PASS; fi
+  # The quick-start path: `setup-project --example` in an empty directory, commit, run. It must pass as
+  # written, with a stable (untainted) report.
+  if [[ -f $WORK/package/src/setup-project.ts ]]; then
+    EXAMPLE=$WORK/example
+    if (bun "$WORK/package/src/setup-project.ts" "$TGZ" "$EXAMPLE" --example >"$WORK/example.log" 2>&1) \
+      && (cd "$EXAMPLE" && git config user.email acceptance@example.invalid && git config user.name acceptance && git add -A && git commit -qm "Add ckb-verify"); then
+      EX_OUT=$(cd "$EXAMPLE" && timeout --signal=INT --kill-after=15s 420s ./node_modules/.bin/ckb-verify run 2>&1); EX_STATUS=$?
+      EX_REPORT=$(printf '%s\n' "$EX_OUT" | sed -n 's/^report: //p' | head -1)
+      if (( EX_STATUS == 0 )) && grep -q '^PASS:' <<<"$EX_OUT" && [[ -f $EX_REPORT && $(field "$EX_REPORT" environment.provenance.replay.status) == stable ]]; then
+        record example-project "setup-project --example, commit, run: PASS with a stable report" "exit 0, PASS, replay stable" PASS
+      else record example-project "PASS exit 0, stable" "exit $EX_STATUS: $(tail -1 <<<"$EX_OUT" | cut -c1-120)" FAIL; fi
+    else record example-project "setup-project --example succeeds" "$(tail -1 "$WORK/example.log" | cut -c1-120)" FAIL; fi
+  fi
   write_manifests "$PROJECT" "bun run produce.ts"
   # Spec 0.2.0: the consumer deploys its own copy of the showcase lock script with the installed runner.
   mkdir -p "$PROJECT/build"; cp "$ROOT/showcases/repository-script/build/witness_lock" "$PROJECT/build/witness_lock"

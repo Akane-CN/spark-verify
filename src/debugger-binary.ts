@@ -5,6 +5,7 @@ import { gunzipSync } from "node:zlib";
 import { Header } from "tar";
 import { isDeepStrictEqual } from "node:util";
 import { sha256Bytes } from "./canonical";
+import { DOWNLOAD_RETRY_DELAYS_MS, markTransient, retryableHttpStatus, retryTransient, type RetrySleep } from "./download-retry";
 
 export interface DebuggerByteIdentity {
   readonly bytes: number;
@@ -114,7 +115,11 @@ export interface PreparePinnedDebuggerBinaryOptions {
 
 type Transport = (url: string, init: RequestInit) => Promise<Response>;
 type PrivateWriter = (path: string, bytes: Uint8Array, mode: number) => Promise<void>;
-type TestDependencies = { transport: Transport; write?: PrivateWriter; remove?: (path: string) => Promise<void> };
+type TestDependencies = {
+  transport: Transport; write?: PrivateWriter; remove?: (path: string) => Promise<void>;
+  /** One wait per retry of a transient download failure. The fixture seam defaults to none. */
+  retryDelaysMs?: readonly number[]; sleep?: RetrySleep;
+};
 const removePrivate = (path: string) => rm(path, { recursive: true, force: true });
 const writePrivate: PrivateWriter = (path, bytes, mode) => writeFile(path, bytes, { mode, flag: "wx" });
 
@@ -127,7 +132,7 @@ const writePrivate: PrivateWriter = (path, bytes, mode) => writeFile(path, bytes
  * Requires caller-controlled roots; does not defeat an actively hostile same UID.
  */
 export function preparePinnedDebuggerBinary(options: PreparePinnedDebuggerBinaryOptions): Promise<PreparedDebuggerBinary> {
-  return prepare(options, PIN, { transport: fetch });
+  return prepare(options, PIN, { transport: fetch, retryDelaysMs: DOWNLOAD_RETRY_DELAYS_MS });
 }
 
 /** @internal Code-only fixture seam, capped at 1 MiB per identity. No resolver,
@@ -237,22 +242,29 @@ async function download(pin: PinnedDebuggerAsset, transport: Transport, timeoutM
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   const chunks: Buffer[] = [];
   let length = 0;
+  // A network failure is transient; the time limit and the caller's cancellation are not.
+  const network = async <T>(operation: Promise<T>): Promise<T> => {
+    try { return await operation; } catch (error) { throw controller.signal.aborted ? error : markTransient(error); }
+  };
   try {
     const pending = transport(pin.sourceUrl, { signal: controller.signal, redirect: "follow", headers: { "user-agent": "ckb-verify" } });
     void pending.then(response => {
       if (controller.signal.aborted) void response.body?.cancel().catch(() => {});
     }, () => {});
-    const response = await transportWait(pending, controller.signal);
+    const response = await network(transportWait(pending, controller.signal));
     checkpoint(controller.signal);
     reader = response.body?.getReader();
-    if (!response.ok) throw new Error(`debugger archive HTTP ${response.status}`);
+    if (!response.ok) {
+      const error = new Error(`debugger archive HTTP ${response.status}`);
+      throw retryableHttpStatus(response.status) ? markTransient(error) : error;
+    }
     const lengthHeader = response.headers.get("content-length");
     if (lengthHeader !== null && (!/^\d+$/.test(lengthHeader) || Number(lengthHeader) !== pin.archive.bytes)) {
       throw new Error("debugger archive Content-Length mismatch");
     }
     if (reader === undefined) throw new Error("debugger archive response has no body");
     while (true) {
-      const { value, done } = await transportWait(reader.read(), controller.signal);
+      const { value, done } = await network(transportWait(reader.read(), controller.signal));
       checkpoint(controller.signal);
       if (done) break;
       length += value.byteLength;
@@ -355,7 +367,11 @@ async function prepare(
   const cached = await directoryTree(cache, false, options.signal);
   await directoryTree(options.snapshotRoot, false, options.signal);
   const archive = cached === undefined
-    ? await download(pin, dependencies.transport, timeoutMs, options.signal)
+    ? await retryTransient(() => download(pin, dependencies.transport, timeoutMs, options.signal), {
+      delaysMs: dependencies.retryDelaysMs ?? [],
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(dependencies.sleep === undefined ? {} : { sleep: dependencies.sleep }),
+    })
     : await readRegular(join(cache, pin.assetName), pin.archive.bytes, options.signal);
   const archiveIdentity = verify(archive, pin.archive, "archive");
   const extracted = extract(archive, pin);

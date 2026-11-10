@@ -7,6 +7,17 @@ the private `version` field of `package.json`, not published packages. Dates are
 
 ### Added
 
+- `src/setup-project.ts`: one command prepares a project to use the packed tarball. It vendors the
+  tarball, extracts the shipped OffCKB patch, declares the dependency, patch, overrides, and Bun pin in
+  `package.json`, updates `.gitignore`, and installs; `--example` also writes a manifest and a producer
+  that pass as written. It imports only the standard library, so it also runs straight out of the
+  tarball. It never overwrites an existing manifest or producer and refuses a conflicting
+  `package.json` value. The consumer acceptance matrix installs through it and runs its example.
+- Bounded retries for the pinned CKB and `ckb-debugger` downloads: up to four attempts on a network
+  error or HTTP 408, 429, or 5xx. A time limit, a cancellation, any other status, and every size or
+  checksum mismatch stay final on the first attempt, and each attempt's bytes pass the same checks.
+- A quick start in the README, with a Chinese version (`docs/quick-start.zh-CN.md`), and the close-out
+  report (`docs/reports/2026-11-10-closeout.md`).
 - Manifest spec `0.2.0`, which carries the parts of the proposal's target v0.1 that the frozen `0.1.0`
   lacks ([vocabulary](docs/vocabulary-v0.2.md); [decision](docs/release-decisions.md)). It is written
   as `ckb-verify-report/4` with `outcome/4`, `environment/5`, and `provenance/4`, and frozen by
@@ -114,6 +125,11 @@ the private `version` field of `package.json`, not published packages. Dates are
 
 ### Security
 
+- The `elliptic` waiver (low, GHSA-848j-6mx2-7j84) is renewed once: reviewed 2026-11-03, applied
+  2026-11-10, expires 2026-12-25 (was 2026-11-25). No fixed upstream release exists, the dependency
+  path is unchanged, and a traced run of the showcases recorded no `elliptic` call
+  ([renewal record](docs/waiver-renewal-fallback.md)). The advisory identity, severity, and scope
+  (disposable devnet keys) are unchanged.
 - `follow-redirects` pinned and overridden to `1.16.2` (from `1.16.1`) for
   [GHSA-mrwp-f3q8-3g9p](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p) (high), reported by the audit
   on 2026-10-31; the supply-chain gate, the installed-runtime check, and the consumer install guide
@@ -134,6 +150,8 @@ the private `version` field of `package.json`, not published packages. Dates are
   verified project's `node_modules/.bin`.
 - The cell-properties showcase wrapper tolerates hosts where IPv6 cannot bind, matching the runner's
   port preflight.
+- The reusable workflow `ckb-verify-reusable.yml` restores the verified CKB and debugger installs with
+  `actions/cache`, as the showcase jobs do; the runner still re-checks them against its pins.
 - The five showcase jobs in `verify.yml` restore the verified CKB `0.209.0` and `ckb-debugger 1.1.1`
   installs with `actions/cache`, keyed on the pin sources, so a GitHub release download outage
   (HTTP 504 on 2026-11-09) no longer turns CI red. The cache is not trusted: the runner re-checks it

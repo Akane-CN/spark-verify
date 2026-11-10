@@ -3,6 +3,7 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "n
 import { dirname, join } from "node:path";
 import * as tar from "tar";
 import { sha256Bytes } from "./canonical";
+import { DOWNLOAD_RETRY_DELAYS_MS, markTransient, retryableHttpStatus, retryTransient, type RetrySleep } from "./download-retry";
 
 export type SupportedPlatform = "linux" | "darwin" | "win32";
 export type SupportedArchitecture = "x64" | "arm64";
@@ -152,48 +153,75 @@ function releaseUrl(asset: PinnedCkbAsset): string {
   return `https://github.com/nervosnetwork/ckb/releases/download/v${asset.version}/${asset.assetName}`;
 }
 
-async function downloadPinnedArchive(url: string, asset: PinnedCkbAsset): Promise<Uint8Array> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error("CKB archive download timed out")), 120_000);
-  try {
-    const response = await fetch(url, {
-      redirect: "follow",
-      signal: controller.signal,
-      headers: { "user-agent": "ckb-verify" },
-    });
-    if (!response.ok) throw new Error(`CKB archive download failed with HTTP ${response.status}`);
-    const contentLength = response.headers.get("content-length");
-    if (contentLength !== null && Number.parseInt(contentLength, 10) !== asset.archiveBytes) {
-      throw new Error(
-        `CKB archive Content-Length mismatch for ${asset.assetName}: expected ${asset.archiveBytes}, observed ${contentLength}`,
-      );
-    }
-    if (response.body === null) throw new Error("CKB archive response has no body");
-
-    const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let observedBytes = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      observedBytes += value.byteLength;
-      if (observedBytes > asset.archiveBytes) {
-        await reader.cancel("archive exceeded pinned byte length");
-        throw new Error(`CKB archive exceeded pinned byte length ${asset.archiveBytes}`);
-      }
-      chunks.push(value);
-    }
-    const bytes = new Uint8Array(observedBytes);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return bytes;
-  } finally {
-    clearTimeout(timer);
-  }
+export interface CkbArchiveDownloaderDependencies {
+  fetch?: typeof fetch;
+  /** One wait per retry of a transient failure; defaults to DOWNLOAD_RETRY_DELAYS_MS. */
+  retryDelaysMs?: readonly number[];
+  sleep?: RetrySleep;
+  timeoutMs?: number;
 }
+
+/** The default downloader: one bounded, length-checked request per attempt, retried only on a network
+ * error or a retryable HTTP status. The caller still verifies the returned bytes against the pin. */
+export function createCkbArchiveDownloader(dependencies: CkbArchiveDownloaderDependencies = {}): CkbArchiveDownloader {
+  const request = dependencies.fetch ?? fetch;
+  const attempt = async (url: string, asset: PinnedCkbAsset): Promise<Uint8Array> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error("CKB archive download timed out")), dependencies.timeoutMs ?? 120_000);
+    // A network failure is transient; our own timeout is not.
+    const network = async <T>(pending: Promise<T>): Promise<T> => {
+      try { return await pending; } catch (error) { throw controller.signal.aborted ? error : markTransient(error); }
+    };
+    try {
+      const response = await network(request(url, {
+        redirect: "follow",
+        signal: controller.signal,
+        headers: { "user-agent": "ckb-verify" },
+      }));
+      if (!response.ok) {
+        void response.body?.cancel().catch(() => {});
+        const error = new Error(`CKB archive download failed with HTTP ${response.status}`);
+        throw retryableHttpStatus(response.status) ? markTransient(error) : error;
+      }
+      const contentLength = response.headers.get("content-length");
+      if (contentLength !== null && Number.parseInt(contentLength, 10) !== asset.archiveBytes) {
+        throw new Error(
+          `CKB archive Content-Length mismatch for ${asset.assetName}: expected ${asset.archiveBytes}, observed ${contentLength}`,
+        );
+      }
+      if (response.body === null) throw new Error("CKB archive response has no body");
+
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let observedBytes = 0;
+      while (true) {
+        const { done, value } = await network(reader.read());
+        if (done) break;
+        observedBytes += value.byteLength;
+        if (observedBytes > asset.archiveBytes) {
+          await reader.cancel("archive exceeded pinned byte length");
+          throw new Error(`CKB archive exceeded pinned byte length ${asset.archiveBytes}`);
+        }
+        chunks.push(value);
+      }
+      const bytes = new Uint8Array(observedBytes);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return bytes;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  return (url, asset) => retryTransient(() => attempt(url, asset), {
+    delaysMs: dependencies.retryDelaysMs ?? DOWNLOAD_RETRY_DELAYS_MS,
+    ...(dependencies.sleep === undefined ? {} : { sleep: dependencies.sleep }),
+  });
+}
+
+const downloadPinnedArchive = createCkbArchiveDownloader();
 
 export async function extractArchive(
   archivePath: string,
