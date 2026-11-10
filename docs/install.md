@@ -2,6 +2,38 @@
 
 This guide covers the one installation path that has been exercised end to end: **Linux x64, Bun 1.2.19, Node.js 22** (the OffCKB CLI declares Node 20 or newer, but only 22 has been exercised), installing the packed tarball into a separate project. Other operating systems, architectures, Node-only execution, and other Bun versions are not supported merely because `engines` metadata or binary pins exist. Nothing here publishes a package; the package is unreleased and `private`.
 
+## The short way: `setup-project`
+
+One command does sections 1–2 below, and with `--example` also section 4:
+
+```bash
+# from a checkout of ckb-verify
+bun run build                                                        # dist/ckb-verify-0.1.0.tgz
+bun src/setup-project.ts dist/ckb-verify-0.1.0.tgz /path/to/your-project --example
+```
+
+With only the tarball and no checkout, take the script out of the tarball first; it imports nothing but the standard library:
+
+```bash
+tar -xzf ckb-verify-0.1.0.tgz package/src/setup-project.ts
+bun package/src/setup-project.ts ckb-verify-0.1.0.tgz /path/to/your-project --example
+```
+
+What it does to the project:
+
+- copies the tarball to `vendor/ckb-verify-0.1.0.tgz`, so the dependency resolves inside the repository and in CI;
+- extracts the shipped OffCKB patch to `patches/`;
+- adds the `ckb-verify` dependency, the patch declaration, the audited `overrides`, and the Bun pin to `package.json`, creating the file if needed;
+- adds `node_modules/` and `.ckb-verify/` to `.gitignore`, and runs `git init` if the directory is not a repository;
+- runs `bun install` and checks that the installed binary reports the packed version (skip with `--no-install`);
+- with `--example`, writes `verify.toml` and `verify/transfer.ts`, a 100 CKB transfer that passes as written, and adds `@ckb-ccc/core` for it.
+
+It is safe to run again: a second run changes nothing. It never overwrites an existing `verify.toml` or producer, and it stops with an error instead of replacing a `package.json` value that conflicts with what the package needs. Commit the result before the first `ckb-verify run`, because a run in a dirty tree is recorded as such.
+
+`scripts/acceptance-matrix.sh --consumer` installs through this script, taken from the tarball, and runs the `--example` project on a fresh devnet, so this path is the one the release gates exercise.
+
+The rest of this page is the same installation by hand, and what the runner refuses.
+
 ## 1. Build or obtain the tarball
 
 From a clean checkout of the verified revision:

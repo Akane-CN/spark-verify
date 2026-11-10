@@ -2,11 +2,66 @@
 
 **Executable acceptance and regression checks for CKB transaction flows.**
 
-> **Status: unreleased, independently maintained.**
+> **Status: feature-complete for `v0.1.0`, independently maintained.**
 >
 > - Manifest specs `0.1.0` and `0.2.0` are frozen ([version policy](docs/version-policy.md)).
-> - The package is not published yet.
-> - The Spark grant proposal was rejected on 2026-11-05. The project continues without funding, and its focus moved from third-party review to developers' own regression testing. The [review of that decision](docs/reports/2026-11-08-spark-rejection-review.md) (Chinese) explains why.
+> - Supported on **Linux x64 with Bun 1.2.19 and Node.js 22**. Nothing else is claimed.
+> - There is no published release yet: you install from a tarball you pack from this repository (below). Publishing `v0.1.0` is the maintainer's step ([runbook](docs/release-runbook-v0.1.0.md)).
+> - The Spark grant proposal was rejected on 2026-11-05. The project continues without funding, and its focus moved from third-party review to developers' own regression testing. The [review of that decision](docs/reports/2026-11-08-spark-rejection-review.md) and the [close-out report](docs/reports/2026-11-10-closeout.md) (both Chinese) explain why and where the project stands.
+
+## Quick start
+
+中文版：[docs/quick-start.zh-CN.md](docs/quick-start.zh-CN.md)
+
+You need Linux x64, [Bun](https://bun.sh) `1.2.19`, Node.js 22, and `git`. Only run this on repositories you trust: a manifest runs the project's own commands, and there is no sandbox ([`SECURITY.md`](SECURITY.md)).
+
+**1. Build the package** from a checkout of this repository:
+
+```bash
+git clone https://github.com/Akane-CN/spark-verify.git && cd spark-verify
+bun install --frozen-lockfile
+bun run build                      # writes dist/ckb-verify-0.1.0.tgz
+```
+
+**2. Set up your project** with one command. It vendors the tarball, adds the dependency and the shipped OffCKB security patch to `package.json`, and installs. `--example` also writes a `verify.toml` and a producer that pass as they are:
+
+```bash
+bun src/setup-project.ts dist/ckb-verify-0.1.0.tgz /path/to/your-project --example
+cd /path/to/your-project
+git add -A && git commit -m "Add ckb-verify"     # a clean commit keeps reports untainted
+```
+
+**3. Run it:**
+
+```bash
+bunx ckb-verify validate           # checks verify.toml; runs nothing
+bunx ckb-verify run                # fresh local devnet, every step, every claim
+bunx ckb-verify ui                 # local console on http://127.0.0.1:4173/
+```
+
+`run` prints `PASS`, `FAIL` with the expected and observed value of each failed claim, or `ERROR [stage]` when it stopped without a verdict. The exit codes are `0`, `1`, and `2`. The first run downloads the pinned CKB binary; the report is written under `.ckb-verify/runs/`.
+
+**4. Make it yours.** Edit `verify.toml` and replace `verify/transfer.ts` with code that builds and signs your own transactions:
+
+- one transaction per step; the step's command writes it to `CKB_VERIFY_RESULT` and does not submit it ([producer boundary](#producer-boundary));
+- to deploy and test your own scripts, use spec `0.2.0` with `[setup.scripts]` ([0.2.0 vocabulary](docs/vocabulary-v0.2.md), [worked example](showcases/repository-script/README.md));
+- every claim you can declare is in the [v0.1 vocabulary](docs/vocabulary-v0.1.md).
+
+**5. Run it in CI** on every push, with the reusable workflow pinned to a commit of this repository:
+
+```yaml
+# .github/workflows/verify.yml in your project
+on: [push, pull_request]
+jobs:
+  verify:
+    uses: Akane-CN/spark-verify/.github/workflows/ckb-verify-reusable.yml@<commit-sha>
+    with:
+      manifest: verify.toml
+```
+
+It validates and runs the manifest on a fresh devnet, fails the job on `FAIL` or `ERROR`, and keeps the reports as an artifact. Anyone can re-check a report offline with `ckb-verify check-digest <report.json>`.
+
+The manual installation steps, and what the runner refuses, are in the [installation guide](docs/install.md).
 
 ## Who it is for
 
@@ -114,7 +169,11 @@ The repository root carries its own [`verify.toml`](verify.toml): the secp256k1 
 
 ## Installing into your own project
 
-The one exercised installation path (Linux x64, Bun 1.2.19, Node 20+) is documented step by step in [docs/install.md](docs/install.md): pack the tarball, declare the shipped OffCKB security patch **before** the first `bun install`, install into a clean project, run, and verify offline. The runner refuses to start a devnet next to an unpatched OffCKB bundle. `scripts/acceptance-matrix.sh --consumer` reproduces that path end to end; `scripts/acceptance-matrix.sh` runs the same scenario matrix against this checkout. The package is unreleased and private; see the [release checklist](docs/release-checklist.md), [maintenance loop](docs/maintenance.md), and [changelog](CHANGELOG.md).
+The [quick start](#quick-start) is the short form. `src/setup-project.ts` prepares a project from the packed tarball in one command, and it also runs straight out of the tarball without a checkout. The [installation guide](docs/install.md) has the same steps by hand: pack the tarball, declare the shipped OffCKB security patch **before** the first `bun install`, install into a clean project, run, and verify offline. The runner refuses to start a devnet next to an unpatched OffCKB bundle.
+
+`scripts/acceptance-matrix.sh --consumer` reproduces that path end to end, installing through `setup-project` and running its `--example` project; `scripts/acceptance-matrix.sh` runs the same scenario matrix against this checkout. The one exercised combination is Linux x64, Bun 1.2.19, Node.js 22. The package is unreleased and private; see the [release checklist](docs/release-checklist.md), [maintenance loop](docs/maintenance.md), and [changelog](CHANGELOG.md).
+
+Downloads of the pinned CKB and debugger releases are retried on network errors and HTTP 408, 429, and 5xx (up to four attempts), and the reusable CI workflow caches the verified installs, so a short GitHub outage does not fail a run.
 
 ## Local console
 
@@ -294,6 +353,7 @@ See [`SECURITY.md`](SECURITY.md) before running or modifying CI execution.
 ## Repository map
 
 - [`src/`](src/) — CLI, strict manifest parser, OffCKB adapter, runner, RPC boundary, and report canonicalization
+- [`src/setup-project.ts`](src/setup-project.ts) — one-command installation of the packed tarball into a project
 - [`showcases/`](showcases/) — bounded, executable integrations built on the runner
 - [`showcases/cell-properties/`](showcases/cell-properties/) — generic DAO/plain draft.4 matrix; passes on fresh devnets in CI and in the candidate gates
 - [`showcases/secp-transfer/`](showcases/secp-transfer/) — the first showcase: committed, rejected, and assertion-failure secp transfer paths

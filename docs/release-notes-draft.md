@@ -21,7 +21,9 @@ Since the previous candidate (`e311ad3`), this candidate adds:
 - **Spec `0.2.0`** ([vocabulary](vocabulary-v0.2.md)): repository script binaries deployed by the runner (`[setup.scripts]`), named script references, pure steps, zero steps and zero accounts, `expect.error.group`, terminal node rejections with their RPC code, lockfile and runtime pins, a sanitized repository identity, the devnet sealing fingerprint, and a pinned genesis allowlist. `run --report <file>` and `run --json`.
 - **Failure stages:** a run that ends without a verdict names the stage it stopped in (`ERROR [stage]: …`, and `stage` in `--json`).
 - **The local console** `ckb-verify ui` ([guide](console.md)): validate a manifest, start a run and watch its stages, read a report with each transaction drawn as input and output Cells, compare two runs, and re-verify any report offline.
-- CI restores the verified CKB and debugger installs from a cache.
+- **One-command project setup:** `src/setup-project.ts` installs the tarball into a project and can write an example that passes as written ([installation guide](install.md#the-short-way-setup-project)). It runs straight out of the tarball.
+- **Download retries:** the pinned CKB and `ckb-debugger` downloads are retried on a network error or HTTP 408, 429, or 5xx, up to four attempts, with the same length and checksum checks on every attempt.
+- **CI cache:** the reusable workflow and this repository's showcase jobs restore the verified CKB and debugger installs from a cache; the runner re-checks them against its pins.
 
 ## Supported
 
@@ -48,7 +50,7 @@ The rules are in [version policy](version-policy.md); unsupported tuples are rej
 - Listener scope is loopback for RPC `8114` and proxy `28114`, and the console binds `127.0.0.1` with a per-start token; the peer-to-peer port follows OffCKB's configuration. Network isolation beyond that is the host's job.
 - Offline validity is internal consistency, not authenticity: there is no signature.
 - Balance claims aggregate every live Cell under a lock, so their outcome digests repeat across fresh devnets only when the genesis Cells repeat.
-- A low-severity `elliptic` advisory is waived until 2026-11-25 for disposable devnet keys only ([`SECURITY.md`](../SECURITY.md)); the waiver must be unexpired on the release date.
+- A low-severity `elliptic` advisory is waived until 2026-12-25 (renewed once) for disposable devnet keys only ([`SECURITY.md`](../SECURITY.md)); the waiver must be unexpired on the release date.
 
 ## What was not run
 
