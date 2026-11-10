@@ -1,15 +1,15 @@
 # v0.1.0 release runbook (step 8)
 
-The exact commands for [release checklist](release-checklist.md#8-publication-separately-authorized) step 8 on the frozen candidate `e311ad3`. Step 8 is approved on #20, and the release is a **GitHub release only**, with no npm package ([decision](release-decisions.md#2026-11-02-package-identity-and-publication-path)). The maintainer runs these commands; nothing here runs in CI.
+The exact commands for [release checklist](release-checklist.md#8-publication-separately-authorized) step 8 on the frozen candidate `9b39a98`. Step 8 was approved on #20 for the earlier candidate `e311ad3`; confirm there that the approval stands for `9b39a98` before you run anything. The release is a **GitHub release only**, with no npm package ([decision](release-decisions.md#2026-11-02-package-identity-and-publication-path)). The maintainer runs these commands; nothing here runs in CI.
 
 ## Before you start
 
-- The **independent review** of `e311ad3` is recorded on #20 with no blocking finding (see the [review guide](independent-review-guide.md)). A blocking finding means a fix, a new candidate, new gates, and a new runbook.
-- **Date:** the run must finish by **2026-11-24**. The `elliptic` waiver expires on 2026-11-25, and the supply-chain gate fails after that. A later release first needs a reviewed waiver renewal, which means a new candidate. The renewal, its evidence, and the re-candidate steps are prepared in the [waiver renewal fallback](waiver-renewal-fallback.md).
+- The **independent review** of `9b39a98` is recorded on #20 with no blocking finding (see the [review guide](independent-review-guide.md)). A blocking finding means a fix, a new candidate, new gates, and a new runbook.
+- **Date:** the run must finish by **2026-12-24**. The `elliptic` waiver, renewed once on 2026-11-10 ([record](waiver-renewal-fallback.md)), expires on 2026-12-25, and the supply-chain gate fails after that. A later release first needs another reviewed renewal, which means a new candidate.
 - **Host:** Linux x64 with Bun `1.2.19`, Node 22, `git`, and `gh` signed in as an account with write access to `Akane-CN/spark-verify`. Run `gh auth setup-git` once, so `git push` of the tag uses the same credentials.
 
 ```bash
-export SHA=e311ad3db8cc58f751928f01c881646da45f5a72 V=0.1.0 RUN=41507235776 REPO=Akane-CN/spark-verify
+export SHA=9b39a9882b0b4250e713cce556eef0a7dc3809b8 V=0.1.0 RUN=42730133984 REPO=Akane-CN/spark-verify
 ```
 
 ## 1. Rebuild the tarball from the candidate and compare it
@@ -37,17 +37,18 @@ bun run scripts/release-evidence.ts verify ci/release-evidence-$SHA.tar.gz --sou
 mkdir x && tar -xzf ci/release-evidence-$SHA.tar.gz -C x
 
 git fetch origin main && mkdir records
-git show origin/main:docs/acceptance/2026-11-02-candidate-e311ad3-source-matrix.md     > records/acceptance-source.md
-git show origin/main:docs/acceptance/2026-11-02-candidate-e311ad3-release-rehearsal.md > records/rehearsal-2026-11-02.md
-git show origin/main:docs/acceptance/2026-11-02-candidate-e311ad3-release-surface.md   > records/verify-release-2026-11-02.md
-git show origin/main:docs/acceptance/2026-11-02-candidate-e311ad3.md                    > records/candidate-e311ad3.md
+git show origin/main:docs/acceptance/2026-11-10-candidate-9b39a98-source-matrix.md     > records/acceptance-source.md
+git show origin/main:docs/acceptance/2026-11-10-candidate-9b39a98-release-rehearsal.md > records/rehearsal-2026-11-10.md
+git show origin/main:docs/acceptance/2026-11-10-candidate-9b39a98-release-surface.md   > records/verify-release-2026-11-10.md
+git show origin/main:docs/acceptance/2026-11-10-candidate-9b39a98.md                    > records/candidate-9b39a98.md
 
 B=x/release-evidence/bundles
 bun run scripts/release-evidence.ts assemble --out release-evidence-$V-$SHA.tar.gz \
   --bundle $B/evidence-secp-transfer-$SHA --bundle $B/evidence-cell-properties-$SHA \
   --bundle $B/evidence-ckb-ugmp-$SHA --bundle $B/evidence-vocabulary-$SHA \
-  --record records/acceptance-source.md --record records/rehearsal-2026-11-02.md \
-  --record records/verify-release-2026-11-02.md --record records/candidate-e311ad3.md \
+  --bundle $B/evidence-repository-script-$SHA \
+  --record records/acceptance-source.md --record records/rehearsal-2026-11-10.md \
+  --record records/verify-release-2026-11-10.md --record records/candidate-9b39a98.md \
   --repository $REPO --source-sha $SHA --run-id $RUN
 bun run scripts/release-evidence.ts verify release-evidence-$V-$SHA.tar.gz --source-sha $SHA --repository $REPO
 cat release-evidence-$V-$SHA.tar.gz.sha256       # record this checksum in the release notes
@@ -78,7 +79,7 @@ gh release create v$V --repo $REPO --prerelease --verify-tag --title "ckb-verify
 
 ## 5. Install back what was published
 
-Download the published assets into a fresh directory, check them, and run the installed-consumer matrix against the downloaded tarball itself. Run the matrix from a checkout of `main`, because `--tarball` was added after the candidate:
+Download the published assets into a fresh directory, check them, and run the installed-consumer matrix against the downloaded tarball itself. Run the matrix from a checkout of `main`:
 
 ```bash
 mkdir back && gh release download v$V --repo $REPO -D back
