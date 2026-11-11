@@ -13,7 +13,7 @@ const ELLIPTIC_WAIVER = {
   severity: "low",
   vulnerable_versions: "<=6.6.1",
 };
-const REVIEW_DATE = new Date("2026-11-03T00:00:00Z");
+const REVIEW_DATE = new Date("2026-11-11T00:00:00Z");
 
 describe("supply-chain release gate", () => {
   test("rejects package-name/version drift and malformed installed metadata", () => {
@@ -36,8 +36,8 @@ describe("supply-chain release gate", () => {
 
   test("expires the elliptic waiver at its UTC deadline without rejecting a clean audit", () => {
     const report = { elliptic: [ELLIPTIC_WAIVER] };
-    expect(() => assertAllowedAuditReport(report, new Date("2026-12-24T23:59:59.999Z"))).not.toThrow();
-    for (const now of [new Date("2026-12-25T00:00:00Z"), new Date("2027-01-01T00:00:00Z")]) {
+    expect(() => assertAllowedAuditReport(report, new Date("2027-01-24T23:59:59.999Z"))).not.toThrow();
+    for (const now of [new Date("2027-01-25T00:00:00Z"), new Date("2027-02-01T00:00:00Z")]) {
       expect(() => assertAllowedAuditReport(report, now)).toThrow("waiver expired");
       expect(() => assertAuditCommandResult(report, 1, now)).toThrow("waiver expired");
       expect(() => assertAuditCommandResult({}, 0, now)).not.toThrow();
