@@ -128,6 +128,15 @@
 
 1. 是否合并 PR #47。它目前包含 spec `0.2.0`；控制台和阶段诊断会作为新提交追加到同一分支。
 2. 是否把新定位（开发者回归测试优先）写进 README 和 `docs/spark-proposal.md` 顶部的状态说明。
-3. 是否在 Nervos Talk 帖子补一条简短回复（可选）。参考草稿如下：
+3. 是否在 Nervos Talk 帖子补一条简短回复（可选）。草稿于 2026-11-11 按维护者的要求重写：只说明项目已开源并征集反馈，不回应否决理由，也不解释方向变化。它引用 `v0.1.0` 的 release 页面，所以要等 `v0.1.0` 发布之后再发：
 
-> Thanks again to the committee. After re-reading the feedback I think Hanssen's suggestion was right: the strongest use is developers re-running multi-case transaction checks in CI to catch regressions, with reviewers as a secondary audience. I've reoriented the project that way. It now deploys a project's own scripts, pins which script group must reject a transaction, and says which stage a failed run stopped in (manifest, toolchain, or the project's own command). It also ships a local console that draws each transaction and verifies reports offline. Feedback from anyone who tries it is very welcome.
+> Hi all, a short update on CKB Verify.
+>
+> CKB Verify v0.1.0 is out, open source under the MIT license:
+> <https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0>
+>
+> It runs the transaction flows you declare in `verify.toml` on a fresh local devnet and checks every declared result: whether a transaction is committed or rejected (with the error code and the script group), its cycles, and the Cells and balances it leaves behind. It can deploy your own script binaries, run in CI through a reusable GitHub workflow, and show each run in a local console.
+>
+> The release page has the install steps (Linux x64, Bun 1.2.19).
+>
+> Feedback is very welcome. If you try it, please open an issue and tell me what worked and what got in the way.
