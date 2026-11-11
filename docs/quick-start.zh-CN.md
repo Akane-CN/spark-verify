@@ -11,23 +11,23 @@
 
 ## 1. 下载安装包
 
-从 [`v0.1.0` release](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0) 下载安装包并核对校验和：
+从 [`v0.1.1` release](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.1) 下载安装包并核对校验和：
 
 ```bash
-curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.0/ckb-verify-0.1.0.tgz
-curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.0/SHA256SUMS
+curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.1/ckb-verify-0.1.1.tgz
+curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.1/SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
 
-没有发布到 npm。想自己打包的话，在本仓库的检出里执行 `bun install --frozen-lockfile && bun run build`，会生成 `dist/ckb-verify-0.1.0.tgz`。
+没有发布到 npm。想自己打包的话，在本仓库的检出里执行 `bun install --frozen-lockfile && bun run build`，会生成 `dist/ckb-verify-0.1.1.tgz`。
 
 ## 2. 接入你的项目
 
 一条命令完成接入，接入脚本就在安装包里。加上 `--example` 会同时生成一份能直接跑通的 `verify.toml` 和示例交易脚本：
 
 ```bash
-tar -xzf ckb-verify-0.1.0.tgz package/src/setup-project.ts
-bun package/src/setup-project.ts ckb-verify-0.1.0.tgz /path/to/your-project --example
+tar -xzf ckb-verify-0.1.1.tgz package/src/setup-project.ts
+bun package/src/setup-project.ts ckb-verify-0.1.1.tgz /path/to/your-project --example
 cd /path/to/your-project
 git add -A && git commit -m "Add ckb-verify"     # 先提交，报告才不会被标记为 tainted
 ```

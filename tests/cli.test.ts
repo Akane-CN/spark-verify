@@ -21,7 +21,7 @@ describe("ckb-verify CLI", () => {
     const result = runCli("--version");
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.toString()).toBe("0.1.0\n");
+    expect(result.stdout.toString()).toBe("0.1.1\n");
     expect(result.stderr.toString()).toBe("");
   });
 

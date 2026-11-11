@@ -1,15 +1,31 @@
 # Changelog
 
-All notable changes to `ckb-verify` are recorded here. `0.1.0` is published as a GitHub release
-([`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0), commit `9b39a98`); earlier versions were never published. Nothing is published to
-npm: versions are the private `version` field of `package.json`. Dates are UTC.
+All notable changes to `ckb-verify` are recorded here. Versions from `0.1.0` on are
+[GitHub releases](https://github.com/Akane-CN/spark-verify/releases); earlier versions were never
+published. Nothing is published to npm: versions are the private `version` field of `package.json`.
+Dates are UTC.
 
-## Unreleased
+## 0.1.1 — 2026-11-11
+
+A patch release. The runner, the manifest specs, and the report formats are the same as in `0.1.0`.
+
+### Fixed
+
+- The installed-consumer acceptance matrix (`scripts/acceptance-matrix.sh`, repository tooling, not
+  part of the package) had a tamper fixture that only worked as root. It overwrote the cached
+  `ckb-debugger`, which the runner publishes read-only, without allowing the write. As any other user
+  the write was refused, the runner then passed against the clean cache, and the row was reported as
+  a failed tamper check ([#52](https://github.com/Akane-CN/spark-verify/issues/52)). The product's
+  integrity check was never bypassed. The fixture now allows the owner write, inverts one byte,
+  restores the mode, and fails as a fixture setup failure, without invoking the runner, unless the
+  hash changed. A pass also requires the corrupted bytes to be still in place afterwards.
 
 ### Changed
 
-- The README and the Chinese quick start install from the `v0.1.0` release tarball, with the setup script
-  taken out of it, instead of a tarball packed from a checkout.
+- The README and the Chinese quick start install from the release tarball, with the setup script taken
+  out of it, instead of a tarball packed from a checkout.
+- The acceptance matrix records the uid it ran as. Every gate recorded before 2026-11-11 ran as root;
+  from this release the installed-consumer matrix is run both as root and as an ordinary user.
 
 ### Security
 
@@ -17,8 +33,8 @@ npm: versions are the private `version` field of `package.json`. Dates are UTC.
   2027-01-25 (was 2026-12-25). The advisory, the dependency path, and the upstream releases are
   unchanged. A traced run of all five showcases, now including the spec `0.2.0` repository-script
   showcase, recorded no `elliptic` call in 466 processes
-  ([record](docs/waiver-renewal-fallback.md#reassessment-2026-11-11)). The v0.1.0 candidate `9b39a98`
-  is not changed by this and keeps its 2026-12-25 expiry.
+  ([record](docs/waiver-renewal-fallback.md#reassessment-2026-11-11)). `0.1.0` keeps the 2026-12-25
+  expiry it was released with.
 
 ## 0.1.0 — 2026-11-03
 

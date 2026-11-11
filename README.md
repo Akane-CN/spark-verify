@@ -2,11 +2,11 @@
 
 **Executable acceptance and regression checks for CKB transaction flows.**
 
-> **Status: `v0.1.0` released, independently maintained.**
+> **Status: released, independently maintained.**
 >
 > - Manifest specs `0.1.0` and `0.2.0` are frozen ([version policy](docs/version-policy.md)).
 > - Supported on **Linux x64 with Bun 1.2.19 and Node.js 22**. Nothing else is claimed.
-> - [`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0) is a GitHub release, published on 2026-11-11 from commit `9b39a98`. There is no npm package: you install from the release tarball (below).
+> - The current release is [`v0.1.1`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.1); the first was `v0.1.0` (2026-11-11). Releases are on GitHub only. There is no npm package: you install from the release tarball (below).
 > - The Spark grant proposal was rejected on 2026-11-05. The project continues without funding, and its focus moved from third-party review to developers' own regression testing. The [review of that decision](docs/reports/2026-11-08-spark-rejection-review.md) and the [close-out report](docs/reports/2026-11-10-closeout.md) (both Chinese) explain why and where the project stands.
 
 ## Quick start
@@ -15,19 +15,19 @@
 
 You need Linux x64, [Bun](https://bun.sh) `1.2.19`, Node.js 22, and `git`. Only run this on repositories you trust: a manifest runs the project's own commands, and there is no sandbox ([`SECURITY.md`](SECURITY.md)).
 
-**1. Download the package** from the [`v0.1.0` release](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0) and check it:
+**1. Download the package** from the [`v0.1.1` release](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.1) and check it:
 
 ```bash
-curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.0/ckb-verify-0.1.0.tgz
-curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.0/SHA256SUMS
+curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.1/ckb-verify-0.1.1.tgz
+curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.1/SHA256SUMS
 sha256sum -c SHA256SUMS
 ```
 
 **2. Set up your project** with one command, using the setup script inside the tarball. It vendors the tarball, adds the dependency and the shipped OffCKB security patch to `package.json`, and installs. `--example` also writes a `verify.toml` and a producer that pass as they are:
 
 ```bash
-tar -xzf ckb-verify-0.1.0.tgz package/src/setup-project.ts
-bun package/src/setup-project.ts ckb-verify-0.1.0.tgz /path/to/your-project --example
+tar -xzf ckb-verify-0.1.1.tgz package/src/setup-project.ts
+bun package/src/setup-project.ts ckb-verify-0.1.1.tgz /path/to/your-project --example
 cd /path/to/your-project
 git add -A && git commit -m "Add ckb-verify"     # a clean commit keeps reports untainted
 ```
@@ -62,7 +62,7 @@ jobs:
 
 It validates and runs the manifest on a fresh devnet, fails the job on `FAIL` or `ERROR`, and keeps the reports as an artifact. Anyone can re-check a report offline with `ckb-verify check-digest <report.json>`.
 
-To build the tarball yourself instead of downloading it, run `bun install --frozen-lockfile && bun run build` in a checkout; it writes `dist/ckb-verify-0.1.0.tgz`. The manual installation steps, and what the runner refuses, are in the [installation guide](docs/install.md).
+To build the tarball yourself instead of downloading it, run `bun install --frozen-lockfile && bun run build` in a checkout; it writes `dist/ckb-verify-0.1.1.tgz`. The manual installation steps, and what the runner refuses, are in the [installation guide](docs/install.md).
 
 ## Who it is for
 
@@ -158,7 +158,7 @@ The first devnet run may download the pinned CKB binary and debugger.
 
 ## Draft.4 Cell-property fixture
 
-The private `0.1.0` runner also accepts [draft.4 type/args-length/data-length and CellDep claims](docs/cell-claims-draft.4.md). The repository-owned [generic DAO-deposit fixture](showcases/cell-properties/README.md) adds six declared cases plus a fresh positive repeat through `bun run showcase:cell-properties`. It is not NervDAO adoption. It passes on fresh devnets in CI, whose evidence bundle carries its reports, and in the v0.1.0 candidate gates ([record](docs/acceptance/2026-11-02-candidate-d99117b.md)).
+The runner also accepts [draft.4 type/args-length/data-length and CellDep claims](docs/cell-claims-draft.4.md). The repository-owned [generic DAO-deposit fixture](showcases/cell-properties/README.md) adds six declared cases plus a fresh positive repeat through `bun run showcase:cell-properties`. It is not NervDAO adoption. It passes on fresh devnets in CI, whose evidence bundle carries its reports, and in the v0.1.0 candidate gates ([record](docs/acceptance/2026-11-02-candidate-d99117b.md)).
 
 The new wrapper verifies each complete PASS/FAIL report with `verifyReport`, checks the intended failing predicates, and independently checks account/pending-report absence and ports even if report readback fails. Repeats require equal outcomes; repeated raw provenance requires equal environments. Differing real genesis/deployment bindings remain visible, not scrubbed to force equality. Each showcase job then packages its canonical reports into a sanitized, checksummed [evidence bundle](docs/offline-verification.md#evidence-bundles) that a later job downloads through the API and re-verifies offline (#19).
 
