@@ -188,7 +188,7 @@ else
 fi
 MANIFESTS=$([[ $MODE == consumer ]] && echo "$PROJECT" || echo "$WORK")
 SOURCE_HEAD=$(cd "$PROJECT" && git rev-parse HEAD)
-echo "== platform: $(uname -s) $(uname -m), bun $(bun --version), node $(node --version), ckb-verify $PACKED_VERSION, project HEAD $SOURCE_HEAD, mode $MODE"
+echo "== platform: $(uname -s) $(uname -m), bun $(bun --version), node $(node --version), ckb-verify $PACKED_VERSION, project HEAD $SOURCE_HEAD, mode $MODE, uid $(id -u)"
 
 # ---------------------------------------------------------------- offline validate (nothing executed)
 OUT=$(cd "$PROJECT" && runner validate "$MANIFESTS/committed.toml" 2>&1); STATUS=$?
@@ -289,15 +289,32 @@ else record producer-timeout "exit 2 timed out" "exit $STATUS: $(tail -1 <<<"$OU
 # ---------------------------------------------------------------- tampered debugger cache
 DBG=$PROJECT/.ckb-verify/offckb/cache/verified-debugger/1.1.1-linux-x64/ckb-debugger
 if [[ -f $DBG ]]; then
-  BEFORE=$(report_count); ORIGINAL=$(sha256sum "$DBG" | cut -d' ' -f1)
-  for offset in 100 4096 65536; do # flip a byte that was not already 0xff
-    printf '\xff' | dd of="$DBG" bs=1 seek=$offset conv=notrunc status=none
-    [[ $(sha256sum "$DBG" | cut -d' ' -f1) != "$ORIGINAL" ]] && break
-  done
-  run_manifest "$MANIFESTS/rejected.toml"
-  if (( STATUS == 2 )) && grep -qi "debugger" <<<"$OUT" && [[ $(report_count) == "$BEFORE" ]] && closeout_ok >/dev/null; then
-    record tampered-debugger-cache "exit 2 no verdict, cache not repaired silently" "exit 2: $(grep -o 'debugger[^;]*' <<<"$OUT" | head -1 | cut -c1-80)" PASS
-  else record tampered-debugger-cache "exit 2 refusing tampered cache" "exit $STATUS: $(tail -1 <<<"$OUT")" FAIL; fi
+  BEFORE=$(report_count); ORIGINAL=$(sha256sum "$DBG" | cut -d' ' -f1); DBG_MODE=$(stat -c %a "$DBG")
+  # The runner publishes the cached executable read-only (0500), so only root could overwrite it as it
+  # is. Corrupt it the way its owner would have to: allow the write, invert one byte, restore the mode.
+  # The fixture must prove the corruption happened; a clean cache must never be reported as a tamper result.
+  TAMPER_OFFSET=4096; TAMPER_ERROR=""
+  chmod u+w "$DBG" 2>/dev/null || TAMPER_ERROR="chmod u+w was refused"
+  if [[ -z $TAMPER_ERROR ]]; then
+    BYTE=$(od -An -tu1 -j"$TAMPER_OFFSET" -N1 "$DBG" | tr -d ' ')
+    if [[ $BYTE =~ ^[0-9]+$ ]]; then
+      printf "\\$(printf '%03o' $(( BYTE ^ 255 )))" | dd of="$DBG" bs=1 seek="$TAMPER_OFFSET" conv=notrunc status=none 2>/dev/null \
+        || TAMPER_ERROR="the write was refused"
+    else TAMPER_ERROR="could not read the byte at offset $TAMPER_OFFSET"; fi
+  fi
+  chmod "$DBG_MODE" "$DBG" 2>/dev/null || TAMPER_ERROR=${TAMPER_ERROR:-"could not restore mode $DBG_MODE"}
+  TAMPERED=$(sha256sum "$DBG" | cut -d' ' -f1)
+  [[ -n $TAMPER_ERROR || $TAMPERED != "$ORIGINAL" ]] || TAMPER_ERROR="the executable's hash did not change"
+  [[ -n $TAMPER_ERROR || $(stat -c %a "$DBG") == "$DBG_MODE" ]] || TAMPER_ERROR="mode is $(stat -c %a "$DBG"), not $DBG_MODE"
+  if [[ -n $TAMPER_ERROR ]]; then
+    record tampered-debugger-cache "fixture inverts one byte of the cached debugger, then the runner refuses it" "fixture setup failed: $TAMPER_ERROR; runner not invoked" FAIL
+  else
+    run_manifest "$MANIFESTS/rejected.toml"
+    AFTER=$(sha256sum "$DBG" 2>/dev/null | cut -d' ' -f1)
+    if (( STATUS == 2 )) && grep -qi "debugger" <<<"$OUT" && [[ $(report_count) == "$BEFORE" && $AFTER == "$TAMPERED" ]] && closeout_ok >/dev/null; then
+      record tampered-debugger-cache "exit 2 no verdict, cache not repaired silently" "exit 2: $(grep -o 'debugger[^;]*' <<<"$OUT" | head -1 | cut -c1-80); corrupted bytes still in place, mode $DBG_MODE" PASS
+    else record tampered-debugger-cache "exit 2 refusing tampered cache, cache left as corrupted" "exit $STATUS: $(tail -1 <<<"$OUT" | cut -c1-90); cache $([[ $AFTER == "$TAMPERED" ]] && echo unchanged || echo changed)" FAIL; fi
+  fi
   rm -rf "$PROJECT/.ckb-verify/offckb/cache/verified-debugger"
   run_manifest "$MANIFESTS/rejected.toml"
   if (( STATUS == 0 )); then record debugger-reinstall-after-cleanup "PASS exit 0 after removing the tampered cache" "exit 0" PASS; else record debugger-reinstall-after-cleanup "PASS exit 0" "exit $STATUS" FAIL; fi
@@ -332,7 +349,7 @@ else record v02-wrong-group "FAIL exit 1 on the group" "exit $STATUS: $(tail -1 
 if MSG=$(closeout_ok 2>&1); then record final-closeout "no accounts/pending, ports free" "clean" PASS; else record final-closeout "clean" "$MSG" FAIL; fi
 
 TABLE=$(printf '| case | expected | observed | result |\n| --- | --- | --- | --- |\n%s\n' "$(printf '%s\n' "${ROWS[@]}")")
-HEADER="mode: $MODE; platform: $(uname -s) $(uname -m); bun $(bun --version); node $(node --version); ckb-verify $PACKED_VERSION; project HEAD $SOURCE_HEAD; $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+HEADER="mode: $MODE; platform: $(uname -s) $(uname -m); uid $(id -u); bun $(bun --version); node $(node --version); ckb-verify $PACKED_VERSION; project HEAD $SOURCE_HEAD; $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 printf '\n%s\n\n%s\n' "$HEADER" "$TABLE"
 [[ -n $RESULTS ]] && printf '%s\n\n%s\n' "$HEADER" "$TABLE" > "$RESULTS"
 if (( FAILED )); then echo "ACCEPTANCE MATRIX FAILED"; exit 1; fi
