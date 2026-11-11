@@ -1,6 +1,8 @@
 # v0.1.0 release runbook (step 8)
 
-> **Status, 2026-11-11.** Steps 1–5 are done. [`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0) was published as a prerelease from `9b39a98`, and the install-back of the published assets passed, 29 of 29 ([record](acceptance/2026-11-11-v0.1.0-install-back.md)). Step 6, promoting the prerelease, is what remains.
+> **Status, 2026-11-11.** Steps 1–5 are done. [`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0) was published as a prerelease from `9b39a98`, and the install-back of the published assets passed, 29 of 29 ([record](acceptance/2026-11-11-v0.1.0-install-back.md)). Step 6 is done too: the maintainer promoted the prerelease on 2026-11-11.
+>
+> **Correction, 2026-11-11.** That install-back ran as root. A second run of the same matrix by an ordinary user failed one row, because of a defect in the matrix's own tamper fixture, not in the release ([#52](https://github.com/Akane-CN/spark-verify/issues/52)). With the fixture fixed, the matrix passes against the published tarball both as an ordinary user and as root; the record has both runs. The release was promoted before that re-run finished.
 
 The exact commands for [release checklist](release-checklist.md#8-publication-separately-authorized) step 8 on the frozen candidate `9b39a98`. Step 8 was approved on #20 for the earlier candidate `e311ad3`; confirm there that the approval stands for `9b39a98` before you run anything. The release is a **GitHub release only**, with no npm package ([decision](release-decisions.md#2026-11-02-package-identity-and-publication-path)). The maintainer runs these commands; nothing here runs in CI.
 

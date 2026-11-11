@@ -1,6 +1,6 @@
 # Installing ckb-verify in your own project
 
-This guide covers the one installation path that has been exercised end to end: **Linux x64, Bun 1.2.19, Node.js 22** (the OffCKB CLI declares Node 20 or newer, but only 22 has been exercised), installing the packed tarball into a separate project. Other operating systems, architectures, Node-only execution, and other Bun versions are not supported merely because `engines` metadata or binary pins exist. The package is a GitHub release only ([`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0)); it is not on npm and stays `private`.
+This guide covers the one installation path that has been exercised end to end: **Linux x64, Bun 1.2.19, Node.js 22** (the OffCKB CLI declares Node 20 or newer, but only 22 has been exercised), installing the packed tarball into a separate project. Other operating systems, architectures, Node-only execution, and other Bun versions are not supported merely because `engines` metadata or binary pins exist. The package is released on GitHub only ([releases](https://github.com/Akane-CN/spark-verify/releases)); it is not on npm and stays `private`.
 
 ## The short way: `setup-project`
 
@@ -8,20 +8,20 @@ One command does sections 1–2 below, and with `--example` also section 4:
 
 ```bash
 # from a checkout of ckb-verify
-bun run build                                                        # dist/ckb-verify-0.1.0.tgz
-bun src/setup-project.ts dist/ckb-verify-0.1.0.tgz /path/to/your-project --example
+bun run build                                                        # dist/ckb-verify-0.1.1.tgz
+bun src/setup-project.ts dist/ckb-verify-0.1.1.tgz /path/to/your-project --example
 ```
 
-With only the tarball and no checkout, for example the one downloaded from the [`v0.1.0` release](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0), take the script out of the tarball first; it imports nothing but the standard library:
+With only the tarball and no checkout, for example the one downloaded from the [`v0.1.1` release](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.1), take the script out of the tarball first; it imports nothing but the standard library:
 
 ```bash
-tar -xzf ckb-verify-0.1.0.tgz package/src/setup-project.ts
-bun package/src/setup-project.ts ckb-verify-0.1.0.tgz /path/to/your-project --example
+tar -xzf ckb-verify-0.1.1.tgz package/src/setup-project.ts
+bun package/src/setup-project.ts ckb-verify-0.1.1.tgz /path/to/your-project --example
 ```
 
 What it does to the project:
 
-- copies the tarball to `vendor/ckb-verify-0.1.0.tgz`, so the dependency resolves inside the repository and in CI;
+- copies the tarball to `vendor/ckb-verify-0.1.1.tgz`, so the dependency resolves inside the repository and in CI;
 - extracts the shipped OffCKB patch to `patches/`;
 - adds the `ckb-verify` dependency, the patch declaration, the audited `overrides`, and the Bun pin to `package.json`, creating the file if needed;
 - adds `node_modules/` and `.ckb-verify/` to `.gitignore`, and runs `git init` if the directory is not a repository;
@@ -41,7 +41,7 @@ From a clean checkout of the verified revision:
 ```bash
 bun install --frozen-lockfile
 bun pm pack --destination dist
-sha256sum dist/ckb-verify-0.1.0.tgz
+sha256sum dist/ckb-verify-0.1.1.tgz
 ```
 
 The tarball contains only `src/`, `schemas/`, `patches/`, the user-facing docs, `SECURITY.md`, `LICENSE`, `README.md`, and `package.json`. Tests, showcases, CI configuration, and media are not shipped. Record the checksum next to the revision you packed; `ckb-verify --version` reports the packed version.
@@ -59,7 +59,7 @@ Extract the patch from the tarball and declare it explicitly before the first in
 mkdir my-project && cd my-project && git init
 printf 'node_modules/\n.ckb-verify/\n' > .gitignore   # dependencies and runner output are not source
 mkdir patches
-tar -xzf ../path/to/ckb-verify-0.1.0.tgz -C patches --strip-components=2 'package/patches/@offckb%2Fcli@0.4.13.patch'
+tar -xzf ../path/to/ckb-verify-0.1.1.tgz -C patches --strip-components=2 'package/patches/@offckb%2Fcli@0.4.13.patch'
 ```
 
 ```jsonc
@@ -70,7 +70,7 @@ tar -xzf ../path/to/ckb-verify-0.1.0.tgz -C patches --strip-components=2 'packag
   "type": "module",
   "packageManager": "bun@1.2.19",
   "dependencies": {
-    "ckb-verify": "file:../path/to/ckb-verify-0.1.0.tgz",
+    "ckb-verify": "file:../path/to/ckb-verify-0.1.1.tgz",
     "@ckb-ccc/core": "1.14.0"
   },
   "patchedDependencies": {

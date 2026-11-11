@@ -50,7 +50,7 @@ bun pm pack --destination dist
 scripts/acceptance-matrix.sh --consumer --results acceptance-consumer.md
 ```
 
-Both gates (install-time missing patch, runtime unpatched bundle) and every scenario row must read `PASS`. The record names the platform, Bun and Node versions, tarball checksum, and consumer source revision. Only combinations that actually ran are claimed as supported.
+Both gates (install-time missing patch, runtime unpatched bundle) and every scenario row must read `PASS`. Run it as an ordinary user, not only as root: root can overwrite read-only files, which once hid a fixture defect ([#52](https://github.com/Akane-CN/spark-verify/issues/52)). The record's header states the uid. The record names the platform, Bun and Node versions, tarball checksum, and consumer source revision. Only combinations that actually ran are claimed as supported.
 
 ## 6. Evidence
 

@@ -142,6 +142,16 @@ Spec `0.1.0` and its tuple are frozen and unchanged; nothing above is added to t
 - **Install-back:** the published assets were downloaded again, matched their checksums and the prepared files byte for byte, and passed the installed-consumer matrix, 29 of 29 ([record](acceptance/2026-11-11-v0.1.0-install-back.md)).
 - **Remaining:** promoting the prerelease ([runbook](release-runbook-v0.1.0.md), step 6).
 
+### 2026-11-11: `v0.1.0` promoted; a fixture defect found afterwards; `0.1.1` follows
+
+**What happened.** The maintainer promoted `v0.1.0` from prerelease to release on 2026-11-11. A second install-back, run by an ordinary user instead of root, then failed one of 29 rows ([#52](https://github.com/Akane-CN/spark-verify/issues/52)).
+
+- **Cause:** the acceptance matrix's tamper fixture overwrote the cached `ckb-debugger`, which the runner publishes read-only, without allowing the write. Root can do that; other users cannot. When the write was refused, the fixture still ran the runner against the clean cache and reported the pass as a failed tamper check.
+- **Scope:** a defect in repository tooling. The matrix script is not part of the package, the published assets are unchanged, and the runner's integrity check was not bypassed. Every gate recorded before this date ran as root.
+- **Fix:** the fixture now proves it corrupted the cache or fails without invoking the runner. With it, the matrix passes against the published `v0.1.0` tarball both as an ordinary user and as root ([record](acceptance/2026-11-11-v0.1.0-install-back.md)).
+
+**Decision.** `v0.1.0` stays published as it is. The maintainer asked for a new version, so `0.1.1` is released as a patch: the same runner, specs, and report formats, with the renewed `elliptic` waiver, the install documentation that downloads the release, and this fix in the repository. From `0.1.1` on, the installed-consumer matrix is gated as an ordinary user as well as root.
+
 ## What this record does not do
 
 It does not freeze the RFC (only the v0.1 contract above), publish anything, or close #20's remaining gates (package identity, candidate freeze, independent review, publication approval). Reopening any decision is a new entry here with a date and a reason, not an edit of the old one.

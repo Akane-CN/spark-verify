@@ -1,6 +1,6 @@
 # Cell-property claims: `0.1.0-draft.4`
 
-The private `0.1.0` runner accepts this exact new manifest spec alongside legacy `0.1.0-draft.3`. This page describes the implemented bounded grammar, not the broader historical RFC. The [generic DAO fixture](../showcases/cell-properties/README.md) is repository-owned, not NervDAO adoption.
+The runner accepts this exact new manifest spec alongside legacy `0.1.0-draft.3`. This page describes the implemented bounded grammar, not the broader historical RFC. The [generic DAO fixture](../showcases/cell-properties/README.md) is repository-owned, not NervDAO adoption.
 
 `PASS` means exactly: **All declared claims passed in the recorded environment.**
 
