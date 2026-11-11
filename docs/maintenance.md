@@ -37,7 +37,7 @@ For each of Bun, OffCKB, CKB, `@ckb-ccc/core`, and `ckb-debugger`:
 
 1. Check upstream releases and advisories.
 2. Decide: keep, or open one isolated PR per pin bump with the new pins, regenerated `bun.lock`, updated size/SHA-256 pins, the compatibility note, and a fresh `scripts/acceptance-matrix.sh --results` record attached.
-3. Review the `elliptic` waiver expiry in `src/supply-chain.ts`; renew only with an owner, date, and justification in `SECURITY.md`. The first renewal is prepared, not applied, in the [waiver renewal fallback](waiver-renewal-fallback.md); its reachability probe is `scripts/trace-elliptic-preload.cjs`.
+3. Review the `elliptic` waiver expiry in `src/supply-chain.ts`; renew only with an owner, date, and justification in `SECURITY.md`. The renewals so far, with the four checks each one repeats, are recorded in the [waiver renewal fallback](waiver-renewal-fallback.md); the current expiry is 2027-01-25, and the reachability probe is `scripts/trace-elliptic-preload.cjs`.
 4. Security alerts never trigger a blind auto-merge; every bump goes through the review and the matrix.
 
 ## Upgrade, deprecation, and rollback for consumers

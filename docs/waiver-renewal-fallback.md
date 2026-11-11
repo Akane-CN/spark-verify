@@ -41,6 +41,36 @@ The measurement covers those code paths, not every possible manifest. A reposito
 
 **Assessment.** Nothing the waiver relied on has changed, and the one assumption that was reasoned has now been measured. The risk accepted is the same as on 2026-10-26: a low-severity defect in code that the runner's own paths do not call, under disposable devnet keys. Renewal does not widen the trust boundary.
 
+## Reassessment (2026-11-11)
+
+The second renewal review, done on `main` at `cab280e` (the source of the v0.1.0 candidate `9b39a98` plus records). It repeats the four checks above, and extends the reachability measurement to code that did not exist on 2026-11-03: spec `0.2.0`, repository script deployment, and the repository-script showcase.
+
+**Advisory, unchanged.** `bun audit --json` reports exactly one finding: `elliptic`, audit ID `1112030`, severity `low`, <https://github.com/advisories/GHSA-848j-6mx2-7j84>, vulnerable `<=6.6.1`. The ID, severity, and URL match the allowlist entry, and there is no second finding.
+
+**Dependency path, unchanged.** One installed `elliptic@6.6.1`, reached through `@ckb-ccc/core@1.14.0` → `@joyid/ckb@1.1.4` → `@nervosnetwork/ckb-sdk-utils@0.109.5`, which pins `elliptic` `6.6.1` exactly. `@offckb/cli@0.4.13` pins `@ckb-ccc/core` `1.14.0` exactly.
+
+**Upstream replacement, none available.** The npm registry on 2026-11-11 lists the same latest releases as on 2026-11-03:
+
+| Package | Latest | Published | Still leads to `elliptic`? |
+| --- | --- | --- | --- |
+| `elliptic` | `6.6.1` | 2024-11-13 | it is the vulnerable release; there is no fixed one |
+| `@nervosnetwork/ckb-sdk-utils` | `0.109.5` | 2025-02-14 | yes, pins `elliptic` `6.6.1` |
+| `@joyid/ckb` | `1.1.4` | 2026-03-13 | yes, through `ckb-sdk-utils` `^0.109.5` |
+| `@ckb-ccc/core` | `1.23.0` | 2026-09-26 | yes, through `@joyid/ckb` `^1.1.4` |
+| `@offckb/cli` | `0.4.13` | 2026-08-17 | yes, pins `@ckb-ccc/core` `1.14.0` |
+
+**Reachability, measured again and wider.** The probe [`scripts/trace-elliptic-preload.cjs`](../scripts/trace-elliptic-preload.cjs) was preloaded into every Bun and Node process, as on 2026-11-03, in a clean clone on Linux x86_64 with Bun `1.2.19` and Node `v22.22.0`:
+
+- **Positive control:** a direct `elliptic` signature recorded 4 calls. A `ccc.SignerCkbPrivateKey` signature in a separate process recorded none.
+- **Real runs:** all five showcases passed with the probe active: `secp-transfer`, `cell-properties`, `ckb-ugmp`, `vocabulary`, and `repository-script`. The probe was active in 466 processes: 291 OffCKB, 31 CLI runs, 41 producers, plus build, digest, and helper processes. It recorded **zero** `elliptic` method calls and no preload error.
+- The first four showcases loaded the probe in 302 processes, the same count as on 2026-11-03. The repository-script showcase adds 164, including the `offckb deploy` runs that spec `0.2.0` introduced.
+
+The limits are the same as before. The measurement covers these code paths, not every possible manifest, and a repository producer that imports `@joyid/ckb` or `ckb-sdk-utils` itself would reach `elliptic`. The waiver stays limited to disposable devnet keys.
+
+**Assessment and decision.** Nothing the waiver relies on has changed, and the measurement now covers the `0.2.0` paths. The waiver is renewed a second time: review date 2026-11-11, expiry **2027-01-25T00:00:00Z**, one month after the previous expiry. Advisory identity, severity, URL, and scope are unchanged, and the gate still rejects any other finding. The next reassessment is due before 2027-01-25, and sooner if any of the four checks changes. To undo this renewal, restore `reviewedOn` `2026-11-03` and `expiresAt` `2026-12-25T00:00:00Z` in `src/supply-chain.ts`, with the matching dates in `tests/supply-chain.test.ts` and `SECURITY.md`.
+
+This renewal does not change the v0.1.0 candidate. `9b39a98` is released by its SHA and still carries the 2026-12-25 expiry, so publishing from it must happen by 2026-12-24.
+
 ## The patch
 
 [`fallback/elliptic-waiver-renewal.patch`](fallback/elliptic-waiver-renewal.patch) changes three files:

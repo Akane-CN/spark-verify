@@ -1,7 +1,24 @@
 # Changelog
 
-All notable changes to `ckb-verify` are recorded here. The project is unreleased: versions below are
-the private `version` field of `package.json`, not published packages. Dates are UTC.
+All notable changes to `ckb-verify` are recorded here. `0.1.0` is published as a GitHub release
+([`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0), commit `9b39a98`); earlier versions were never published. Nothing is published to
+npm: versions are the private `version` field of `package.json`. Dates are UTC.
+
+## Unreleased
+
+### Changed
+
+- The README and the Chinese quick start install from the `v0.1.0` release tarball, with the setup script
+  taken out of it, instead of a tarball packed from a checkout.
+
+### Security
+
+- The `elliptic` waiver (low, GHSA-848j-6mx2-7j84) is renewed a second time: reviewed 2026-11-11, expires
+  2027-01-25 (was 2026-12-25). The advisory, the dependency path, and the upstream releases are
+  unchanged. A traced run of all five showcases, now including the spec `0.2.0` repository-script
+  showcase, recorded no `elliptic` call in 466 processes
+  ([record](docs/waiver-renewal-fallback.md#reassessment-2026-11-11)). The v0.1.0 candidate `9b39a98`
+  is not changed by this and keeps its 2026-12-25 expiry.
 
 ## 0.1.0 — 2026-11-03
 
