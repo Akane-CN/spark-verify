@@ -1,5 +1,7 @@
 # Release notes draft: `ckb-verify` v0.1.0 candidate
 
+> **Published.** These notes went out as [`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0) on 2026-11-11, with the identity table retitled and the evidence archive's checksum filled in. The installed-back check of the published assets passed ([record](acceptance/2026-11-11-v0.1.0-install-back.md)). The rest of this paragraph is the draft's original text.
+>
 > **Draft.** No tag, release, or package exists. The candidate fields below are filled from the frozen candidate, on which [release checklist](release-checklist.md) steps 1–6 passed; the document is published only under step 8, with the maintainer's approval on #20 confirmed for this candidate. The `elliptic` waiver expires 2026-12-25, so publication from this candidate must happen by 2026-12-24.
 
 ## Candidate

@@ -1,6 +1,6 @@
 # Installing ckb-verify in your own project
 
-This guide covers the one installation path that has been exercised end to end: **Linux x64, Bun 1.2.19, Node.js 22** (the OffCKB CLI declares Node 20 or newer, but only 22 has been exercised), installing the packed tarball into a separate project. Other operating systems, architectures, Node-only execution, and other Bun versions are not supported merely because `engines` metadata or binary pins exist. Nothing here publishes a package; the package is unreleased and `private`.
+This guide covers the one installation path that has been exercised end to end: **Linux x64, Bun 1.2.19, Node.js 22** (the OffCKB CLI declares Node 20 or newer, but only 22 has been exercised), installing the packed tarball into a separate project. Other operating systems, architectures, Node-only execution, and other Bun versions are not supported merely because `engines` metadata or binary pins exist. The package is a GitHub release only ([`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0)); it is not on npm and stays `private`.
 
 ## The short way: `setup-project`
 
@@ -12,7 +12,7 @@ bun run build                                                        # dist/ckb-
 bun src/setup-project.ts dist/ckb-verify-0.1.0.tgz /path/to/your-project --example
 ```
 
-With only the tarball and no checkout, take the script out of the tarball first; it imports nothing but the standard library:
+With only the tarball and no checkout, for example the one downloaded from the [`v0.1.0` release](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0), take the script out of the tarball first; it imports nothing but the standard library:
 
 ```bash
 tar -xzf ckb-verify-0.1.0.tgz package/src/setup-project.ts

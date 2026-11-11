@@ -2,11 +2,11 @@
 
 **Executable acceptance and regression checks for CKB transaction flows.**
 
-> **Status: feature-complete for `v0.1.0`, independently maintained.**
+> **Status: `v0.1.0` released, independently maintained.**
 >
 > - Manifest specs `0.1.0` and `0.2.0` are frozen ([version policy](docs/version-policy.md)).
 > - Supported on **Linux x64 with Bun 1.2.19 and Node.js 22**. Nothing else is claimed.
-> - There is no published release yet: you install from a tarball you pack from this repository (below). Publishing `v0.1.0` is the maintainer's step ([runbook](docs/release-runbook-v0.1.0.md)).
+> - [`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0) is a GitHub release, published on 2026-11-11 from commit `9b39a98`. There is no npm package: you install from the release tarball (below).
 > - The Spark grant proposal was rejected on 2026-11-05. The project continues without funding, and its focus moved from third-party review to developers' own regression testing. The [review of that decision](docs/reports/2026-11-08-spark-rejection-review.md) and the [close-out report](docs/reports/2026-11-10-closeout.md) (both Chinese) explain why and where the project stands.
 
 ## Quick start
@@ -15,18 +15,19 @@
 
 You need Linux x64, [Bun](https://bun.sh) `1.2.19`, Node.js 22, and `git`. Only run this on repositories you trust: a manifest runs the project's own commands, and there is no sandbox ([`SECURITY.md`](SECURITY.md)).
 
-**1. Build the package** from a checkout of this repository:
+**1. Download the package** from the [`v0.1.0` release](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0) and check it:
 
 ```bash
-git clone https://github.com/Akane-CN/spark-verify.git && cd spark-verify
-bun install --frozen-lockfile
-bun run build                      # writes dist/ckb-verify-0.1.0.tgz
+curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.0/ckb-verify-0.1.0.tgz
+curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.0/SHA256SUMS
+sha256sum -c SHA256SUMS
 ```
 
-**2. Set up your project** with one command. It vendors the tarball, adds the dependency and the shipped OffCKB security patch to `package.json`, and installs. `--example` also writes a `verify.toml` and a producer that pass as they are:
+**2. Set up your project** with one command, using the setup script inside the tarball. It vendors the tarball, adds the dependency and the shipped OffCKB security patch to `package.json`, and installs. `--example` also writes a `verify.toml` and a producer that pass as they are:
 
 ```bash
-bun src/setup-project.ts dist/ckb-verify-0.1.0.tgz /path/to/your-project --example
+tar -xzf ckb-verify-0.1.0.tgz package/src/setup-project.ts
+bun package/src/setup-project.ts ckb-verify-0.1.0.tgz /path/to/your-project --example
 cd /path/to/your-project
 git add -A && git commit -m "Add ckb-verify"     # a clean commit keeps reports untainted
 ```
@@ -61,7 +62,7 @@ jobs:
 
 It validates and runs the manifest on a fresh devnet, fails the job on `FAIL` or `ERROR`, and keeps the reports as an artifact. Anyone can re-check a report offline with `ckb-verify check-digest <report.json>`.
 
-The manual installation steps, and what the runner refuses, are in the [installation guide](docs/install.md).
+To build the tarball yourself instead of downloading it, run `bun install --frozen-lockfile && bun run build` in a checkout; it writes `dist/ckb-verify-0.1.0.tgz`. The manual installation steps, and what the runner refuses, are in the [installation guide](docs/install.md).
 
 ## Who it is for
 
@@ -171,7 +172,7 @@ The repository root carries its own [`verify.toml`](verify.toml): the secp256k1 
 
 The [quick start](#quick-start) is the short form. `src/setup-project.ts` prepares a project from the packed tarball in one command, and it also runs straight out of the tarball without a checkout. The [installation guide](docs/install.md) has the same steps by hand: pack the tarball, declare the shipped OffCKB security patch **before** the first `bun install`, install into a clean project, run, and verify offline. The runner refuses to start a devnet next to an unpatched OffCKB bundle.
 
-`scripts/acceptance-matrix.sh --consumer` reproduces that path end to end, installing through `setup-project` and running its `--example` project; `scripts/acceptance-matrix.sh` runs the same scenario matrix against this checkout. The one exercised combination is Linux x64, Bun 1.2.19, Node.js 22. The package is unreleased and private; see the [release checklist](docs/release-checklist.md), [maintenance loop](docs/maintenance.md), and [changelog](CHANGELOG.md).
+`scripts/acceptance-matrix.sh --consumer` reproduces that path end to end, installing through `setup-project` and running its `--example` project; `scripts/acceptance-matrix.sh` runs the same scenario matrix against this checkout. The one exercised combination is Linux x64, Bun 1.2.19, Node.js 22. The package is released on GitHub only and stays `private` in `package.json`, so it cannot be published to npm by accident; see the [release checklist](docs/release-checklist.md), [maintenance loop](docs/maintenance.md), and [changelog](CHANGELOG.md).
 
 Downloads of the pinned CKB and debugger releases are retried on network errors and HTTP 408, 429, and 5xx (up to four attempts), and the reusable CI workflow caches the verified installs, so a short GitHub outage does not fail a run.
 

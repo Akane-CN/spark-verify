@@ -9,22 +9,25 @@
 - Linux x64、[Bun](https://bun.sh) `1.2.19`、Node.js 22、`git`。其他平台没有验证过，不在支持范围内。
 - 只在你信任的仓库里运行。`verify.toml` 会执行仓库自己的命令，工具不提供沙箱（见 [`SECURITY.md`](../SECURITY.md)）。
 
-## 1. 打包
+## 1. 下载安装包
 
-目前还没有公开发布的版本，需要从本仓库打一个安装包：
+从 [`v0.1.0` release](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0) 下载安装包并核对校验和：
 
 ```bash
-git clone https://github.com/Akane-CN/spark-verify.git && cd spark-verify
-bun install --frozen-lockfile
-bun run build                      # 生成 dist/ckb-verify-0.1.0.tgz
+curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.0/ckb-verify-0.1.0.tgz
+curl -LO https://github.com/Akane-CN/spark-verify/releases/download/v0.1.0/SHA256SUMS
+sha256sum -c SHA256SUMS
 ```
+
+没有发布到 npm。想自己打包的话，在本仓库的检出里执行 `bun install --frozen-lockfile && bun run build`，会生成 `dist/ckb-verify-0.1.0.tgz`。
 
 ## 2. 接入你的项目
 
-一条命令完成接入。加上 `--example` 会同时生成一份能直接跑通的 `verify.toml` 和示例交易脚本：
+一条命令完成接入，接入脚本就在安装包里。加上 `--example` 会同时生成一份能直接跑通的 `verify.toml` 和示例交易脚本：
 
 ```bash
-bun src/setup-project.ts dist/ckb-verify-0.1.0.tgz /path/to/your-project --example
+tar -xzf ckb-verify-0.1.0.tgz package/src/setup-project.ts
+bun package/src/setup-project.ts ckb-verify-0.1.0.tgz /path/to/your-project --example
 cd /path/to/your-project
 git add -A && git commit -m "Add ckb-verify"     # 先提交，报告才不会被标记为 tainted
 ```

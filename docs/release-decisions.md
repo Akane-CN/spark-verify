@@ -134,6 +134,14 @@ Spec `0.1.0` and its tuple are frozen and unchanged; nothing above is added to t
 
 **Still open.** The independent review, and step 8. The publication approval on #20 was given for `e311ad3`; the maintainer confirms it for `9b39a98` before publishing, by 2026-12-24.
 
+### 2026-11-11: `v0.1.0` published without the independent review
+
+**Decision.** The maintainer published [`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0) from `9b39a98` on 2026-11-11, as a GitHub prerelease with the tarball, its checksums, and the release evidence archive. This also confirms, for `9b39a98`, the publication approval first given for `e311ad3`.
+
+- **Gate not met:** the independent review by someone outside the project was not done. The release notes say so under "What was not run". The review stays open as a request, not as a gate for this release.
+- **Install-back:** the published assets were downloaded again, matched their checksums and the prepared files byte for byte, and passed the installed-consumer matrix, 29 of 29 ([record](acceptance/2026-11-11-v0.1.0-install-back.md)).
+- **Remaining:** promoting the prerelease ([runbook](release-runbook-v0.1.0.md), step 6).
+
 ## What this record does not do
 
 It does not freeze the RFC (only the v0.1 contract above), publish anything, or close #20's remaining gates (package identity, candidate freeze, independent review, publication approval). Reopening any decision is a new entry here with a date and a reason, not an edit of the old one.

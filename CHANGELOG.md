@@ -1,9 +1,15 @@
 # Changelog
 
-All notable changes to `ckb-verify` are recorded here. The project is unreleased: versions below are
-the private `version` field of `package.json`, not published packages. Dates are UTC.
+All notable changes to `ckb-verify` are recorded here. `0.1.0` is published as a GitHub release
+([`v0.1.0`](https://github.com/Akane-CN/spark-verify/releases/tag/v0.1.0), commit `9b39a98`); earlier versions were never published. Nothing is published to
+npm: versions are the private `version` field of `package.json`. Dates are UTC.
 
 ## Unreleased
+
+### Changed
+
+- The README and the Chinese quick start install from the `v0.1.0` release tarball, with the setup script
+  taken out of it, instead of a tarball packed from a checkout.
 
 ### Security
 
